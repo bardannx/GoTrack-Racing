@@ -22,7 +22,7 @@
 </div>
 
 > [!NOTE]
-> **This is a learning project.** I made GoTrack Racing to learn **Luau**, **Blender** and **game development** as a whole: multiplayer networking, saving player data, generating 3D models with code, and testing a game outside Studio. It's public so anyone can read how it works, learn from it, or take inspiration for their own games. It isn't a product, a template or a supported library.
+> **This is a learning project,** made to learn **Luau**, **Blender** and **game development** as a whole: multiplayer networking, saving player data, generating 3D models with code, and testing a game outside Studio. It's public so anyone can read how it works, learn from it, or take inspiration for their own games. It isn't a product, a template or a supported library.
 
 ---
 
@@ -42,11 +42,9 @@
 
 ## 👤 Made by
 
-GoTrack Racing is a solo project by **Bardan Kapri**.
+GoTrack Racing is a solo project by **Bardan Kapri**, done over a weekend.
 
-- **The idea and the direction are mine.** I decided what the game should be: an F1-style racer on circuits inspired by real places, where every car handles the same and skill decides the race. Every feature started as my call, from cars built around real F1 eras and circuits full of life, to ranked seasons against real players only and a store where nothing paid makes a car faster.
-- **I tested it by playing it.** I play-tested in Studio and kept sending back anything that looked or felt wrong (a gap in the HUD car's rear wing, a store picture too busy with badges) until it was right.
-- **I did the hands-on production.** Importing every car and world mesh into Studio, setting up the store, publishing, and running the live game.
+- **The idea, the direction, the architecture and the design are mine.**
 - **AI was a tool, used to help with the coding.** The decisions were mine: what to build, how the game should look, play and feel, and whether each feature was good enough to ship. Every change had to pass the checks below and my own play-testing before it went live. Everyone uses AI now; what matters is how you use it and what you make with it.
 
 ---
