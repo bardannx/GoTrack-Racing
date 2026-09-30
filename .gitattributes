@@ -1,0 +1,14 @@
+# Language stats: count the game code, not generated data or place files
+*.luau                      linguist-language=Luau
+*.rbxlx                     linguist-generated=true -diff
+*.rbxmx                     linguist-generated=true -diff
+src/shared/CarData.luau     linguist-generated=true
+src/shared/WorldData.luau   linguist-generated=true
+tools/globalTypes.d.luau    linguist-vendored=true
+assets/**/manifest.json     linguist-generated=true
+
+# Binary assets
+*.fbx  binary
+*.png  binary
+*.jpg  binary
+*.webp binary

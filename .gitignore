@@ -1,0 +1,39 @@
+# ── Secrets: never commit these ──────────────────────────────────────────
+.env
+.env.*
+*.key
+*.pem
+*.cookie
+.roblosecurity
+
+# ── OS / editor junk ─────────────────────────────────────────────────────
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+*~
+
+# ── Roblox Studio / Rojo ─────────────────────────────────────────────────
+# GoTrackRacing.rbxlx IS tracked (the ready-to-open place); everything else is local
+*.rbxl
+*.rbxlx.lock
+*.rbxl.lock
+*.rbxlx.build
+sourcemap.json
+
+# ── Python (Blender generators, tools) ───────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+tools/cargen/*.pkl
+
+# ── Tool output (all regenerable) ────────────────────────────────────────
+tools/sim/out/
+tools/tracks/out/
+tools/tracks/Circuits.luau
+tools/tracks/Track.luau
+tools/tracks/*.json
+tools/tracks/*.png

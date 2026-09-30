@@ -1,0 +1,1616 @@
+--!nonstrict
+-- Builds open-wheel race cars from an appearance table (see Cosmetics.DefaultCar).
+-- Modern ground-effect shapes (wedge nose, downwash sidepods, halo, multi-element wings)
+-- plus retro 70s / 90s bodies. Every chassis shares the same physics hitbox, so handling
+-- is identical for everyone. Parts are tagged in damage groups (FrontWing, RearWing,
+-- LeftPod, RightPod) so crashes can knock bits off and a reset can repair them.
+
+local Cosmetics = require(script.Parent.Cosmetics)
+
+local CarBuilder = {}
+
+-- physics box (wheels + wings sit inside it so walls and other cars are hit correctly)
+CarBuilder.ChassisSize = Vector3.new(6.2, 1.2, 11.6)
+CarBuilder.WheelOffsets = {
+	Vector3.new(-2.75, -0.8, -3.9), -- front left
+	Vector3.new(2.75, -0.8, -3.9), -- front right
+	Vector3.new(-2.75, -0.65, 3.7), -- rear left
+	Vector3.new(2.75, -0.65, 3.7), -- rear right
+}
+CarBuilder.WheelRadii = { 1.15, 1.15, 1.3, 1.3 }
+CarBuilder.WheelWidths = { 1.3, 1.3, 1.75, 1.75 }
+CarBuilder.WheelRadius = 1.2
+
+local function v(x, y, z)
+	return Vector3.new(x, y, z)
+end
+
+-- Body presets ------------------------------------------------------------------
+local Presets = {
+	gt1 = {},
+	aeros = { podW = 1.55, podLen = 3.9, fw3 = true, finH = 0.9 },
+	arrow = { noseLen = 4.2, podW = 1.1, rearWingY = 1.25, finH = 0.6 },
+	falcon = { twinFin = true, podW = 1.35, rw2 = true, bigRW = true },
+	stealth = { podW = 1.45, rw2 = true, fw3 = true, angular = true, finH = 1.0 },
+	vortex = { podW = 1.7, podLen = 4.1, swan = true, fw3 = true, vents = true },
+	apex = { noseLen = 3.9, noseY = -0.05, noseHigh = true, podW = 1.25, rw2 = true, fw3 = true, finH = 1.1 },
+	nova = { podW = 1.4, neon = true, rw2 = true, fw3 = true, finH = 1.0 },
+	viper = { noseLen = 4.2, podW = 1.2, neon = true, twinFin = true, angular = true },
+	aurora = { podW = 1.6, podLen = 4.0, neon = true, swan = true, fw3 = true },
+	neonracer = { podW = 1.4, neon = true, fw3 = true, vents = true },
+	retro70 = { retro = 70, noseY = -0.42, noseLen = 3.3, halo = false, rearWingY = 2.2, podW = 1.7, podLen = 3.2 },
+	retro90 = { retro = 90, noseY = -0.02, noseHigh = true, noseLen = 3.7, halo = false, rearWingY = 1.7, podW = 1.15 },
+}
+CarBuilder.Presets = Presets
+
+-- spec = { size, pos, slot, kind ("Ball"|"Wedge"|nil), rotDeg, group }
+local function bodySpecs(p)
+	local parts = {}
+	local function add(size, pos, slot, kind, rot, group)
+		table.insert(parts, { size, pos, slot, kind, rot, group })
+	end
+	local retro = p.retro
+	local noseY = p.noseY or -0.32
+	local nl = p.noseLen or 3.5
+	local pw = p.podW or 1.35
+	local pl = p.podLen or 3.6
+	local finH = p.finH or 0.8
+	local ry = p.rearWingY or 1.35
+	local podX = 0.78 + pw / 2
+	local noseStart = -3.35
+	local fwZ = noseStart - nl - 0.55
+
+	-- floor, plank, edge fins
+	add(v(4.8, 0.12, 8.4), v(0, -0.7, 0.4), "Dark")
+	for side = -1, 1, 2 do
+		add(v(0.08, 0.26, 5.8), v(side * 2.38, -0.6, 0.9), "Dark")
+	end
+	-- survival cell + cockpit
+	add(v(1.5, 0.82, 4.3), v(0, -0.2, -1.25), "Primary")
+	add(v(1.3, 0.14, 1.6), v(0, 0.24, -0.55), "Dark")
+	-- nose
+	if p.noseHigh then
+		add(v(1.0, 0.5, nl), v(0, noseY, noseStart - nl / 2), "Primary", "Wedge")
+		for side = -1, 1, 2 do
+			add(v(0.1, 0.62, 0.6), v(side * 0.36, noseY - 0.5, fwZ + 0.9), "Dark", nil, nil, "FrontWing")
+		end
+	elseif retro == 70 then
+		add(v(1.9, 0.5, nl), v(0, noseY, noseStart - nl / 2), "Primary", "Wedge")
+	else
+		add(v(1.1, 0.6, nl), v(0, noseY, noseStart - nl / 2), "Primary", "Wedge")
+	end
+	add(v(if retro == 70 then 1.4 else 0.72, 0.3, 0.8), v(0, noseY - 0.13, noseStart - nl - 0.3), "Secondary", nil, nil, "FrontWing")
+
+	-- front wing
+	local fwW = if retro == 70 then 5.0 else 5.9
+	add(v(fwW, 0.1, 1.25), v(0, -0.84, fwZ), "Accent", nil, nil, "FrontWing")
+	if retro ~= 70 then
+		add(v(fwW - 0.3, 0.08, 0.6), v(0, -0.67, fwZ + 0.42), "Accent", nil, v(16, 0, 0), "FrontWing")
+		if p.fw3 or not retro then
+			add(v(fwW - 0.8, 0.07, 0.48), v(0, -0.5, fwZ + 0.7), "Secondary", nil, v(28, 0, 0), "FrontWing")
+		end
+	end
+	for side = -1, 1, 2 do
+		add(v(0.1, 0.66, 1.55), v(side * (fwW / 2 + 0.04), -0.58, fwZ + 0.12), "Secondary", nil, nil, "FrontWing")
+		if not p.noseHigh then
+			add(v(0.1, 0.4, 0.5), v(side * 0.3, -0.64, fwZ + 0.25), "Dark", nil, nil, "FrontWing")
+		end
+	end
+
+	-- sidepods
+	for side = -1, 1, 2 do
+		local grp = if side < 0 then "LeftPod" else "RightPod"
+		add(v(pw, 0.64, pl), v(side * podX, -0.3, 0.75), "Primary", nil, nil, grp)
+		if retro then
+			add(v(pw, 0.22, pl * 0.5), v(side * podX, 0.13, 0.75 + pl * 0.2), "Primary", nil, nil, grp)
+		else
+			-- downwash ramp (slopes down towards the back)
+			add(v(pw, 0.32, pl * 0.72), v(side * podX, 0.18, 0.75 + pl * 0.14), "Primary", "Wedge", v(0, 180, 0), grp)
+			-- turning vane
+			add(v(0.08, 0.5, 1.2), v(side * (podX - pw / 2 - 0.25), -0.45, 0.75 - pl / 2 - 0.5), "Dark", nil, nil, grp)
+		end
+		add(v(pw - 0.16, 0.42, 0.08), v(side * podX, -0.24, 0.75 - pl / 2 - 0.03), "Dark", nil, nil, grp)
+		add(v(pw + 0.02, 0.08, 0.32), v(side * podX, 0.03, 0.75 - pl / 2 + 0.14), "Secondary", nil, nil, grp)
+		if p.angular then
+			add(v(pw * 0.8, 0.26, pl * 0.5), v(side * podX, 0.14, 1.3), "Secondary", nil, v(0, 0, side * 10), grp)
+		end
+		if p.vents then
+			for k = 0, 2 do
+				add(v(pw * 0.7, 0.05, 0.12), v(side * podX, 0.06, 1.4 + k * 0.42), "Dark", nil, nil, grp)
+			end
+		end
+		-- mirror
+		add(v(0.52, 0.22, 0.3), v(side * 1.08, 0.42, -1.4), "Primary", nil, nil, grp)
+		add(v(0.4, 0.14, 0.04), v(side * 1.08, 0.42, -1.25), "Visor", nil, nil, grp)
+		add(v(0.06, 0.32, 0.06), v(side * 0.9, 0.24, -1.35), "Dark", nil, nil, grp)
+		-- brake duct inside each wheel
+		add(v(0.5, 0.7, 0.7), v(side * 2.0, -0.8, -3.9), "Dark")
+		add(v(0.5, 0.8, 0.8), v(side * 2.0, -0.65, 3.7), "Dark")
+	end
+
+	-- engine cover, airbox, fin
+	add(v(1.25, 0.72, 1.7), v(0, 0.12, 1.3), "Primary")
+	add(v(1.25, 0.76, 2.7), v(0, 0.1, 3.45), "Primary", "Wedge", v(0, 180, 0))
+	local abH = if retro == 70 then 1.7 elseif retro == 90 then 1.0 else 0.8
+	add(v(0.86, abH, 0.95), v(0, 0.22 + abH / 2, 0.35), "Secondary")
+	add(v(0.56, math.min(abH * 0.5, 0.5), 0.06), v(0, 0.3 + abH * 0.6, -0.14), "Dark")
+	add(v(0.52, 0.12, 0.22), v(0, 0.28 + abH, 0.4), "Accent") -- T-cam
+	if p.twinFin then
+		for side = -1, 1, 2 do
+			add(v(0.07, finH, 2.4), v(side * 0.3, 0.55 + finH / 2, 2.95), "Secondary")
+		end
+	elseif not retro then
+		add(v(0.07, finH, 2.6), v(0, 0.55 + finH / 2, 2.9), "Secondary")
+	end
+
+	-- halo
+	if p.halo ~= false then
+		add(v(0.14, 0.55, 0.14), v(0, 0.6, -1.3), "Dark")
+		add(v(0.13, 0.13, 1.3), v(-0.42, 0.92, -0.64), "Dark", nil, v(0, 12, 0))
+		add(v(0.13, 0.13, 1.3), v(0.42, 0.92, -0.64), "Dark", nil, v(0, -12, 0))
+		add(v(1.0, 0.13, 0.13), v(0, 0.92, 0.02), "Dark")
+		for side = -1, 1, 2 do
+			add(v(0.12, 0.42, 0.12), v(side * 0.48, 0.7, 0.04), "Dark")
+		end
+	elseif retro == 90 then
+		add(v(1.1, 0.35, 0.1), v(0, 0.4, -1.3), "Visor") -- windscreen
+	end
+
+	-- driver
+	add(v(0.84, 0.84, 0.84), v(0, 0.58, -0.42), "Helmet", "Ball")
+	add(v(0.86, 0.14, 0.7), v(0, 0.69, -0.4), "HelmetStripe")
+	add(v(0.62, 0.16, 0.08), v(0, 0.61, -0.84), "Visor")
+
+	-- rear wing
+	local rwW = if p.bigRW then 4.6 else 4.3
+	add(v(rwW, 0.14, 1.0), v(0, ry, 5.0), "Accent", nil, nil, "RearWing")
+	add(v(rwW, 0.1, 0.62), v(0, ry + 0.38, 5.2), "Accent", nil, v(-14, 0, 0), "RearWing")
+	if p.rw2 then
+		add(v(rwW - 0.2, 0.09, 0.5), v(0, ry + 0.68, 5.32), "Secondary", nil, v(-22, 0, 0), "RearWing")
+	end
+	for side = -1, 1, 2 do
+		add(v(0.12, 1.6, 1.5), v(side * (rwW / 2 + 0.05), ry - 0.28, 5.0), "Primary", nil, nil, "RearWing")
+	end
+	if p.swan then
+		for side = -1, 1, 2 do
+			add(v(0.1, ry, 0.25), v(side * 0.38, ry / 2 + 0.2, 4.9), "Dark", nil, nil, "RearWing")
+		end
+	else
+		add(v(0.22, ry - 0.2, 0.3), v(0, ry / 2 - 0.08, 4.78), "Dark", nil, nil, "RearWing")
+	end
+	if not retro then
+		add(v(3.4, 0.1, 0.5), v(0, 0.08, 5.3), "Accent", nil, v(-15, 0, 0), "RearWing") -- beam wing
+	end
+	-- diffuser + rain light
+	add(v(3.8, 0.1, 1.2), v(0, -0.5, 5.05), "Dark", nil, v(-14, 0, 0))
+	for _, x in { -1.5, -0.6, 0.6, 1.5 } do
+		add(v(0.06, 0.45, 1.1), v(x, -0.42, 5.05), "Dark")
+	end
+	add(v(0.55, 0.3, 0.1), v(0, -0.12, 5.66), "TailLight")
+
+	-- neon accents
+	if p.neon then
+		for side = -1, 1, 2 do
+			add(v(0.08, 0.08, pl), v(side * (podX + pw / 2 + 0.03), -0.05, 0.75), "Neon", nil, nil, if side < 0 then "LeftPod" else "RightPod")
+			add(v(0.07, 0.07, nl * 0.9), v(side * 0.5, noseY - 0.1, noseStart - nl / 2), "Neon")
+			add(v(0.1, 1.2, 0.08), v(side * (rwW / 2 + 0.12), ry - 0.28, 4.3), "Neon", nil, nil, "RearWing")
+		end
+		add(v(rwW, 0.07, 0.07), v(0, ry - 0.08, 4.5), "Neon", nil, nil, "RearWing")
+		add(v(fwW, 0.07, 0.07), v(0, -0.78, fwZ - 0.62), "Neon", nil, nil, "FrontWing")
+	end
+	return parts, {
+		noseY = noseY,
+		noseLen = nl,
+		noseStart = noseStart,
+		podX = podX,
+		podW = pw,
+		podLen = pl,
+		rearWingY = ry,
+		fwZ = fwZ,
+		abH = abH,
+	}
+end
+
+local GLASS = Color3.fromRGB(20, 25, 35)
+local DARK = Color3.fromRGB(26, 26, 30)
+
+local function paint(part: BasePart, paintId: string?)
+	local item = Cosmetics.ById[paintId or ""] or Cosmetics.ById["paint_white"]
+	part.Color = item.Color or Color3.new(1, 1, 1)
+	part.Material = item.Material or Enum.Material.SmoothPlastic
+	part.Reflectance = item.Reflectance or 0
+	if item.Rainbow then
+		part:SetAttribute("Rainbow", true)
+	end
+end
+
+local function makePart(parent: Instance, size: Vector3, cf: CFrame, shape: Enum.PartType?, className: string?): BasePart
+	local p = Instance.new(className or "Part")
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	if shape and p:IsA("Part") then
+		p.Shape = shape
+	end
+	p.Size = size
+	p.CFrame = cf
+	p.Anchored = false
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+	p.CastShadow = true
+	p.Material = Enum.Material.SmoothPlastic
+	p.Parent = parent
+	return p
+end
+
+local function weldTo(part: BasePart, root: BasePart)
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = root
+	w.Part1 = part
+	w.Parent = part
+end
+
+local function applySlot(part: BasePart, slot: string, car)
+	if slot == "Primary" then
+		paint(part, car.Primary)
+	elseif slot == "Secondary" then
+		paint(part, car.Secondary)
+	elseif slot == "Accent" then
+		paint(part, car.Accent)
+	elseif slot == "Dark" then
+		part.Color = DARK
+	elseif slot == "Visor" then
+		part.Color = GLASS
+		part.Reflectance = 0.4
+	elseif slot == "Helmet" or slot == "HelmetStripe" then
+		local h = Cosmetics.ById[car.Helmet] or Cosmetics.ById["helmet_white"]
+		part.Color = if slot == "Helmet" then h.Color else h.Stripe
+		part.Reflectance = if slot == "Helmet" then (h.Reflectance or 0.1) else 0
+		if h.Neon and slot == "HelmetStripe" then
+			part.Material = Enum.Material.Neon
+		end
+		if h.Rainbow then
+			part:SetAttribute("Rainbow", true)
+		end
+	elseif slot == "TailLight" then
+		part.Color = Color3.fromRGB(255, 40, 40)
+		part.Material = Enum.Material.Neon
+	elseif slot == "Neon" then
+		local item = Cosmetics.ById[car.Secondary]
+		part.Color = if item and item.Color then item.Color else Color3.fromRGB(0, 255, 220)
+		part.Material = Enum.Material.Neon
+		if item and item.Rainbow then
+			part:SetAttribute("Rainbow", true)
+		end
+	end
+end
+
+local function surfaceText(part: BasePart, face: Enum.NormalId, text: string, color: Color3, canvas: Vector2?)
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = face
+	sg.CanvasSize = canvas or Vector2.new(120, 120)
+	sg.LightInfluence = 0.4
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.fromScale(1, 1)
+	t.BackgroundTransparency = 1
+	t.Text = text
+	t.Font = Enum.Font.GothamBlack
+	t.TextScaled = true
+	t.TextColor3 = color
+	t.Parent = sg
+	sg.Parent = part
+end
+
+local function addPattern(model: Model, root: BasePart, g, car, groupOf)
+	local pat = car.Pattern
+	if pat == "pattern_none" or pat == nil then
+		return
+	end
+	local noseZ = g.noseStart - g.noseLen / 2
+	local coverTop = 0.12 + 0.37
+	local podTop = -0.3 + 0.33
+	local function flat(size: Vector3, pos: Vector3, paintId: string?, color: Color3?, material: Enum.Material?, rot: Vector3?, group: string?)
+		local cf = root.CFrame * CFrame.new(pos)
+		if rot then
+			cf *= CFrame.Angles(math.rad(rot.X), math.rad(rot.Y), math.rad(rot.Z))
+		end
+		local p = makePart(model, size, cf)
+		if paintId then
+			paint(p, paintId)
+		elseif color then
+			p.Color = color
+		end
+		if material then
+			p.Material = material
+		end
+		p.Name = "Livery"
+		weldTo(p, root)
+		if group then
+			groupOf(p, group)
+		end
+		return p
+	end
+	-- the nose top is a slope: livery strips follow it
+	local slope = math.deg(math.atan2(0.6, g.noseLen))
+	local noseTopY = g.noseY + 0.02
+	if pat == "pattern_stripe" or pat == "pattern_rk_champion" then
+		local col = if pat == "pattern_rk_champion" then "paint_rk_gold" else car.Secondary
+		flat(v(0.34, 0.04, g.noseLen * 1.02), v(0, noseTopY, noseZ), col, nil, nil, v(-slope, 0, 0))
+		flat(v(0.34, 0.04, 1.72), v(0, coverTop, 1.3), col)
+		flat(v(0.34, 0.04, 3.2), v(0, 0.22, -1.8), col)
+		if pat == "pattern_rk_champion" then
+			for row = 0, 3 do
+				for col2 = 0, 1 do
+					flat(v(0.3, 0.04, 0.3), v(-0.45 + col2 * 0.9 + (row % 2) * 0.0, coverTop, 0.75 + row * 0.35), nil, if (row + col2) % 2 == 0 then Color3.new(1, 1, 1) else Color3.fromRGB(20, 20, 20))
+				end
+			end
+			for side = -1, 1, 2 do
+				flat(v(0.05, 0.3, g.podLen * 0.9), v(side * (g.podX + g.podW / 2 + 0.03), -0.25, 0.75), "paint_rk_gold", nil, nil, nil, if side < 0 then "LeftPod" else "RightPod")
+			end
+		end
+	elseif pat == "pattern_side" then
+		for side = -1, 1, 2 do
+			flat(v(0.05, 0.28, g.podLen * 0.9), v(side * (g.podX + g.podW / 2 + 0.03), -0.25, 0.75), car.Secondary, nil, nil, nil, if side < 0 then "LeftPod" else "RightPod")
+			flat(v(0.05, 0.22, 1.6), v(side * 0.64, 0.2, 1.3), car.Accent)
+		end
+	elseif pat == "pattern_split" then
+		for side = -1, 1, 2 do
+			flat(v(g.podW + 0.02, 0.05, g.podLen * 0.28), v(side * g.podX, podTop, 0.75 - g.podLen * 0.36), car.Secondary, nil, nil, nil, if side < 0 then "LeftPod" else "RightPod")
+		end
+		flat(v(1.27, 0.04, 1.72), v(0, coverTop, 1.3), car.Secondary)
+	elseif pat == "pattern_chevron" then
+		for side = -1, 1, 2 do
+			flat(v(0.24, 0.04, 1.4), v(side * 0.22, noseTopY + 0.12, noseZ + 0.5), car.Secondary, nil, nil, v(-slope, side * 28, 0))
+			flat(v(0.24, 0.05, g.podLen * 0.3), v(side * g.podX, podTop, 0.75 - g.podLen * 0.36), car.Accent, nil, nil, v(0, side * 18, 0), if side < 0 then "LeftPod" else "RightPod")
+		end
+	elseif pat == "pattern_checker" then
+		for row = 0, 4 do
+			for col = 0, 1 do
+				flat(v(0.6, 0.04, 0.34), v(-0.3 + col * 0.6, coverTop, 0.6 + row * 0.34), nil, if (row + col) % 2 == 0 then Color3.new(1, 1, 1) else Color3.fromRGB(20, 20, 20))
+			end
+		end
+	elseif pat == "pattern_flames" then
+		local cols = { Color3.fromRGB(255, 220, 40), Color3.fromRGB(255, 130, 20), Color3.fromRGB(230, 40, 20) }
+		for side = -1, 1, 2 do
+			for k = 0, 3 do
+				flat(v(0.05, 0.12, 1.6 - k * 0.2), v(side * (g.podX + g.podW / 2 + 0.03), -0.42 + k * 0.1, 0.4 + k * 0.1), nil, cols[(k % 3) + 1], nil, v(side * (8 + k * 4), 0, 0), if side < 0 then "LeftPod" else "RightPod")
+			end
+		end
+	elseif pat == "pattern_carbon" then
+		for side = -1, 1, 2 do
+			flat(v(g.podW + 0.02, 0.05, g.podLen * 0.28), v(side * g.podX, podTop, 0.75 - g.podLen * 0.36), nil, Color3.fromRGB(30, 30, 35), Enum.Material.DiamondPlate, nil, if side < 0 then "LeftPod" else "RightPod")
+		end
+		flat(v(1.0, 0.04, g.noseLen * 0.9), v(0, noseTopY, noseZ), nil, Color3.fromRGB(30, 30, 35), Enum.Material.DiamondPlate, v(-slope, 0, 0))
+	elseif pat == "pattern_circuit" then
+		for side = -1, 1, 2 do
+			flat(v(0.05, 0.06, g.podLen * 0.85), v(side * (g.podX + g.podW / 2 + 0.03), -0.12, 0.75), car.Secondary, nil, Enum.Material.Neon, nil, if side < 0 then "LeftPod" else "RightPod")
+			flat(v(0.06, 0.04, 1.6), v(side * 0.4, coverTop, 1.3), car.Secondary, nil, Enum.Material.Neon)
+		end
+	elseif pat == "pattern_retro" then
+		flat(v(0.5, 0.04, g.noseLen), v(-0.2, noseTopY, noseZ), car.Secondary, nil, nil, v(-slope, 0, 0))
+		flat(v(0.2, 0.04, g.noseLen), v(0.25, noseTopY, noseZ), car.Accent, nil, nil, v(-slope, 0, 0))
+		flat(v(0.5, 0.04, 1.72), v(-0.2, coverTop, 1.3), car.Secondary)
+		flat(v(0.2, 0.04, 1.72), v(0.25, coverTop, 1.3), car.Accent)
+	end
+end
+
+local COMPOUNDS = { Color3.fromRGB(230, 40, 40), Color3.fromRGB(255, 210, 30), Color3.fromRGB(240, 240, 240) }
+
+local function addWheel(model: Model, chassis: BasePart, i: number, car, off: Vector3)
+	local r = CarBuilder.WheelRadii[i]
+	local w = CarBuilder.WheelWidths[i]
+	local wheel = makePart(model, v(w, r * 2, r * 2), CFrame.new(off), Enum.PartType.Cylinder)
+	wheel.Name = "Wheel" .. i
+	wheel.Color = Color3.fromRGB(28, 28, 30)
+	local weld = Instance.new("Weld")
+	weld.Part0 = chassis
+	weld.Part1 = wheel
+	weld.C0 = CFrame.new(off)
+	weld.Parent = wheel
+	local style = car.Rims
+	local function disc(size: Vector3, offset: CFrame, color: Color3?, paintId: string?, material: Enum.Material?)
+		local p = makePart(model, size, wheel.CFrame * offset, Enum.PartType.Cylinder)
+		if paintId then
+			paint(p, paintId)
+		elseif color then
+			p.Color = color
+		end
+		if material then
+			p.Material = material
+		end
+		weldTo(p, wheel)
+		return p
+	end
+	local side = if off.X < 0 then -1 else 1
+	local face = CFrame.new(side * (w / 2 - 0.01), 0, 0)
+	local tyreItem = Cosmetics.ById[car.Tyre or ""]
+	local compound = if tyreItem and tyreItem.Id ~= "tyre_auto" and tyreItem.Color then tyreItem.Color else COMPOUNDS[((car.Number or 0) % 3) + 1]
+	disc(v(0.06, r * 1.72, r * 1.72), face, compound)
+	disc(v(0.08, r * 1.58, r * 1.58), face * CFrame.new(side * 0.01, 0, 0), Color3.fromRGB(28, 28, 30))
+	local rimPaint = car.RimColor
+	local rimColor = nil
+	if style == "rims_gold" then
+		rimPaint = "paint_heritagegold"
+	elseif style == "rims_rk_platinum" then
+		rimPaint = nil
+		rimColor = Color3.fromRGB(225, 232, 245)
+	end
+	if style == "rims_dish" then
+		disc(v(0.1, r * 1.45, r * 1.45), face * CFrame.new(side * 0.02, 0, 0), rimColor, rimPaint)
+	else
+		local rim = disc(v(0.1, r * 1.22, r * 1.22), face * CFrame.new(side * 0.02, 0, 0), rimColor, rimPaint)
+		if style == "rims_rk_platinum" then
+			rim.Material = Enum.Material.Metal
+			rim.Reflectance = 0.35
+		end
+		local spokes = if style == "rims_spoke" then 5 elseif style == "rims_star" then 6 elseif style == "rims_turbine" or style == "rims_rk_platinum" then 10 elseif style == "rims_blade" then 4 elseif style == "rims_mesh" then 8 elseif style == "rims_neon" then 5 else 0
+		for k = 0, spokes - 1 do
+			local ang = (k / spokes) * math.pi * 2
+			local sp = makePart(model, v(0.14, 0.18, r * 1.1), wheel.CFrame * face * CFrame.new(side * 0.06, 0, 0) * CFrame.Angles(ang, 0, 0) * CFrame.Angles(0, if style == "rims_blade" then 0.4 else 0, 0))
+			if style == "rims_neon" then
+				sp.Color = Color3.fromRGB(0, 255, 230)
+				sp.Material = Enum.Material.Neon
+			elseif rimColor then
+				sp.Color = rimColor:Lerp(Color3.new(0, 0, 0), 0.15)
+				sp.Material = Enum.Material.Metal
+			else
+				paint(sp, rimPaint)
+				sp.Color = sp.Color:Lerp(Color3.new(0, 0, 0), 0.2)
+			end
+			weldTo(sp, wheel)
+		end
+	end
+	disc(v(0.14, 0.35, 0.35), face * CFrame.new(side * 0.07, 0, 0), Color3.fromRGB(200, 40, 40))
+	return { Weld = weld, Wheel = wheel, Offset = off, Radius = r }
+end
+
+local TrailColors = {
+	trail_smoke = { Color3.fromRGB(240, 240, 240), Color3.fromRGB(180, 180, 180) },
+	trail_fire = { Color3.fromRGB(255, 220, 60), Color3.fromRGB(255, 40, 10) },
+	trail_lightning = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(60, 150, 255) },
+	trail_toxic = { Color3.fromRGB(220, 255, 80), Color3.fromRGB(40, 200, 40) },
+	trail_galaxy = { Color3.fromRGB(255, 120, 255), Color3.fromRGB(60, 30, 200) },
+	trail_gold = { Color3.fromRGB(255, 245, 160), Color3.fromRGB(255, 170, 20) },
+	trail_rk_diamond = { Color3.fromRGB(230, 250, 255), Color3.fromRGB(90, 170, 255) },
+}
+
+function CarBuilder.MakeTrailColor(id: string): ColorSequence
+	if id == "trail_rainbow" then
+		local kps = {}
+		for i = 0, 6 do
+			table.insert(kps, ColorSequenceKeypoint.new(i / 6, Color3.fromHSV(i / 6, 0.9, 1)))
+		end
+		return ColorSequence.new(kps)
+	end
+	local c = TrailColors[id] or { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }
+	return ColorSequence.new(c[1], c[2])
+end
+
+-- opts: { Ghost = translucent time-trial ghost, Remote = other racer (anchored),
+--         Preview = showroom (anchored), UserId = number used for the automatic race number }
+function CarBuilder.BuildLegacy(appearance, opts)
+	local o = opts or {}
+	local car = Cosmetics.Sanitize(appearance)
+	local model = Instance.new("Model")
+	model.Name = "Car"
+	local anchored = o.Ghost == true or o.Preview == true or o.Remote == true
+
+	local chassis = Instance.new("Part")
+	chassis.Name = "Chassis"
+	chassis.Size = CarBuilder.ChassisSize
+	chassis.Transparency = 1
+	chassis.CanCollide = not anchored
+	chassis.CanQuery = false
+	chassis.CanTouch = false
+	chassis.Anchored = anchored
+	chassis.CustomPhysicalProperties = PhysicalProperties.new(0.6, 0, 0.05, 100, 100)
+	chassis.CFrame = CFrame.new()
+	chassis.Parent = model
+	model.PrimaryPart = chassis
+
+	local groups = { FrontWing = {}, RearWing = {}, LeftPod = {}, RightPod = {} }
+	local rel = {}
+	local function groupOf(p: BasePart, g: string)
+		p:SetAttribute("Group", g)
+		table.insert(groups[g], p)
+		rel[p] = p.CFrame -- chassis is at the origin while building
+	end
+
+	local preset = Presets[car.Body] or Presets.gt1
+	local specs, geo = bodySpecs(preset)
+	local numberParts = {}
+	local engineCover = nil
+	for _, spec in specs do
+		local size, pos, slot, kind, rot, group = spec[1], spec[2], spec[3], spec[4], spec[5], spec[6]
+		local cf = CFrame.new(pos)
+		if rot then
+			cf *= CFrame.Angles(math.rad(rot.X), math.rad(rot.Y), math.rad(rot.Z))
+		end
+		local p
+		if kind == "Wedge" then
+			p = makePart(model, size, cf, nil, "WedgePart")
+		else
+			p = makePart(model, size, cf, if kind == "Ball" then Enum.PartType.Ball else nil)
+		end
+		p.Name = slot
+		applySlot(p, slot, car)
+		weldTo(p, chassis)
+		if group then
+			groupOf(p, group)
+		end
+		if slot == "Primary" and kind == "Wedge" and pos.Z < -3 then
+			numberParts.nose = p
+		elseif slot == "Primary" and math.abs(pos.Z - 1.3) < 0.01 and pos.X == 0 then
+			numberParts.cover = p
+			engineCover = p
+		end
+	end
+	addPattern(model, chassis, geo, car, groupOf)
+
+	-- race number on the nose and the engine cover
+	local number = tostring(Cosmetics.NumberFor(car, o.UserId))
+	local secItem = Cosmetics.ById[car.Secondary]
+	local numColor = if secItem and secItem.Color then secItem.Color else Color3.new(1, 1, 1)
+	if numberParts.nose then
+		local slope = math.atan2(0.6, geo.noseLen)
+		local tag = makePart(model, v(0.72, 0.03, 0.9), CFrame.new(0, geo.noseY + 0.06, geo.noseStart - geo.noseLen * 0.35) * CFrame.Angles(-slope, 0, 0))
+		tag.Transparency = 1
+		weldTo(tag, chassis)
+		surfaceText(tag, Enum.NormalId.Top, number, numColor)
+	end
+	if numberParts.cover then
+		for side = -1, 1, 2 do
+			local tag = makePart(model, v(0.03, 0.62, 1.0), numberParts.cover.CFrame * CFrame.new(side * 0.64, 0.02, 0))
+			tag.Transparency = 1
+			weldTo(tag, chassis)
+			surfaceText(tag, if side < 0 then Enum.NormalId.Left else Enum.NormalId.Right, number, numColor)
+		end
+	end
+
+	-- wheels + suspension arms
+	local wheels = {}
+	for i, off in CarBuilder.WheelOffsets do
+		table.insert(wheels, addWheel(model, chassis, i, car, off))
+		local inner = v(if off.X < 0 then -0.72 else 0.72, off.Y + 0.25, off.Z)
+		local outer = v(off.X * 0.72, off.Y, off.Z)
+		for _, dy in { -0.18, 0.2 } do
+			local a = inner + v(0, dy, 0)
+			local b = outer + v(0, dy * 0.5, 0)
+			for _, dz in { -0.35, 0.35 } do
+				local a2 = a + v(0, 0, dz)
+				local arm = makePart(model, v(0.09, 0.09, (b - a2).Magnitude), CFrame.lookAt((a2 + b) / 2, b))
+				arm.Color = DARK
+				weldTo(arm, chassis)
+			end
+		end
+	end
+
+	-- exhaust
+	local exhausts = {}
+	local pipe = makePart(model, v(0.6, 0.32, 0.32), CFrame.new(0, 0.3, 4.72) * CFrame.Angles(0, math.pi / 2, 0), Enum.PartType.Cylinder)
+	pipe.Color = Color3.fromRGB(150, 150, 160)
+	pipe.Material = Enum.Material.Metal
+	weldTo(pipe, chassis)
+	local exAtt = Instance.new("Attachment")
+	exAtt.Position = v(0, 0.3, 5.05)
+	exAtt.Parent = chassis
+	table.insert(exhausts, exAtt)
+
+	local flames = {}
+	if car.Flames == "flames_nitro" and not o.Preview then
+		local pe = Instance.new("ParticleEmitter")
+		pe.Texture = "rbxasset://textures/particles/fire_main.dds"
+		pe.Color = ColorSequence.new(Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 60, 20))
+		pe.LightEmission = 1
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0.1) })
+		pe.Transparency = NumberSequence.new(0.2, 1)
+		pe.Lifetime = NumberRange.new(0.1, 0.18)
+		pe.Rate = 120
+		pe.Speed = NumberRange.new(14, 18)
+		pe.EmissionDirection = Enum.NormalId.Back
+		pe.Enabled = false
+		pe.Parent = exAtt
+		table.insert(flames, pe)
+	end
+
+	-- tyre smoke (rear wheels)
+	local smoke = {}
+	local damageSmoke, sparks = nil, nil
+	if not o.Preview then
+		local smokeItem = Cosmetics.ById[car.TyreSmoke] or Cosmetics.ById["smoke_white"]
+		for i = 3, 4 do
+			local off = CarBuilder.WheelOffsets[i]
+			local att = Instance.new("Attachment")
+			att.Position = v(off.X, off.Y - CarBuilder.WheelRadii[i] + 0.3, off.Z + 0.6)
+			att.Parent = chassis
+			local pe = Instance.new("ParticleEmitter")
+			pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+			if smokeItem.Rainbow then
+				local kps = {}
+				for k = 0, 4 do
+					table.insert(kps, ColorSequenceKeypoint.new(k / 4, Color3.fromHSV(k / 4, 0.7, 1)))
+				end
+				pe.Color = ColorSequence.new(kps)
+			else
+				pe.Color = ColorSequence.new(smokeItem.Color)
+			end
+			pe.Transparency = NumberSequence.new(0.35, 1)
+			pe.Size = NumberSequence.new(1.5, 6)
+			pe.Lifetime = NumberRange.new(0.8, 1.3)
+			pe.Rate = 45
+			pe.Speed = NumberRange.new(2, 5)
+			pe.SpreadAngle = Vector2.new(25, 25)
+			pe.Enabled = false
+			pe.Parent = att
+			table.insert(smoke, pe)
+		end
+		-- engine damage smoke + crash sparks
+		local engAtt = Instance.new("Attachment")
+		engAtt.Name = "EngineAtt"
+		engAtt.Position = v(0, 0.8, 3.0)
+		engAtt.Parent = chassis
+		local ds = Instance.new("ParticleEmitter")
+		ds.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		ds.Color = ColorSequence.new(Color3.fromRGB(70, 70, 75), Color3.fromRGB(150, 150, 155))
+		ds.Transparency = NumberSequence.new(0.3, 1)
+		ds.Size = NumberSequence.new(1, 5)
+		ds.Lifetime = NumberRange.new(1, 1.6)
+		ds.Rate = 18
+		ds.Speed = NumberRange.new(3, 6)
+		ds.EmissionDirection = Enum.NormalId.Top
+		ds.Enabled = false
+		ds.Parent = engAtt
+		damageSmoke = ds
+		local sp = Instance.new("ParticleEmitter")
+		sp.Name = "Sparks"
+		sp.Color = ColorSequence.new(Color3.fromRGB(255, 240, 180), Color3.fromRGB(255, 140, 40))
+		sp.LightEmission = 1
+		sp.Size = NumberSequence.new(0.35, 0)
+		sp.Lifetime = NumberRange.new(0.25, 0.5)
+		sp.Speed = NumberRange.new(25, 45)
+		sp.SpreadAngle = Vector2.new(70, 70)
+		sp.Acceleration = Vector3.new(0, -60, 0)
+		sp.Drag = 3
+		sp.Enabled = false
+		sp.Parent = engAtt
+		sparks = sp
+	end
+
+	-- underglow
+	local glowItem = Cosmetics.ById[car.Underglow]
+	if glowItem and glowItem.Color then
+		local gpart = makePart(model, v(3.8, 0.08, 7.2), CFrame.new(0, -0.76, 0.8))
+		gpart.Color = glowItem.Color
+		gpart.Material = Enum.Material.Neon
+		gpart.CastShadow = false
+		weldTo(gpart, chassis)
+		local pl = Instance.new("PointLight")
+		pl.Color = glowItem.Color
+		pl.Range = 14
+		pl.Brightness = 3
+		pl.Parent = gpart
+	end
+
+	-- wing-tip trail
+	local trail = nil
+	if car.Trail ~= "trail_none" and not o.Preview then
+		local a0 = Instance.new("Attachment")
+		a0.Position = v(-2.1, geo.rearWingY + 0.4, 5.6)
+		a0.Parent = chassis
+		local a1 = Instance.new("Attachment")
+		a1.Position = v(2.1, geo.rearWingY + 0.4, 5.6)
+		a1.Parent = chassis
+		local tr = Instance.new("Trail")
+		tr.Attachment0 = a0
+		tr.Attachment1 = a1
+		tr.Color = CarBuilder.MakeTrailColor(car.Trail)
+		tr.Lifetime = if car.Trail == "trail_smoke" then 0.7 else 0.5
+		tr.LightEmission = if car.Trail == "trail_smoke" then 0 else 1
+		tr.Transparency = NumberSequence.new(0.25, 1)
+		tr.MinLength = 0.2
+		tr.Parent = chassis
+		trail = tr
+	end
+
+	if o.Ghost then
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.CanCollide = false
+				d.CanQuery = false
+				d.CastShadow = false
+				if d ~= chassis and d.Transparency < 1 then
+					d.Transparency = 0.55
+				end
+			end
+		end
+	elseif o.Remote then
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.CanCollide = false
+				d.CanQuery = false
+			end
+		end
+	elseif o.Preview then
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.CanCollide = false
+			end
+		end
+	end
+
+	return {
+		Model = model,
+		Chassis = chassis,
+		Wheels = wheels,
+		Exhausts = exhausts,
+		Flames = flames,
+		Smoke = smoke,
+		Trail = trail,
+		Groups = groups,
+		Rel = rel,
+		DamageSmoke = damageSmoke,
+		Sparks = sparks,
+		EngineCover = engineCover,
+	}
+end
+
+
+---------------------------------------------------------------------------
+-- Mesh cars (v3.1): smooth 3D bodies imported from tools/cargen. Templates live in
+-- ReplicatedStorage.CarMeshes; sizes/offsets/anchors come from CarData.
+---------------------------------------------------------------------------
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CarData = require(script.Parent.CarData)
+
+CarBuilder.MeshChassisSize = Vector3.new(5.7, 1.2, 14.6)
+CarBuilder.Data = CarData
+
+-- the FBX import turns every mesh 180 degrees around Y; undo it on every placement
+local MESH_FIX = CFrame.Angles(0, math.pi, 0)
+local CARBON = Color3.fromRGB(30, 30, 34)
+local BLACK = Color3.fromRGB(14, 14, 16)
+local RUBBER = Color3.fromRGB(32, 32, 35)
+
+local templates: Folder? = nil
+local function getTemplates(): Folder?
+	if templates and templates.Parent then
+		return templates
+	end
+	templates = ReplicatedStorage:FindFirstChild("CarMeshes") :: Folder?
+	return templates
+end
+
+function CarBuilder.HasMeshes(): boolean
+	return getTemplates() ~= nil
+end
+
+function CarBuilder.PresetFor(bodyId: string)
+	return CarData.Presets[bodyId] or CarData.Presets.gt1
+end
+
+local function cloneMesh(name: string): MeshPart?
+	local folder = getTemplates()
+	local t = folder and folder:FindFirstChild(name)
+	if not t then
+		return nil
+	end
+	local p = t:Clone() :: MeshPart
+	p.Anchored = false
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+	p.CastShadow = true
+	p.Transparency = 0
+	return p
+end
+
+local function setPaint(part: BasePart, paintId: string?)
+	paint(part, paintId)
+	if part.Material == Enum.Material.SmoothPlastic then
+		part.Reflectance = math.max(part.Reflectance, 0.06)
+	end
+end
+
+-- colour a body/wing part by its slot name
+local function colourSlot(part: BasePart, slot: string, car)
+	if slot == "Primary" or slot == "Suit" then
+		setPaint(part, car.Primary)
+	elseif slot == "Secondary" then
+		setPaint(part, car.Secondary)
+	elseif slot == "Accent" or slot == "TCam" then
+		setPaint(part, car.Accent)
+	elseif slot == "Carbon" or slot == "Halo" then
+		part.Color = CARBON
+		part.Material = Enum.Material.SmoothPlastic
+		part.Reflectance = 0.04
+	elseif slot == "Dark" then
+		part.Color = BLACK
+		part.Material = Enum.Material.SmoothPlastic
+	elseif slot == "Glass" then
+		part.Color = GLASS
+		part.Reflectance = 0.45
+	elseif slot == "Canopy" then
+		part.Color = Color3.fromRGB(22, 30, 48)
+		part.Material = Enum.Material.Glass
+		part.Reflectance = 0.35
+		part.Transparency = 0.18
+		part.CastShadow = false
+	elseif slot == "Metal" then
+		part.Color = Color3.fromRGB(165, 165, 175)
+		part.Material = Enum.Material.Metal
+		part.Reflectance = 0.15
+	elseif slot == "TailLight" then
+		part.Color = Color3.fromRGB(255, 40, 40)
+		part.Material = Enum.Material.Neon
+	elseif slot == "Light" then
+		-- headlight blades / glowing tusk tips on the concept cars
+		part.Color = Color3.fromRGB(235, 245, 255)
+		part.Material = Enum.Material.Neon
+		part.CastShadow = false
+	end
+end
+
+-- pattern id -> list of { overlay key, colour rule }
+local PATTERNS = {
+	pattern_stripe = { { "stripe", "Secondary" } },
+	pattern_side = { { "side", "Secondary" } },
+	pattern_split = { { "split", "Secondary" } },
+	pattern_chevron = { { "chevron", "Secondary", "Accent" } },
+	pattern_checker = { { "checkA", "White" }, { "checkB", "Black" } },
+	pattern_flames = { { "flame1", "Flame1" }, { "flame2", "Flame2" }, { "flame3", "Flame3" } },
+	pattern_carbon = { { "split", "CarbonWeave" } },
+	pattern_circuit = { { "circuit", "NeonSecondary" } },
+	pattern_retro = { { "retroA", "Secondary" }, { "retroB", "Accent" } },
+	pattern_rk_champion = { { "stripe", "Gold" }, { "checkA", "White" }, { "checkB", "Black" }, { "side", "Gold" } },
+}
+CarBuilder.Patterns = PATTERNS
+
+local function colourRule(part: BasePart, rule: string, car)
+	if rule == "Secondary" or rule == "Accent" or rule == "Primary" then
+		colourSlot(part, rule, car)
+	elseif rule == "White" then
+		part.Color = Color3.fromRGB(245, 245, 245)
+		part.Reflectance = 0.05
+	elseif rule == "Black" then
+		part.Color = Color3.fromRGB(18, 18, 20)
+		part.Reflectance = 0.05
+	elseif rule == "Flame1" then
+		part.Color = Color3.fromRGB(255, 214, 40)
+	elseif rule == "Flame2" then
+		part.Color = Color3.fromRGB(255, 120, 20)
+	elseif rule == "Flame3" then
+		part.Color = Color3.fromRGB(225, 35, 20)
+	elseif rule == "CarbonWeave" then
+		part.Color = Color3.fromRGB(34, 34, 38)
+		part.Material = Enum.Material.Fabric
+		part.Reflectance = 0.08
+	elseif rule == "Gold" then
+		setPaint(part, "paint_rk_gold")
+	elseif rule == "NeonSecondary" then
+		local item = Cosmetics.ById[car.Secondary]
+		part.Color = if item and item.Color then item.Color else Color3.fromRGB(0, 255, 220)
+		part.Material = Enum.Material.Neon
+		if item and item.Rainbow then
+			part:SetAttribute("Rainbow", true)
+		end
+	end
+end
+
+local RIM_STYLE = {
+	rims_classic = "classic",
+	rims_spoke = "spoke",
+	rims_star = "star",
+	rims_dish = "dish",
+	rims_turbine = "turbine",
+	rims_blade = "blade",
+	rims_mesh = "mesh",
+	rims_neon = "spoke",
+	rims_gold = "classic",
+	rims_rk_platinum = "turbine",
+}
+
+function CarBuilder.Build(appearance, opts)
+	if not getTemplates() then
+		warn("[GoTrack] ReplicatedStorage.CarMeshes missing - using legacy block cars")
+		return CarBuilder.BuildLegacy(appearance, opts)
+	end
+	local o = opts or {}
+	local car = Cosmetics.Sanitize(appearance)
+	local preset = CarBuilder.PresetFor(car.Body)
+	local folder0 = getTemplates()
+	-- newest design whose meshes are imported: the current generation, else the first
+	-- generation (Old), else the GT-1
+	local dn = preset.Design
+	if folder0 and not folder0:FindFirstChild(dn .. ".Body.Primary") then
+		local gt = CarData.Presets.gt1
+		dn = nil
+		for _, cand in { preset.Old or "", gt.Design, gt.Old or "" } do
+			if cand ~= "" and CarData.Designs[cand] and folder0:FindFirstChild(cand .. ".Body.Primary") then
+				dn = cand
+				break
+			end
+		end
+		dn = dn or gt.Old or gt.Design
+		if dn ~= preset.Old then
+			preset = gt -- that chassis' meshes aren't imported yet
+		end
+	end
+	local D = CarData.Designs[dn]
+	local model = Instance.new("Model")
+	model.Name = "Car"
+	local anchored = o.Ghost == true or o.Preview == true or o.Remote == true
+
+	local chassis = Instance.new("Part")
+	chassis.Name = "Chassis"
+	chassis.Size = CarBuilder.MeshChassisSize
+	chassis.Transparency = 1
+	chassis.CanCollide = not anchored
+	chassis.CanQuery = false
+	chassis.CanTouch = false
+	chassis.Anchored = anchored
+	chassis.CustomPhysicalProperties = PhysicalProperties.new(0.6, 0, 0.05, 100, 100)
+	chassis.CFrame = CFrame.new()
+	chassis:SetAttribute("CockpitCam", D.Cams.Cockpit)
+	chassis:SetAttribute("NoseCam", D.Cams.Nose)
+	chassis:SetAttribute("TCam", D.Cams.TCam)
+	chassis.Parent = model
+	model.PrimaryPart = chassis
+
+	local groups = { FrontWing = {}, RearWing = {}, LeftPod = {}, RightPod = {} }
+	local rel = {}
+	local function place(name: string, parent: Instance): MeshPart?
+		local info = CarData.Objects[name]
+		local p = cloneMesh(name)
+		if not p or not info then
+			return nil
+		end
+		p.Size = info.S
+		p.CFrame = CFrame.new(info.C) * MESH_FIX
+		p.Parent = parent
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = chassis
+		w.Part1 = p
+		w.Parent = p
+		return p
+	end
+	local function grouped(p: BasePart, g: string)
+		if groups[g] then
+			p:SetAttribute("Group", g)
+			table.insert(groups[g], p)
+			rel[p] = p.CFrame
+		end
+	end
+
+	-- body, pods, wings (+ chosen variants)
+	local wantVar = {}
+	for _, v in (if dn == preset.Old then preset.OldVariants else preset.Variants) or {} do
+		wantVar[v] = true
+	end
+	local prefix = dn .. "."
+	local engineCover = nil
+	-- active-aero rear flap: its meshes hang off a hinge the controller can rotate
+	local flap = nil
+	local function flapHinge(): BasePart?
+		if flap then
+			return flap.Hinge
+		end
+		local pivot = nil
+		for v, pos in D.Flap or {} do
+			if v == "" or wantVar[v] then
+				pivot = pos
+			end
+		end
+		if not pivot then
+			return nil
+		end
+		local hinge = Instance.new("Part")
+		hinge.Name = "FlapHinge"
+		hinge.Size = Vector3.new(0.2, 0.2, 0.2)
+		hinge.Transparency = 1
+		hinge.CanCollide = false
+		hinge.CanQuery = false
+		hinge.CanTouch = false
+		hinge.Massless = true
+		hinge.CFrame = CFrame.new(pivot)
+		hinge.Parent = model
+		local hw = Instance.new("Weld")
+		hw.Part0 = chassis
+		hw.Part1 = hinge
+		hw.C0 = CFrame.new(pivot)
+		hw.Parent = hinge
+		flap = { Hinge = hinge, Weld = hw, Base = CFrame.new(pivot) }
+		return hinge
+	end
+	for name in CarData.Objects do
+		if string.sub(name, 1, #prefix) == prefix then
+			local rest = string.split(string.sub(name, #prefix + 1), ".")
+			local group, slot = nil, nil
+			if rest[1] == "v" then
+				if wantVar[rest[2]] then
+					group, slot = rest[3], rest[4]
+				end
+			elseif rest[1] ~= "p" then
+				group, slot = rest[1], rest[2]
+			end
+			if group and slot then
+				local p = place(name, model)
+				if p then
+					p.Name = slot
+					colourSlot(p, slot, car)
+					if group == "Flap" then
+						-- weld to the hinge instead of the chassis; knocked off with the rear wing
+						local hinge = flapHinge()
+						local wc = p:FindFirstChildOfClass("WeldConstraint")
+						if hinge and wc then
+							wc.Part0 = hinge
+						end
+						p.Name = "Flap"
+						group = "RearWing"
+					end
+					grouped(p, group)
+					if group == "Body" and slot == "Primary" then
+						engineCover = p
+					end
+				end
+			end
+		end
+	end
+
+	-- livery overlays
+	local rules = PATTERNS[car.Pattern or ""] or {}
+	local used = {}
+	local function overlay(key: string, rule: string, podRule: string?)
+		for _, g in { "Body", "LeftPod", "RightPod" } do
+			local name = prefix .. "p." .. key .. "." .. g
+			if CarData.Objects[name] and not used[name] then
+				used[name] = true
+				local p = place(name, model)
+				if p then
+					p.Name = "Livery"
+					p.CastShadow = false
+					colourRule(p, if g ~= "Body" and podRule then podRule else rule, car)
+					grouped(p, g)
+				end
+			end
+		end
+	end
+	for _, r in rules do
+		overlay(r[1], r[2], r[3])
+	end
+	if preset.Neon then
+		overlay("circuit", "NeonSecondary")
+	end
+
+	-- race numbers (nose + both engine-cover flanks)
+	local number = tostring(Cosmetics.NumberFor(car, o.UserId))
+	local secItem = Cosmetics.ById[car.Secondary]
+	local numColor = if secItem and secItem.Color then secItem.Color else Color3.new(1, 1, 1)
+	do
+		local nn = D.NumberNose
+		local tag = makePart(model, Vector3.new(nn.Size.X * 2.0, 0.02, nn.Size.Y * 2.0), CFrame.new(nn.Pos + Vector3.new(0, 0.02, 0)) * CFrame.Angles(-math.rad(nn.Pitch), 0, 0))
+		tag.Transparency = 1
+		tag.Name = "NumberTag"
+		weldTo(tag, chassis)
+		surfaceText(tag, Enum.NormalId.Top, number, numColor)
+		local ns = D.NumberSide
+		for side = -1, 1, 2 do
+			local t2 = makePart(model, Vector3.new(0.02, ns.Size.Y * 2.4, ns.Size.X * 2.4), CFrame.new(ns.Pos.X * side + side * 0.1, ns.Pos.Y, ns.Pos.Z))
+			t2.Transparency = 1
+			t2.Name = "NumberTag"
+			weldTo(t2, chassis)
+			surfaceText(t2, if side < 0 then Enum.NormalId.Left else Enum.NormalId.Right, number, numColor)
+		end
+	end
+
+	-- driver helmet
+	local h = Cosmetics.ById[car.Helmet] or Cosmetics.ById["helmet_white"]
+	local folder = getTemplates()
+	local hp = if folder and folder:FindFirstChild("h2.shell") then "h2." else "h."
+	for key, pname in { shell = "Helmet", stripe = "HelmetStripe", visor = "Visor", collar = "Collar", headrest = "Headrest" } do
+		local info = CarData.Objects[hp .. key]
+		local p = cloneMesh(hp .. key)
+		if p and info then
+			p.Size = info.S
+			p.CFrame = CFrame.new(D.Head + info.C) * MESH_FIX
+			p.Name = pname
+			p.Parent = model
+			weldTo(p, chassis)
+			if key == "visor" then
+				-- visor tint (Garage > Driver > Visor): dark, smoke or iridium
+				local vis = Cosmetics.ById[car.Visor or ""]
+				p.Color = if vis and vis.Color then vis.Color else Color3.fromRGB(10, 12, 18)
+				p.Reflectance = if vis and vis.Reflectance then vis.Reflectance else 0.22
+				if vis and vis.Rainbow then
+					p:SetAttribute("Rainbow", true)
+				end
+			elseif key == "collar" or key == "headrest" then
+				p.Color = if key == "collar" then CARBON else BLACK
+				p.Reflectance = 0.04
+			else
+				p.Color = if key == "shell" then h.Color else h.Stripe
+				p.Reflectance = if key == "shell" then (h.Reflectance or 0.1) else 0
+				if h.Neon and key == "stripe" then
+					p.Material = Enum.Material.Neon
+				end
+				if h.Rainbow then
+					p:SetAttribute("Rainbow", true)
+				end
+			end
+		end
+	end
+
+	-- steering wheel (turns with the steering, live gear/speed screen on modern wheels)
+	local steering = nil
+	if D.Steer then
+		local base = CFrame.new(D.Steer.Pos) * CFrame.Angles(-0.35, 0, 0)
+		local hub = Instance.new("Part")
+		hub.Name = "SteeringHub"
+		hub.Size = Vector3.new(0.2, 0.2, 0.05)
+		hub.Transparency = 1
+		hub.CanCollide = false
+		hub.CanQuery = false
+		hub.CanTouch = false
+		hub.Massless = true
+		hub.CFrame = base
+		hub.Parent = model
+		local sweld = Instance.new("Weld")
+		sweld.Part0 = chassis
+		sweld.Part1 = hub
+		sweld.C0 = base
+		sweld.Parent = hub
+		local function swMesh(name: string, colourFn)
+			local info = CarData.Objects[name]
+			local p = cloneMesh(name)
+			if not p or not info then
+				return nil
+			end
+			p.Size = info.S
+			p.CFrame = hub.CFrame * CFrame.new(info.C) * MESH_FIX
+			p.Name = "Steering"
+			p.CastShadow = false
+			p.Parent = model
+			weldTo(p, hub)
+			colourFn(p)
+			return p
+		end
+		local gear, speed, rev = nil, nil, nil
+		if D.Steer.Kind == "round" then
+			swMesh("swr.ring", function(p) p.Color = Color3.fromRGB(40, 30, 24); p.Material = Enum.Material.Fabric end)
+			swMesh("swr.spokes", function(p) p.Color = Color3.fromRGB(170, 170, 178); p.Material = Enum.Material.Metal end)
+			swMesh("swr.hub", function(p) p.Color = BLACK end)
+		else
+			swMesh("sw.body", function(p) p.Color = CARBON; p.Reflectance = 0.06 end)
+			swMesh("sw.grip", function(p) p.Color = Color3.fromRGB(20, 20, 22); p.Material = Enum.Material.Fabric end)
+			swMesh("sw.button", function(p) setPaint(p, car.Accent) end)
+			swMesh("sw.led", function(p) p.Color = Color3.fromRGB(60, 255, 120); p.Material = Enum.Material.Neon end)
+			local scr = swMesh("sw.screen", function(p) p.Color = Color3.fromRGB(8, 10, 14); p.Reflectance = 0.1 end)
+			if scr and not o.Remote and not o.Ghost then
+				local tag = Instance.new("Part")
+				tag.Name = "SteeringScreen"
+				tag.Size = Vector3.new(0.25, 0.14, 0.01)
+				tag.Transparency = 1
+				tag.CanCollide = false
+				tag.CanQuery = false
+				tag.CanTouch = false
+				tag.Massless = true
+				tag.CFrame = hub.CFrame * CFrame.new(0, 0.055, 0.06)
+				tag.Parent = model
+				weldTo(tag, hub)
+				local sg = Instance.new("SurfaceGui")
+				sg.Face = Enum.NormalId.Back
+				sg.CanvasSize = Vector2.new(250, 140)
+				sg.LightInfluence = 0
+				sg.Brightness = 2
+				sg.Parent = tag
+				local function lbl(text, pos, size, font, col)
+					local t = Instance.new("TextLabel")
+					t.BackgroundTransparency = 1
+					t.Position = pos
+					t.Size = size
+					t.Text = text
+					t.Font = font
+					t.TextScaled = true
+					t.TextColor3 = col
+					t.Parent = sg
+					return t
+				end
+				gear = lbl("N", UDim2.fromScale(0.36, 0.18), UDim2.fromScale(0.28, 0.72), Enum.Font.GothamBlack, Color3.fromRGB(255, 220, 60))
+				speed = lbl("0", UDim2.fromScale(0.02, 0.3), UDim2.fromScale(0.32, 0.4), Enum.Font.GothamBold, Color3.new(1, 1, 1))
+				lbl("KM/H", UDim2.fromScale(0.02, 0.7), UDim2.fromScale(0.32, 0.18), Enum.Font.GothamBold, Color3.fromRGB(150, 160, 180))
+				lbl(number, UDim2.fromScale(0.66, 0.3), UDim2.fromScale(0.32, 0.4), Enum.Font.GothamBold, numColor)
+				local bar = Instance.new("Frame")
+				bar.BackgroundColor3 = Color3.fromRGB(40, 44, 56)
+				bar.BorderSizePixel = 0
+				bar.Position = UDim2.fromScale(0.04, 0.04)
+				bar.Size = UDim2.fromScale(0.92, 0.1)
+				bar.Parent = sg
+				rev = Instance.new("Frame")
+				rev.BackgroundColor3 = Color3.fromRGB(60, 255, 120)
+				rev.BorderSizePixel = 0
+				rev.Size = UDim2.fromScale(0, 1)
+				rev.Parent = bar
+			end
+		end
+		steering = { Weld = sweld, Base = base, Gear = gear, Speed = speed, Rev = rev }
+	end
+
+	-- wheels: an invisible hub part per wheel (spun by the controller) with meshes welded on
+	-- tyre compound band: chosen in the Garage, or soft / medium / hard by race number
+	local tyreItem = Cosmetics.ById[car.Tyre or ""]
+	local compound = if tyreItem and tyreItem.Id ~= "tyre_auto" and tyreItem.Color then tyreItem.Color else COMPOUNDS[((car.Number or 0) % 3) + 1]
+	local compoundNeon = tyreItem ~= nil and tyreItem.Neon == true
+	local style = RIM_STYLE[car.Rims] or "classic"
+	local rimPaint = car.RimColor
+	local rimColor: Color3? = nil
+	local rimMetal = false
+	if car.Rims == "rims_gold" then
+		rimPaint = "paint_heritagegold"
+	elseif car.Rims == "rims_rk_platinum" then
+		rimPaint = nil
+		rimColor = Color3.fromRGB(225, 232, 245)
+		rimMetal = true
+	end
+	local wheels = {}
+	for i, wd in D.Wheels do
+		local side = if wd.Pos.X < 0 then -1 else 1
+		local hub = Instance.new("Part")
+		hub.Name = "Wheel" .. i
+		hub.Size = Vector3.new(wd.W, wd.R * 2, wd.R * 2)
+		hub.Transparency = 1
+		hub.CanCollide = false
+		hub.CanQuery = false
+		hub.CanTouch = false
+		hub.Massless = true
+		hub.CFrame = CFrame.new(wd.Pos)
+		hub.Parent = model
+		local weld = Instance.new("Weld")
+		weld.Part0 = chassis
+		weld.Part1 = hub
+		weld.C0 = CFrame.new(wd.Pos)
+		weld.Parent = hub
+		local is18 = wd.Tyre == "t18"
+		local inner = if is18 then 0.64 else 0.47
+		local flip = if side < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.new()
+		local function wheelMesh(name: string, kr: number): MeshPart?
+			local info = CarData.Objects[name]
+			local p = cloneMesh(name)
+			if not p or not info then
+				return nil
+			end
+			local kx = wd.W
+			p.Size = Vector3.new(info.S.X * kx, info.S.Y * kr, info.S.Z * kr)
+			p.CFrame = hub.CFrame * flip * CFrame.new(info.C.X * kx, info.C.Y * kr, info.C.Z * kr) * MESH_FIX
+			p.Parent = model
+			weldTo(p, hub)
+			return p
+		end
+		local tyre = wheelMesh(if is18 then "w.tyre18" else "w.tyre13", wd.R)
+		if tyre then
+			tyre.Color = RUBBER
+			tyre.Name = "Tyre"
+		end
+		local ring = wheelMesh(if is18 then "w.comp18" else "w.comp13", wd.R)
+		if ring then
+			ring.Color = compound
+			ring.CastShadow = false
+			if compoundNeon then
+				ring.Material = Enum.Material.Neon
+			end
+		end
+		if wd.Tyre == "t13g" then
+			local g = wheelMesh("w.grooves", wd.R)
+			if g then
+				g.Color = Color3.fromRGB(20, 20, 22)
+				g.CastShadow = false
+			end
+		end
+		local rr = wd.R * inner
+		local back = wheelMesh("w.back", rr)
+		if back then
+			back.Color = BLACK
+		end
+		local function rimPart(p: BasePart?, darken: number)
+			if not p then
+				return
+			end
+			if rimColor then
+				p.Color = (rimColor :: Color3):Lerp(Color3.new(0, 0, 0), darken)
+			else
+				setPaint(p, rimPaint)
+				p.Color = p.Color:Lerp(Color3.new(0, 0, 0), darken)
+			end
+			if rimMetal then
+				p.Material = Enum.Material.Metal
+				p.Reflectance = 0.35
+			end
+		end
+		rimPart(wheelMesh("w.barrel", rr), 0.25)
+		rimPart(wheelMesh("w.rim." .. style, rr), 0)
+		local hubCap = wheelMesh("w.hub", rr)
+		if hubCap then
+			hubCap.Color = Color3.fromRGB(210, 40, 40)
+		end
+		if car.Rims == "rims_neon" then
+			local nr = wheelMesh("w.neonring", rr)
+			if nr then
+				nr.Color = Color3.fromRGB(0, 255, 230)
+				nr.Material = Enum.Material.Neon
+				nr.CastShadow = false
+			end
+		end
+		-- sidewall lettering (rotates with the wheel so you can SEE it spin at low speed)
+		local marks = {}
+		local markR = wd.R * (if is18 then 0.87 else 0.85)
+		for k = 0, 1 do
+			local a = k * math.pi
+			local m = Instance.new("Part")
+			m.Name = "SidewallMark"
+			m.Anchored = false
+			m.CanCollide = false
+			m.CanQuery = false
+			m.CanTouch = false
+			m.Massless = true
+			m.CastShadow = false
+			m.Material = Enum.Material.SmoothPlastic
+			m.Color = Color3.fromRGB(245, 245, 245)
+			m.Size = Vector3.new(0.03, wd.R * 0.09, wd.R * 0.46)
+			m.CFrame = hub.CFrame * flip * CFrame.new(0.506 * wd.W, math.cos(a) * markR, math.sin(a) * markR) * CFrame.Angles(a, 0, 0)
+			m.Parent = model
+			weldTo(m, hub)
+			table.insert(marks, m)
+		end
+		-- motion-blur disc over the rim: fades in at speed so the wheel reads as spinning fast
+		-- instead of strobing (a 60 fps screen can't show 30 turns a second)
+		local blur = Instance.new("Part")
+		blur.Name = "SpinBlur"
+		blur.Shape = Enum.PartType.Cylinder
+		blur.Anchored = false
+		blur.CanCollide = false
+		blur.CanQuery = false
+		blur.CanTouch = false
+		blur.Massless = true
+		blur.CastShadow = false
+		blur.Material = Enum.Material.SmoothPlastic
+		blur.Color = (if rimColor then rimColor :: Color3 else Color3.fromRGB(150, 150, 155)):Lerp(Color3.fromRGB(40, 40, 44), 0.45)
+		blur.Transparency = 1
+		blur.Size = Vector3.new(0.02, rr * 1.86, rr * 1.86)
+		blur.CFrame = hub.CFrame * flip * CFrame.new(0.37 * wd.W, 0, 0)
+		blur.Parent = model
+		weldTo(blur, hub)
+		table.insert(wheels, { Weld = weld, Wheel = hub, Offset = wd.Pos, Radius = wd.R, Blur = blur, Marks = marks })
+	end
+
+	-- exhaust + flames
+	local exhausts = {}
+	local exAtt = Instance.new("Attachment")
+	exAtt.Name = "ExhaustAtt"
+	exAtt.Position = D.Exhaust
+	exAtt.Parent = chassis
+	table.insert(exhausts, exAtt)
+	local flames = {}
+	if car.Flames == "flames_nitro" and not o.Preview then
+		local pe = Instance.new("ParticleEmitter")
+		pe.Texture = "rbxasset://textures/particles/fire_main.dds"
+		pe.Color = ColorSequence.new(Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 60, 20))
+		pe.LightEmission = 1
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0.1) })
+		pe.Transparency = NumberSequence.new(0.2, 1)
+		pe.Lifetime = NumberRange.new(0.1, 0.18)
+		pe.Rate = 120
+		pe.Speed = NumberRange.new(14, 18)
+		pe.EmissionDirection = Enum.NormalId.Back
+		pe.Enabled = false
+		pe.Parent = exAtt
+		table.insert(flames, pe)
+	end
+
+	-- tyre smoke, engine smoke, sparks
+	local smoke = {}
+	local damageSmoke, sparks = nil, nil
+	if not o.Preview then
+		local smokeItem = Cosmetics.ById[car.TyreSmoke] or Cosmetics.ById["smoke_white"]
+		for i = 3, 4 do
+			local wd = D.Wheels[i]
+			local att = Instance.new("Attachment")
+			att.Position = wd.Pos + Vector3.new(0, -wd.R + 0.3, 0.6)
+			att.Parent = chassis
+			local pe = Instance.new("ParticleEmitter")
+			pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+			if smokeItem.Rainbow then
+				local kps = {}
+				for k = 0, 4 do
+					table.insert(kps, ColorSequenceKeypoint.new(k / 4, Color3.fromHSV(k / 4, 0.7, 1)))
+				end
+				pe.Color = ColorSequence.new(kps)
+			else
+				pe.Color = ColorSequence.new(smokeItem.Color)
+			end
+			pe.Transparency = NumberSequence.new(0.35, 1)
+			pe.Size = NumberSequence.new(1.5, 6)
+			pe.Lifetime = NumberRange.new(0.8, 1.3)
+			pe.Rate = 45
+			pe.Speed = NumberRange.new(2, 5)
+			pe.SpreadAngle = Vector2.new(25, 25)
+			pe.Enabled = false
+			pe.Parent = att
+			table.insert(smoke, pe)
+		end
+		local engAtt = Instance.new("Attachment")
+		engAtt.Name = "EngineAtt"
+		engAtt.Position = D.Engine
+		engAtt.Parent = chassis
+		local ds = Instance.new("ParticleEmitter")
+		ds.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		ds.Color = ColorSequence.new(Color3.fromRGB(70, 70, 75), Color3.fromRGB(150, 150, 155))
+		ds.Transparency = NumberSequence.new(0.3, 1)
+		ds.Size = NumberSequence.new(1, 5)
+		ds.Lifetime = NumberRange.new(1, 1.6)
+		ds.Rate = 18
+		ds.Speed = NumberRange.new(3, 6)
+		ds.EmissionDirection = Enum.NormalId.Top
+		ds.Enabled = false
+		ds.Parent = engAtt
+		damageSmoke = ds
+		local sp = Instance.new("ParticleEmitter")
+		sp.Name = "Sparks"
+		sp.Color = ColorSequence.new(Color3.fromRGB(255, 240, 180), Color3.fromRGB(255, 140, 40))
+		sp.LightEmission = 1
+		sp.Size = NumberSequence.new(0.35, 0)
+		sp.Lifetime = NumberRange.new(0.25, 0.5)
+		sp.Speed = NumberRange.new(25, 45)
+		sp.SpreadAngle = Vector2.new(70, 70)
+		sp.Acceleration = Vector3.new(0, -60, 0)
+		sp.Drag = 3
+		sp.Enabled = false
+		sp.Parent = engAtt
+		sparks = sp
+	end
+
+	-- underglow
+	local glowItem = Cosmetics.ById[car.Underglow]
+	if glowItem and glowItem.Color then
+		local ug = D.Underglow
+		local gpart = makePart(model, Vector3.new(ug.Size.X * 0.8, 0.06, ug.Size.Y * 0.8), CFrame.new(ug.Pos))
+		gpart.Color = glowItem.Color
+		gpart.Material = Enum.Material.Neon
+		gpart.CastShadow = false
+		weldTo(gpart, chassis)
+		local pl = Instance.new("PointLight")
+		pl.Color = glowItem.Color
+		pl.Range = 14
+		pl.Brightness = 3
+		pl.Parent = gpart
+	end
+
+	-- rear-wing tip trail
+	local trail = nil
+	if car.Trail ~= "trail_none" and not o.Preview then
+		local a0 = Instance.new("Attachment")
+		a0.Position = D.Trail[1]
+		a0.Parent = chassis
+		local a1 = Instance.new("Attachment")
+		a1.Position = D.Trail[2]
+		a1.Parent = chassis
+		local tr = Instance.new("Trail")
+		tr.Attachment0 = a0
+		tr.Attachment1 = a1
+		tr.Color = CarBuilder.MakeTrailColor(car.Trail)
+		tr.Lifetime = if car.Trail == "trail_smoke" then 0.7 else 0.5
+		tr.LightEmission = if car.Trail == "trail_smoke" then 0 else 1
+		tr.Transparency = NumberSequence.new(0.25, 1)
+		tr.MinLength = 0.2
+		tr.Parent = chassis
+		trail = tr
+	end
+
+	-- F1 details: rear rain light (brakes, rain, night), rain spray, floor sparks
+	local rainLight, spray, plank = nil, {}, nil
+	if not o.Preview and not o.Ghost then
+		rainLight = makePart(model, Vector3.new(0.55, 0.26, 0.12), CFrame.new(D.Exhaust + Vector3.new(0, -0.42, 0.06)))
+		rainLight.Name = "RainLight"
+		rainLight.Color = Color3.fromRGB(70, 12, 14)
+		rainLight.Material = Enum.Material.SmoothPlastic
+		rainLight.CastShadow = false
+		weldTo(rainLight, chassis)
+		for i = 3, 4 do
+			local wd = D.Wheels[i]
+			local att = Instance.new("Attachment")
+			att.Name = "SprayAtt"
+			att.Position = wd.Pos + Vector3.new(0, -wd.R * 0.2, wd.R * 0.9)
+			att.Parent = chassis
+			local pe = Instance.new("ParticleEmitter")
+			pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+			pe.Color = ColorSequence.new(Color3.fromRGB(215, 222, 232))
+			pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 1) })
+			pe.Size = NumberSequence.new(1.2, 5.5)
+			pe.Lifetime = NumberRange.new(0.5, 0.9)
+			pe.Rate = 40
+			pe.Speed = NumberRange.new(6, 12)
+			pe.SpreadAngle = Vector2.new(18, 30)
+			pe.EmissionDirection = Enum.NormalId.Back
+			pe.Acceleration = Vector3.new(0, 3, 0)
+			pe.Enabled = false
+			pe.Parent = att
+			table.insert(spray, pe)
+		end
+		local pAtt = Instance.new("Attachment")
+		pAtt.Name = "PlankAtt"
+		pAtt.Position = D.Underglow.Pos + Vector3.new(0, -0.1, 1.5)
+		pAtt.Parent = chassis
+		local pe = Instance.new("ParticleEmitter")
+		pe.Name = "PlankSparks"
+		pe.Color = ColorSequence.new(Color3.fromRGB(255, 250, 210), Color3.fromRGB(255, 150, 40))
+		pe.LightEmission = 1
+		pe.Size = NumberSequence.new(0.28, 0)
+		pe.Lifetime = NumberRange.new(0.12, 0.3)
+		pe.Speed = NumberRange.new(18, 34)
+		pe.SpreadAngle = Vector2.new(20, 8)
+		pe.EmissionDirection = Enum.NormalId.Back
+		pe.Acceleration = Vector3.new(0, -40, 0)
+		pe.Enabled = false
+		pe.Parent = pAtt
+		plank = pe
+	end
+
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d ~= chassis then
+			d.CanCollide = false
+			d.CanQuery = false
+			if o.Ghost then
+				d.CastShadow = false
+				if d.Transparency < 1 then
+					d.Transparency = 0.55
+				end
+			end
+		end
+	end
+
+	return {
+		Model = model,
+		Chassis = chassis,
+		Wheels = wheels,
+		Exhausts = exhausts,
+		Flames = flames,
+		Smoke = smoke,
+		Trail = trail,
+		Groups = groups,
+		Rel = rel,
+		DamageSmoke = damageSmoke,
+		Sparks = sparks,
+		EngineCover = engineCover,
+		Steering = steering,
+		RainLight = rainLight,
+		Spray = spray,
+		Plank = plank,
+		Flap = flap,
+		Design = dn, -- which mesh set was used (new generation, first generation or GT-1 fallback)
+	}
+end
+
+-- Active aero: open (1) lifts the rear-wing flap's leading edge about its hinge, like the
+-- 2026 cars' straight mode. `open` is 0..1.
+CarBuilder.FlapOpenAngle = math.rad(24)
+function CarBuilder.SetFlap(flap, open: number)
+	if flap and flap.Weld.Parent then
+		flap.Weld.C0 = flap.Base * CFrame.Angles(CarBuilder.FlapOpenAngle * open, 0, 0)
+	end
+end
+
+-- Rear rain light: bright under braking, blinking in the wet or at night
+function CarBuilder.SetRainLight(part: BasePart?, braking: boolean, blinking: boolean)
+	if not part then
+		return
+	end
+	local on = braking or (blinking and math.floor(os.clock() * 4) % 2 == 0)
+	if on then
+		part.Color = Color3.fromRGB(255, 40, 40)
+		part.Material = Enum.Material.Neon
+	else
+		part.Color = Color3.fromRGB(70, 12, 14)
+		part.Material = Enum.Material.SmoothPlastic
+	end
+end
+
+return CarBuilder
