@@ -44,7 +44,7 @@
 
 GoTrack Racing is a solo project by **Bardan Kapri**, done over a weekend.
 
-- **AI was a tool, used to help with the coding.** Everyone uses AI now; what matters is how you use it and what you make with it. The idea, the direction, the architecture and the design are mine.
+- **AI was a tool, used to help with the coding.** The direction, the architecture and the design are mine.
 
 ---
 
