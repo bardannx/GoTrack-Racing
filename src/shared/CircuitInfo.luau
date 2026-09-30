@@ -33,6 +33,7 @@ export type Stats = {
 	IdealLap: number,
 }
 
+-- Raw stats for one circuit (stars are filled in later, once every circuit is known).
 local function compute(id: string): Stats?
 	if cache[id] then
 		return cache[id]
@@ -93,7 +94,12 @@ local function compute(id: string): Stats?
 	local lengthKm = t.Length * M_PER_STUD / 1000
 	-- raw difficulty: corner and braking density, little flat-out time, hills, tight streets
 	local km = math.max(lengthKm, 0.5)
-	local score = corners / km * 0.5 + zones / km * 1.2 + (1 - flat / n) * 4 + (maxY - minY) / 25 + (if street then 1.2 else 0) + (40 - t.Width) / 5
+	local score = corners / km * 0.5
+		+ zones / km * 1.2
+		+ (1 - flat / n) * 4
+		+ (maxY - minY) / 25
+		+ (if street then 1.2 else 0)
+		+ (40 - t.Width) / 5
 	local s = {
 		LengthKm = lengthKm,
 		Corners = corners,
@@ -104,7 +110,10 @@ local function compute(id: string): Stats?
 		FullThrottle = flat / n,
 		Difficulty = 3,
 		Score = score,
-		Type = if string.find(t.Def.Region, "Bonus") then "Bonus circuit" elseif street then "Street circuit" else "Permanent circuit",
+		Type = if string.find(t.Def.Region, "Bonus")
+			then "Bonus circuit"
+			elseif street then "Street circuit"
+			else "Permanent circuit",
 		Laps = t.Laps,
 		RaceKm = lengthKm * t.Laps,
 		IdealLap = t.IdealLap,
@@ -135,6 +144,7 @@ function CircuitInfo.Get(id: string): Stats?
 	return compute(id)
 end
 
+-- "★★★☆☆" style text for a 1..5 difficulty.
 function CircuitInfo.Stars(n: number): string
 	return string.rep("★", n) .. string.rep("☆", 5 - n)
 end

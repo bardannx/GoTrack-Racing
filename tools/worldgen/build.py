@@ -5,9 +5,11 @@
   python3 tools/worldgen/build.py export assets/world/GoTrackWorld.fbx assets/world/manifest.json
   python3 tools/worldgen/build.py luau assets/world/manifest.json src/shared/WorldData.luau
 
-Mesh object names are <design>.<Slot> (e.g. tower_glass.Glass). Bardan imports the FBX in
-Studio and the MeshParts go into ReplicatedStorage.WorldMeshes (see docs/WORLD_PIPELINE.md).
+Mesh object names are <design>.<Slot> (e.g. tower_glass.Glass). The FBX is imported in
+Studio by hand and the MeshParts go into ReplicatedStorage.WorldMeshes (see
+docs/WORLD_PIPELINE.md).
 """
+
 import json
 import math
 import os
@@ -56,10 +58,12 @@ def build(name):
 
 
 def tris(faces):
+    """Triangle count of a list of faces."""
     return sum(len(f) - 2 for f in faces)
 
 
 def weld(faces, eps=1e-3):
+    """Merges shared vertices into (verts, faces) for Blender."""
     idx, verts, out = {}, [], []
     for f in faces:
         ids = []
@@ -79,12 +83,14 @@ def weld(faces, eps=1e-3):
 
 
 def bbox(faces):
+    """Centre and size of a set of faces (at least 0.05 studs in every direction)."""
     pts = np.array([p for f in faces for p in f])
     lo, hi = pts.min(axis=0), pts.max(axis=0)
     return (lo + hi) / 2, np.maximum(hi - lo, 0.05)
 
 
 def bl():
+    """Imports bpy only when needed, so `stats` runs without Blender."""
     import bpy
 
     return bpy
@@ -142,6 +148,7 @@ def objects(only=None):
 
 
 def stats():
+    """Prints triangles per design and slot, and flags any mesh over MAX_TRIS."""
     total = 0
     for name, meta in designs.DESIGNS.items():
         parts = build(name)
@@ -155,6 +162,9 @@ def stats():
 
 
 def export(out_fbx, out_manifest):
+    """Exports every design to one FBX and writes the manifest (each MeshPart's centre and
+    size, and each design's kind, footprint and height).
+    """
     bpy = bl()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     col = bpy.context.scene.collection
@@ -163,7 +173,11 @@ def export(out_fbx, out_manifest):
     for obj, (faces, name, slot) in objects().items():
         meta = designs.DESIGNS[name]
         ob, c, size, nf = make_object(obj, faces, col, smooth=meta["smooth"])
-        man["objects"][obj] = {"c": [round(float(x), 3) for x in c], "s": [round(float(x), 3) for x in size], "tris": tris(faces)}
+        man["objects"][obj] = {
+            "c": [round(float(x), 3) for x in c],
+            "s": [round(float(x), 3) for x in size],
+            "tris": tris(faces),
+        }
         d = man["designs"].setdefault(name, {"kind": meta["kind"], "w": meta["w"], "d": meta["d"], "slots": []})
         d["slots"].append(slot)
         total += tris(faces)
@@ -172,11 +186,25 @@ def export(out_fbx, out_manifest):
         d["h"] = round(float(pts[:, 1].max()), 2)
     print(f"{len(man['objects'])} objects, {total} triangles", file=sys.stderr)
     os.makedirs(os.path.dirname(os.path.abspath(out_fbx)), exist_ok=True)
-    bpy.ops.export_scene.fbx(filepath=out_fbx, use_selection=False, object_types={"MESH"}, apply_unit_scale=True, apply_scale_options="FBX_SCALE_UNITS", axis_forward="-Z", axis_up="Y", use_mesh_modifiers=True, mesh_smooth_type="FACE", use_triangles=True, add_leaf_bones=False, bake_anim=False)
+    bpy.ops.export_scene.fbx(
+        filepath=out_fbx,
+        use_selection=False,
+        object_types={"MESH"},
+        apply_unit_scale=True,
+        apply_scale_options="FBX_SCALE_UNITS",
+        axis_forward="-Z",
+        axis_up="Y",
+        use_mesh_modifiers=True,
+        mesh_smooth_type="FACE",
+        use_triangles=True,
+        add_leaf_bones=False,
+        bake_anim=False,
+    )
     json.dump(man, open(out_manifest, "w"), indent=1)
 
 
 def luau(manifest, out):
+    """Writes src/shared/WorldData.luau from the manifest."""
     man = json.load(open(manifest))
     L = []
     L.append("--!nonstrict")
@@ -206,6 +234,7 @@ def luau(manifest, out):
 
 
 def material(bpy, key, rgb, rough, emit=0.0, alpha=1.0):
+    """A preview material for the sheet renders (cached by key)."""
     m = bpy.data.materials.get(key)
     if m:
         return m
@@ -245,7 +274,13 @@ def sheet(out, only=None):
             k = 3.0 if designs.DESIGNS[n]["kind"] in ("tree", "rock", "vehicle") else 1.0
             for slot, faces in build(n).items():
                 faces = G.scale(faces, k, k, k)
-                ob, *_ = make_object(f"{n}.{slot}", G.move(faces, x + w * k / 2, 0, z), col, smooth=designs.DESIGNS[n]["smooth"], centre=False)
+                ob, *_ = make_object(
+                    f"{n}.{slot}",
+                    G.move(faces, x + w * k / 2, 0, z),
+                    col,
+                    smooth=designs.DESIGNS[n]["smooth"],
+                    centre=False,
+                )
                 rgb, rough = PREVIEW.get(slot, ((0.7, 0.7, 0.7), 0.5))
                 ob.data.materials.append(material(bpy, slot, rgb, rough))
             x += w * k + 14

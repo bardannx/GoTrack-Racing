@@ -6,10 +6,10 @@ captions and a synthesized soundtrack, encoded to 1920x1080 H.264.
     -> assets/launch/trailer/GoTrack_Trailer.mp4
 
 This is for YouTube / social ads. Roblox's own video thumbnails must be real gameplay
-recorded in the game, so they are captured in Studio instead (docs/LAUNCH_GUIDE.md).
+recorded in the game, so those are captured in Studio instead.
 Needs bpy, numpy, Pillow and imageio-ffmpeg (a bundled ffmpeg).
 """
-import math
+
 import subprocess
 import sys
 import wave
@@ -40,10 +40,15 @@ CLIPS = [
 
 
 def clips():
+    """Renders the circuit clips and the line-up still into the work folder (skips any that
+    already exist, so it can be resumed).
+    """
     WORK.mkdir(parents=True, exist_ok=True)
     if not (WORK / "lineup.png").exists():
         # nine of the cars side by side on a grid (promo.py's line-up scene, no text)
-        subprocess.run([sys.executable, str(HERE / "promo.py"), "lineup", str(WORK / "lineup.png")], check=True, cwd=str(HERE))
+        subprocess.run(
+            [sys.executable, str(HERE / "promo.py"), "lineup", str(WORK / "lineup.png")], check=True, cwd=str(HERE)
+        )
     for cid, frac, rig, cars, secs, *_ in CLIPS:
         d = WORK / cid
         n = int(round(secs * FPS))
@@ -51,8 +56,22 @@ def clips():
             print("have", cid)
             continue
         # one Blender scene per process keeps memory flat
-        subprocess.run([sys.executable, str(HERE / "showcase.py"), "clip", cid, str(frac), rig, str(secs), str(d),
-                        "960x540", "12", ",".join(cars)], check=True)
+        subprocess.run(
+            [
+                sys.executable,
+                str(HERE / "showcase.py"),
+                "clip",
+                cid,
+                str(frac),
+                rig,
+                str(secs),
+                str(d),
+                "960x540",
+                "12",
+                ",".join(cars),
+            ],
+            check=True,
+        )
 
 
 # ---------------------------------------------------------------------------- picture
@@ -63,6 +82,7 @@ def fonts():
 
 
 def ease(t):
+    """Ease-out cubic, 0..1."""
     t = max(0.0, min(1.0, t))
     return 1 - (1 - t) ** 3
 
@@ -88,6 +108,7 @@ def caption(img, title, sub, t, n):
 
 
 def flash(img, t, strength=0.55, length=5):
+    """A white flash that fades over `length` frames after a cut."""
     if t >= length:
         return img
     k = strength * (1 - t / length)
@@ -97,6 +118,7 @@ def flash(img, t, strength=0.55, length=5):
 
 
 def vignette():
+    """A dark vignette overlay for the whole video."""
     y, x = np.mgrid[0:H, 0:W]
     r = np.sqrt(((x - W / 2) / (W / 2)) ** 2 + ((y - H / 2) / (H / 2)) ** 2)
     a = np.clip((r - 0.75) / 0.7, 0, 1) ** 1.5 * 150
@@ -106,6 +128,7 @@ def vignette():
 
 
 def ken_burns(src, t, n, z0=1.0, z1=1.08, pan=(0.0, 0.0)):
+    """Slow zoom and pan across a still, frame `t` of `n`."""
     k = t / max(1, n - 1)
     z = z0 + (z1 - z0) * k
     iw, ih = src.size
@@ -117,11 +140,12 @@ def ken_burns(src, t, n, z0=1.0, z1=1.08, pan=(0.0, 0.0)):
 
 
 def logo_card(bg, t, n, line, cta=False):
+    """The title card: logo, a line of text and, on the last card, the call to action."""
     ov = fonts()
     img = bg.copy()
     s = 1.12 - 0.12 * ease(t / 14)
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    yb = ov.logo(layer, 0, 0, 230)
+    ov.logo(layer, 0, 0, 230)
     box = layer.getbbox() or (0, 0, 10, 10)
     mark = layer.crop(box)
     mark = mark.resize((int(mark.width * s), int(mark.height * s)), Image.LANCZOS)
@@ -132,14 +156,22 @@ def logo_card(bg, t, n, line, cta=False):
         b = ease((t - 10) / 10)
         txt = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         f = ov.font(ov.B, 54 if cta else 46)
-        ov.shadow_text(txt, (W // 2, H // 2 + 150), line, f, (255, 214, 40, 255) if cta else (255, 255, 255, 255), anchor="mm")
+        ov.shadow_text(
+            txt, (W // 2, H // 2 + 150), line, f, (255, 214, 40, 255) if cta else (255, 255, 255, 255), anchor="mm"
+        )
         txt.putalpha(txt.split()[3].point(lambda v: int(v * b)))
         img.alpha_composite(txt)
     return img
 
 
-TIERS = [("BRONZE", (214, 132, 62)), ("SILVER", (190, 200, 220)), ("GOLD", (255, 196, 40)),
-         ("PLATINUM", (70, 225, 200)), ("DIAMOND", (110, 160, 255)), ("CHAMPION", (255, 70, 110))]  # Config.Ranked.Tiers
+TIERS = [
+    ("BRONZE", (214, 132, 62)),
+    ("SILVER", (190, 200, 220)),
+    ("GOLD", (255, 196, 40)),
+    ("PLATINUM", (70, 225, 200)),
+    ("DIAMOND", (110, 160, 255)),
+    ("CHAMPION", (255, 70, 110)),
+]  # Config.Ranked.Tiers
 
 
 def ranked_card(bg, t, n):
@@ -185,6 +217,7 @@ def timeline():
 
 
 def compose():
+    """Puts every frame together (clips, stills, titles, flashes) into the frames folder."""
     frames_dir = WORK / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
     for f in frames_dir.glob("*.png"):
@@ -193,7 +226,13 @@ def compose():
     first = Image.open(WORK / CLIPS[0][0] / "f_0001.png").convert("RGB").resize((W, H), Image.LANCZOS)
     dark = ImageEnhance.Brightness(first.filter(ImageFilter.GaussianBlur(18))).enhance(0.35).convert("RGBA")
     bay = WORK / "bay" / "f_0030.png"
-    ranked_bg = ImageEnhance.Brightness(Image.open(bay).convert("RGB").resize((W, H), Image.LANCZOS).filter(ImageFilter.GaussianBlur(14))).enhance(0.45).convert("RGBA")
+    ranked_bg = (
+        ImageEnhance.Brightness(
+            Image.open(bay).convert("RGB").resize((W, H), Image.LANCZOS).filter(ImageFilter.GaussianBlur(14))
+        )
+        .enhance(0.45)
+        .convert("RGBA")
+    )
     k = 0
     cuts = []
     for kind, n, payload in timeline():
@@ -232,17 +271,20 @@ SR = 48000
 
 
 def env(n, attack, decay):
+    """Attack/decay volume envelope for a synthesized sound, `n` samples long."""
     t = np.arange(n) / SR
     return np.minimum(1, t / max(attack, 1e-4)) * np.exp(-t / decay)
 
 
 def lowpass(x, k):
+    """A simple moving-average low-pass filter."""
     if k <= 1:
         return x
     return np.convolve(x, np.ones(k) / k, mode="same")
 
 
 def soundtrack(n_frames, cuts):
+    """Synthesizes the music and engine sounds, with hits on the cuts. Returns a WAV path."""
     rng = np.random.default_rng(7)
     dur = n_frames / FPS
     N = int(dur * SR)
@@ -257,8 +299,8 @@ def soundtrack(n_frames, cuts):
         if i >= N:
             return
         s = sig[: N - i] * gain
-        L[i:i + len(s)] += s * (1 - pan) * 0.5 * 2 ** 0.5
-        R[i:i + len(s)] += s * (1 + pan) * 0.5 * 2 ** 0.5
+        L[i : i + len(s)] += s * (1 - pan) * 0.5 * 2**0.5
+        R[i : i + len(s)] += s * (1 + pan) * 0.5 * 2**0.5
 
     # kick: pitch sweep 140 -> 45 Hz
     kn = int(0.35 * SR)
@@ -266,7 +308,9 @@ def soundtrack(n_frames, cuts):
     kick = np.sin(2 * np.pi * np.cumsum(45 + 95 * np.exp(-kt / 0.03)) / SR) * env(kn, 0.002, 0.12)
     hat = lowpass(rng.standard_normal(int(0.05 * SR)), 1)
     hat = (hat - lowpass(hat, 6)) * env(len(hat), 0.001, 0.012)
-    snare = (rng.standard_normal(int(0.2 * SR)) * 0.6 + np.sin(2 * np.pi * 190 * np.arange(int(0.2 * SR)) / SR) * 0.4) * env(int(0.2 * SR), 0.001, 0.06)
+    snare = (
+        rng.standard_normal(int(0.2 * SR)) * 0.6 + np.sin(2 * np.pi * 190 * np.arange(int(0.2 * SR)) / SR) * 0.4
+    ) * env(int(0.2 * SR), 0.001, 0.06)
     t = logo_end
     b = 0
     while t < end_start:
@@ -310,11 +354,15 @@ def soundtrack(n_frames, cuts):
     # riser into the first shot and a hit on the logo and the end card
     rn = int(logo_end * SR)
     rx = np.arange(rn) / SR
-    riser = (lowpass(rng.standard_normal(rn), 4) * (rx / logo_end) ** 2 + np.sin(2 * np.pi * np.cumsum(200 + 600 * (rx / logo_end) ** 2) / SR) * 0.3 * (rx / logo_end))
+    riser = lowpass(rng.standard_normal(rn), 4) * (rx / logo_end) ** 2 + np.sin(
+        2 * np.pi * np.cumsum(200 + 600 * (rx / logo_end) ** 2) / SR
+    ) * 0.3 * (rx / logo_end)
     add(riser, 0, 0, 0.35)
     hn = int(2.5 * SR)
     hx = np.arange(hn) / SR
-    hit = (np.sin(2 * np.pi * 42 * hx) + 0.5 * np.sin(2 * np.pi * 84 * hx)) * env(hn, 0.003, 0.7) + lowpass(rng.standard_normal(hn), 2) * env(hn, 0.001, 0.25) * 0.4
+    hit = (np.sin(2 * np.pi * 42 * hx) + 0.5 * np.sin(2 * np.pi * 84 * hx)) * env(hn, 0.003, 0.7) + lowpass(
+        rng.standard_normal(hn), 2
+    ) * env(hn, 0.001, 0.25) * 0.4
     add(hit, 0.05, 0, 0.8)
     add(hit, end_start, 0, 1.0)
     mix = np.stack([L, R], axis=1)
@@ -333,14 +381,43 @@ def soundtrack(n_frames, cuts):
 
 
 def encode(n_frames, wav):
+    """Encodes the frames and the soundtrack to an H.264 MP4 with ffmpeg."""
     import imageio_ffmpeg
 
     ff = imageio_ffmpeg.get_ffmpeg_exe()
     OUT.mkdir(parents=True, exist_ok=True)
     out = OUT / "GoTrack_Trailer.mp4"
-    subprocess.run([ff, "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", str(WORK / "frames" / "%05d.png"), "-i", str(wav),
-                    "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-                    "-c:a", "aac", "-b:a", "192k", "-shortest", str(out)], check=True)
+    subprocess.run(
+        [
+            ff,
+            "-y",
+            "-loglevel",
+            "error",
+            "-framerate",
+            str(FPS),
+            "-i",
+            str(WORK / "frames" / "%05d.png"),
+            "-i",
+            str(wav),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "slow",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-shortest",
+            str(out),
+        ],
+        check=True,
+    )
     print(out, out.stat().st_size)
     return out
 

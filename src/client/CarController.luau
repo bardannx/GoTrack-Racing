@@ -1,7 +1,9 @@
 --!nonstrict
--- Arcade raycast-suspension race car, fully client-simulated for instant response.
---  * Car-to-car contact: other cars are solid boxes (players and AI). Each client
---    resolves its own car, so bumps feel fair even with lag.
+-- Your car. An arcade raycast-suspension model simulated on your own device, so the
+-- controls respond instantly; the server only checks where it ends up.
+--  * Handling comes from Config.Car and is the same for every chassis and every pass.
+--  * Car-to-car contact: other cars are solid boxes (players and computer cars). Each
+--    client resolves its own car, so bumps feel fair even with lag.
 --  * Crash damage: big impacts (walls or cars) break the front / rear wing, damage the
 --    sidepods and engine, and change how the car drives. A reset repairs everything.
 
@@ -65,6 +67,7 @@ UserInputService.InputChanged:Connect(function(io)
 	end
 end)
 
+-- Throttle, brake and steering from keyboard, gamepad or the touch pads.
 local function readInput()
 	local kb = UserInputService:GetFocusedTextBox() == nil
 	local W = kb and (UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up))
@@ -93,10 +96,12 @@ local function readInput()
 	Input.Handbrake = space or Input.TouchDrift or padDrift
 end
 
+-- Health of each part, 1 = perfect, 0 = gone.
 local function newDamage()
 	return { FrontWing = 1, RearWing = 1, Left = 1, Right = 1, Engine = 1 }
 end
 
+-- Builds your car at `spawnCF` and starts simulating it.
 function CarController.new(appearance, spawnCF: CFrame, surfaceFolder: Instance, userId: number?)
 	local parts = CarBuilder.Build(appearance, { UserId = userId })
 	local model = parts.Model
@@ -174,12 +179,18 @@ function CarController.new(appearance, spawnCF: CFrame, surfaceFolder: Instance,
 	self.Audio = EngineAudio.new(chassis, true)
 	self:Freeze(true)
 
-	table.insert(self.Connections, RunService.PreSimulation:Connect(function(dt)
-		self:PhysicsStep(dt)
-	end))
-	table.insert(self.Connections, RunService.RenderStepped:Connect(function(dt)
-		self:VisualStep(dt)
-	end))
+	table.insert(
+		self.Connections,
+		RunService.PreSimulation:Connect(function(dt)
+			self:PhysicsStep(dt)
+		end)
+	)
+	table.insert(
+		self.Connections,
+		RunService.RenderStepped:Connect(function(dt)
+			self:VisualStep(dt)
+		end)
+	)
 	return self
 end
 
@@ -190,6 +201,7 @@ function CarController:SetConditions(wet: boolean, night: boolean)
 	self.Night = night
 end
 
+-- Holds the car still (grid, countdown, menus).
 function CarController:Freeze(frozen: boolean)
 	self.Frozen = frozen
 	self.Chassis.Anchored = frozen
@@ -198,6 +210,7 @@ function CarController:Freeze(frozen: boolean)
 	self.PostVel = nil
 end
 
+-- Moves the car without keeping its speed (resets, restarts).
 function CarController:Teleport(cf: CFrame)
 	local wasFrozen = self.Frozen
 	self.Chassis.Anchored = true
@@ -225,6 +238,8 @@ function CarController:Health(): number
 	return (d.FrontWing + d.RearWing + d.Left + d.Right + d.Engine) / 5
 end
 
+-- Bit flags other clients need to draw this car: lost wings, engine smoke, ghost,
+-- braking and the open flap.
 function CarController:Flags(): number
 	local f = 0
 	local F = Net.Flags
@@ -278,6 +293,8 @@ function CarController:Detach(group: string)
 	end
 end
 
+-- A hit hard enough to count: damages the parts on the side that was hit, knocks a wing
+-- off if it's broken, and plays sparks and a crash sound.
 function CarController:Impact(strength: number, localDir: Vector3)
 	if not dmgCfg.Enabled or self.ImpactCooldown > 0 then
 		return
@@ -331,6 +348,7 @@ function CarController:Impact(strength: number, localDir: Vector3)
 	end
 end
 
+-- Puts every knocked-off part back and restores full health (car reset).
 function CarController:Repair()
 	self.Damage = newDamage()
 	self.Detached = {}
@@ -362,15 +380,19 @@ end
 ---------------------------------------------------------------------------
 local HW, HL = contact.HalfWidth, contact.HalfLength
 
+-- Half-width of the car's box along `axis` (separating axis test below).
 local function project(axis: Vector3, fwd: Vector3, right: Vector3): number
 	return HL * math.abs(fwd:Dot(axis)) + HW * math.abs(right:Dot(axis))
 end
 
+-- Direction on the ground plane.
 local function flat(v: Vector3): Vector3
 	local f = Vector3.new(v.X, 0, v.Z)
 	return if f.Magnitude > 1e-4 then f.Unit else Vector3.zAxis
 end
 
+-- Pushes your car out of any car it overlaps (box against box), so cars bump instead
+-- of driving through each other. Returns true if it touched one.
 function CarController:Contacts(dt: number)
 	if not contact.Enabled or self.Ghost or not self.GetOthers then
 		return false
@@ -577,7 +599,9 @@ function CarController:PhysicsStep(dt: number)
 	end
 
 	local gripMul, steerMul, topMul, steerBias = self:Mods()
-	local top = cfg.TopSpeed * topMul * (1 + cfg.SlipstreamBonus * self.Slipstream + (if self.AeroOpen then aero.TopSpeedBonus else 0))
+	local top = cfg.TopSpeed
+		* topMul
+		* (1 + cfg.SlipstreamBonus * self.Slipstream + (if self.AeroOpen then aero.TopSpeedBonus else 0))
 	top = top + (cfg.OffTrackTopSpeed - top) * (offFrac - gravelFrac)
 	top = top + (cfg.GravelTopSpeed - top) * gravelFrac
 
@@ -590,7 +614,11 @@ function CarController:PhysicsStep(dt: number)
 		elseif throttle > 0 then
 			if vF < top then
 				local ratio = math.max(vF, 0) / top
-				accel = cfg.EngineAccel * throttle * (1 - ratio * ratio * 0.8) * (1 + 0.15 * self.Slipstream) * (0.85 + 0.15 * self.Damage.Engine)
+				accel = cfg.EngineAccel
+					* throttle
+					* (1 - ratio * ratio * 0.8)
+					* (1 + 0.15 * self.Slipstream)
+					* (0.85 + 0.15 * self.Damage.Engine)
 			end
 		elseif brake > 0 then
 			if vF > 2 then
@@ -621,7 +649,10 @@ function CarController:PhysicsStep(dt: number)
 
 		local angVel = root.AssemblyAngularVelocity
 		local sp = math.abs(vF)
-		local rate = cfg.SteerRate * math.clamp(sp / 16, 0, 1) * (1 - cfg.HighSpeedSteerFactor * math.clamp(sp / cfg.TopSpeed, 0, 1)) * steerMul
+		local rate = cfg.SteerRate
+			* math.clamp(sp / 16, 0, 1)
+			* (1 - cfg.HighSpeedSteerFactor * math.clamp(sp / cfg.TopSpeed, 0, 1))
+			* steerMul
 		if Input.Handbrake then
 			rate *= 1.35
 		end
@@ -666,6 +697,7 @@ function CarController:PhysicsStep(dt: number)
 	self.PostVel = expect
 end
 
+-- Every frame: wheels spin and steer, flap, lights, exhaust, sparks, spray and sounds.
 function CarController:VisualStep(dt: number)
 	local parts = self.Parts
 	if not self.Chassis.Parent then
@@ -702,7 +734,10 @@ function CarController:VisualStep(dt: number)
 			sw.Speed.Text = State.SpeedText(vF)
 			if sw.Rev then
 				sw.Rev.Size = UDim2.fromScale(math.clamp(rpm, 0.02, 1), 1)
-				sw.Rev.BackgroundColor3 = if rpm > 0.9 then Color3.fromRGB(80, 140, 255) elseif rpm > 0.7 then Color3.fromRGB(255, 60, 60) else Color3.fromRGB(60, 255, 120)
+				sw.Rev.BackgroundColor3 = if rpm > 0.9
+					then Color3.fromRGB(80, 140, 255)
+					elseif rpm > 0.7 then Color3.fromRGB(255, 60, 60)
+					else Color3.fromRGB(60, 255, 120)
 			end
 		end
 	end
@@ -710,7 +745,8 @@ function CarController:VisualStep(dt: number)
 	for _, pe in parts.Flames do
 		pe.Enabled = fast and self.Enabled
 	end
-	local sliding = self.Grounded and (math.abs(self.SideSpeed) > 22 or (Input.Handbrake and math.abs(vF) > 20) or (Input.Brake > 0 and vF > 120))
+	local sliding = self.Grounded
+		and (math.abs(self.SideSpeed) > 22 or (Input.Handbrake and math.abs(vF) > 20) or (Input.Brake > 0 and vF > 120))
 	for _, pe in parts.Smoke do
 		pe.Enabled = sliding and self.Enabled
 	end
@@ -719,7 +755,11 @@ function CarController:VisualStep(dt: number)
 	end
 	-- rear rain light: bright under braking, blinking in the wet and at night
 	if parts.RainLight then
-		CarBuilder.SetRainLight(parts.RainLight, self.Enabled and Input.Brake > 0.1 and vF > 5, self.Wet == true or self.Night == true)
+		CarBuilder.SetRainLight(
+			parts.RainLight,
+			self.Enabled and Input.Brake > 0.1 and vF > 5,
+			self.Wet == true or self.Night == true
+		)
 	end
 	-- active-aero flap: swings open fast, snaps shut even faster
 	if parts.Flap then
@@ -768,7 +808,9 @@ function CarController:VisualStep(dt: number)
 		else
 			d.Vel += Vector3.new(0, -140 * dt, 0)
 			local p = d.Part.CFrame.Position + d.Vel * dt
-			d.Part.CFrame = CFrame.new(p) * d.Part.CFrame.Rotation * CFrame.Angles(d.Spin.X * dt, d.Spin.Y * dt, d.Spin.Z * dt)
+			d.Part.CFrame = CFrame.new(p)
+				* d.Part.CFrame.Rotation
+				* CFrame.Angles(d.Spin.X * dt, d.Spin.Y * dt, d.Spin.Z * dt)
 			if d.Life < 0.5 then
 				d.Part.Transparency = 1 - d.Life * 2
 			end
@@ -789,6 +831,7 @@ function CarController:Gear(): (number, number)
 	return gear, rpm
 end
 
+-- Removes the car and stops its updates.
 function CarController:Destroy()
 	for _, c in self.Connections do
 		c:Disconnect()
@@ -805,7 +848,8 @@ function CarController:Destroy()
 	if self.Model then
 		self.Model:Destroy()
 	end
-	Input.TouchThrottle, Input.TouchBrake, Input.TouchLeft, Input.TouchRight, Input.TouchDrift = false, false, false, false, false
+	Input.TouchThrottle, Input.TouchBrake, Input.TouchLeft, Input.TouchRight, Input.TouchDrift =
+		false, false, false, false, false
 end
 
 return CarController

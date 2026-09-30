@@ -1,5 +1,8 @@
 --!nonstrict
--- Game pass ownership, developer product receipts and perk multipliers.
+-- Everything players pay for, on the server: which game passes they own, delivering
+-- developer products (coin packs, Coin Boost) and the coin multipliers from passes.
+-- None of it touches car speed or handling. The pass and product list is in
+-- shared/Monetization.luau.
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
@@ -17,10 +20,12 @@ local M = {}
 local owned: { [Player]: { [string]: boolean } } = {}
 local notify: ((Player, string, string?) -> ())? = nil
 
+-- How to show the player a toast (set by init.server so this module needs no remotes).
 function M.SetNotifier(fn: (Player, string, string?) -> ())
 	notify = fn
 end
 
+-- Ultimate counts as owning every pass.
 local function expand(set: { [string]: boolean }): { [string]: boolean }
 	if set.Ultimate then
 		for _, p in Monetization.Passes do
@@ -30,15 +35,19 @@ local function expand(set: { [string]: boolean }): { [string]: boolean }
 	return set
 end
 
+-- Set of pass keys the player owns.
 function M.GetPasses(player: Player): { [string]: boolean }
 	return owned[player] or {}
 end
 
+-- Whether the player owns a pass (Ultimate owns them all).
 function M.Has(player: Player, key: string): boolean
 	local s = owned[player]
 	return s ~= nil and (s[key] == true or s.Ultimate == true)
 end
 
+-- Sets the player attributes other scripts read (VIP, Ultimate, Owner chat tags) and
+-- gives the game owner every cosmetic.
 local function applyPerks(player: Player)
 	local data = DataService.Get(player)
 	local passes = M.GetPasses(player)
@@ -76,6 +85,7 @@ local function applyPerks(player: Player)
 	end
 end
 
+-- Asks Roblox which passes the player owns and applies the perks.
 local function refresh(player: Player)
 	local set: { [string]: boolean } = {}
 	local data = DataService.Get(player)
@@ -111,6 +121,7 @@ local function refresh(player: Player)
 	applyPerks(player)
 end
 
+-- Coin multiplier for race rewards: 2x Coins pass, VIP bonus and an active Coin Boost.
 function M.CoinMultiplier(player: Player): number
 	local mult = 1
 	if M.Has(player, "DoubleCoins") then
@@ -131,6 +142,8 @@ function M.XPMultiplier(_player: Player): number
 	return 1
 end
 
+-- Delivers a developer product. Each receipt is remembered so a retry can never pay twice,
+-- and Roblox is only told "granted" once the save has gone through.
 local function processReceipt(info: { [string]: any }): Enum.ProductPurchaseDecision
 	local player = Players:GetPlayerByUserId(info.PlayerId)
 	if not player then
@@ -177,12 +190,17 @@ local function processReceipt(info: { [string]: any }): Enum.ProductPurchaseDeci
 			(notify :: any)(player, string.format("💰 +%d coins! Thanks for your support!", product.Coins), "success")
 		end
 		if product.BoostMinutes then
-			(notify :: any)(player, string.format("⚡ 2x Coin Boost active for %d minutes!", product.BoostMinutes), "success")
+			(notify :: any)(
+				player,
+				string.format("⚡ 2x Coin Boost active for %d minutes!", product.BoostMinutes),
+				"success"
+			)
 		end
 	end
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
+-- Loads passes when a save loads and listens for purchases made during the session.
 function M.Init()
 	DataService.Loaded:Connect(function(player: Player)
 		refresh(player)
@@ -190,22 +208,24 @@ function M.Init()
 	Players.PlayerRemoving:Connect(function(player)
 		owned[player] = nil
 	end)
-	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
-		if not purchased then
-			return
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(
+		function(player: Player, passId: number, purchased: boolean)
+			if not purchased then
+				return
+			end
+			local pass = Monetization.PassById[passId]
+			if not pass then
+				return
+			end
+			local set = owned[player] or {}
+			set[pass.Key] = true
+			owned[player] = expand(set)
+			applyPerks(player)
+			if notify then
+				(notify :: any)(player, pass.Icon .. " " .. pass.Name .. " unlocked! Enjoy!", "success")
+			end
 		end
-		local pass = Monetization.PassById[passId]
-		if not pass then
-			return
-		end
-		local set = owned[player] or {}
-		set[pass.Key] = true
-		owned[player] = expand(set)
-		applyPerks(player)
-		if notify then
-			(notify :: any)(player, pass.Icon .. " " .. pass.Name .. " unlocked! Enjoy!", "success")
-		end
-	end)
+	)
 	MarketplaceService.ProcessReceipt = processReceipt
 end
 

@@ -1,5 +1,7 @@
 --!nonstrict
--- GoTrack Racing client bootstrap: menu, lobbies, races, time trials and results.
+-- Client entry point. Loads the profile, builds the menu and connects the pieces: the
+-- menu starts races and time trials, and the results screen leads back to the menu.
+-- Also registers a Studio-only hook (GoTrackDev) that test scripts use to open pages.
 
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
@@ -25,7 +27,12 @@ local TimeTrialClient = require(script.TimeTrialClient)
 
 local player = Players.LocalPlayer
 
-Kit.Loading(true, "Warming up the tyres...", #Circuits.List .. " circuits  •  10-car grids  •  one champion", "GETTING READY")
+Kit.Loading(
+	true,
+	"Warming up the tyres...",
+	#Circuits.List .. " circuits  •  10-car grids  •  one champion",
+	"GETTING READY"
+)
 State.Notify:Connect(function(msg, kind)
 	Kit.Toast(msg, kind)
 end)
@@ -71,26 +78,35 @@ Net.UEvent("CarStates").OnClientEvent:Connect(function() end)
 
 local lastRace = nil -- { Mode, TrackId }
 
+-- Shows the results screen with Race Again / Menu buttons.
 local function showResults(payload, yourRid)
 	Menu.Hide()
 	Results.Show(payload, yourRid, {
-		{ "🏁 Race Again", "primary", function()
-			Menu.Show(if payload.Mode == "ranked" then "ranked" else "quick")
-			task.spawn(function()
-				local res
-				if payload.Mode == "ranked" then
-					res = Util.Invoke("RankedQueue")
-				else
-					res = Util.Invoke("QuickRace", payload.TrackId, false)
-				end
-				if res and not res.ok then
-					Kit.Toast(res.err or "Couldn't join", "error")
-				end
-			end)
-		end },
-		{ "🏠 Menu", "secondary", function()
-			Menu.Show()
-		end },
+		{
+			"🏁 Race Again",
+			"primary",
+			function()
+				Menu.Show(if payload.Mode == "ranked" then "ranked" else "quick")
+				task.spawn(function()
+					local res
+					if payload.Mode == "ranked" then
+						res = Util.Invoke("RankedQueue")
+					else
+						res = Util.Invoke("QuickRace", payload.TrackId, false)
+					end
+					if res and not res.ok then
+						Kit.Toast(res.err or "Couldn't join", "error")
+					end
+				end)
+			end,
+		},
+		{
+			"🏠 Menu",
+			"secondary",
+			function()
+				Menu.Show()
+			end,
+		},
 	})
 end
 
@@ -120,7 +136,14 @@ end)
 Net.Event("RaceResults").OnClientEvent:Connect(function(payload)
 	if not RaceClient.IsActive() and payload.LeftEarly and not TimeTrialClient.IsActive() then
 		local you = payload.You or {}
-		Kit.Toast(string.format("🏁 Race over - you finished P%s  (+%s coins)", tostring(you.Pos or "?"), tostring(you.Coins or 0)), "success")
+		Kit.Toast(
+			string.format(
+				"🏁 Race over - you finished P%s  (+%s coins)",
+				tostring(you.Pos or "?"),
+				tostring(you.Coins or 0)
+			),
+			"success"
+		)
 	end
 end)
 
@@ -171,17 +194,52 @@ if game:GetService("RunService"):IsStudio() then
 		elseif cmd == "results" then
 			-- sample results screen for layout testing on every device size
 			local mine = math.clamp(tonumber(b) or 3, 1, 10)
-			local names = { "Alex Turbo", "Carlos Kerb", "Yuki Boost", "Charles Apex", "Max Velocity", "Fernando Gear", "Lina Slide", "Pit Stopz", "Grid Walker", "Tura Boost" }
+			local names = {
+				"Alex Turbo",
+				"Carlos Kerb",
+				"Yuki Boost",
+				"Charles Apex",
+				"Max Velocity",
+				"Fernando Gear",
+				"Lina Slide",
+				"Pit Stopz",
+				"Grid Walker",
+				"Tura Boost",
+			}
 			names[mine] = player.DisplayName
 			local rows = {}
 			for i, n in names do
 				local me = i == mine
-				table.insert(rows, { Rid = i, Name = n, IsAI = not me, UserId = if me then player.UserId else 0, P = i, Finished = true, Time = 209.753 + i * 0.6, Best = 51.2 + i * 0.1, Car = State.Profile.car })
+				table.insert(rows, {
+					Rid = i,
+					Name = n,
+					IsAI = not me,
+					UserId = if me then player.UserId else 0,
+					P = i,
+					Finished = true,
+					Time = 209.753 + i * 0.6,
+					Best = 51.2 + i * 0.1,
+					Car = State.Profile.car,
+				})
 			end
-			showResults({ Results = rows, You = { Pos = mine, Coins = 120, XP = 60, Finished = true, RpDelta = if a == "ranked" then 18 else nil, Rp = 180, OldRp = 180, Fastest = true }, Mode = a or "quick", TrackId = "capital", Fastest = { Rid = mine } }, mine)
+			showResults({
+				Results = rows,
+				You = {
+					Pos = mine,
+					Coins = 120,
+					XP = 60,
+					Finished = true,
+					RpDelta = if a == "ranked" then 18 else nil,
+					Rp = 180,
+					OldRp = 180,
+					Fastest = true,
+				},
+				Mode = a or "quick",
+				TrackId = "capital",
+				Fastest = { Rid = mine },
+			}, mine)
 		end
 		return true
 	end
 	dev.Parent = player
 end
-

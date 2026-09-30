@@ -1,13 +1,17 @@
 """Reusable F1 car parts (car metres; see geo.py for axes)."""
+
 import math
 import numpy as np
 import geo
-from geo import Track, superellipse_section, loft, H
+from geo import superellipse_section, loft
 
 DELTA = 0.010  # livery overlay offset (m)
 
 
 def zsamples(z0, z1, step, dense=()):
+    """Stations along the car from z0 to z1 every `step`, with denser spacing inside
+    each (a, b, step) range in `dense`.
+    """
     zs = list(np.arange(z0, z1, step)) + [z1]
     for a, b, st in dense:
         zs += list(np.arange(a, b, st))
@@ -16,10 +20,12 @@ def zsamples(z0, z1, step, dense=()):
 
 
 def body_rings(track, zs, N):
+    """Cross-section rings along the car from a shape function `track(z)`."""
     return [superellipse_section(z, track(z), N) for z in zs]
 
 
 def loft_obj(rings, cap0=True, cap1=True, cap0_zone="", cap1_zone=""):
+    """Lofts rings into (sides, caps)."""
     sides, caps = loft(rings, cap0, cap1, cap0_zone, cap1_zone)
     return sides, caps
 
@@ -37,11 +43,8 @@ def overlay_from_rings(rings, region, exclude=None, d=DELTA):
 # ---------------------------------------------------------------------------
 # region helpers
 # ---------------------------------------------------------------------------
-def band_x(w, extra=()):
-    return [[geo.hs_x_ge(-w), geo.hs_x_le(w)] + list(extra)]
-
-
 def box_region(x0=None, x1=None, y0=None, y1=None, z0=None, z1=None):
+    """A box-shaped region from any of its six bounds (left out = unbounded)."""
     hs = []
     if x0 is not None:
         hs.append(geo.hs_x_ge(x0))
@@ -64,19 +67,8 @@ def above_curve_region(curve_zy, ytop=3.0, extra=()):
     return geo.poly_region("zy", pts, extra)
 
 
-def below_curve_region(curve_zy, ybot=-1.0, extra=()):
-    pts = list(curve_zy) + [(curve_zy[-1][0], ybot), (curve_zy[0][0], ybot)]
-    return geo.poly_region("zy", pts, extra)
-
-
-def union(*regions):
-    out = []
-    for r in regions:
-        out += r
-    return out
-
-
 def with_extra(region, extra):
+    """A region with extra half-spaces added to every piece."""
     return [piece + list(extra) for piece in region]
 
 
@@ -109,11 +101,19 @@ def wing_element(x0, x1, fn, stations=28, M=18, thick=0.09, camber=0.05, cap=Tru
 
 
 def endplate(poly_zy, x, thick=0.012):
+    """A flat wing endplate from its side outline, at lateral position x."""
     return geo.plate(poly_zy, "zy", x, thick)
 
 
 def arc_pts(cz, cy, r, a0, a1, n=8):
-    return [(cz + r * math.cos(math.radians(a0 + (a1 - a0) * k / n)), cy + r * math.sin(math.radians(a0 + (a1 - a0) * k / n))) for k in range(n + 1)]
+    """Points on a circular arc in the side view (angles in degrees)."""
+    return [
+        (
+            cz + r * math.cos(math.radians(a0 + (a1 - a0) * k / n)),
+            cy + r * math.sin(math.radians(a0 + (a1 - a0) * k / n)),
+        )
+        for k in range(n + 1)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -124,10 +124,12 @@ def rod(a, b, r=0.014, flat=0.45, N=8):
 
 
 def wishbone(inner_a, inner_b, outer, r=0.013):
+    """A suspension wishbone: two rods from the chassis meeting at the wheel."""
     return rod(inner_a, outer, r) + rod(inner_b, outer, r)
 
 
 def drum(center, r, x0, x1, N=20):
+    """A short cylinder along x (brake drums, hubs)."""
     cx, cy, cz = center
     prof = [(x0, 0.0), (x0, r), (x1, r), (x1, 0.0)]
     return geo.revolve([(ax, rr) for ax, rr in prof], N=N, axis="x", center=(0, cy, cz))
@@ -154,6 +156,7 @@ def halo(front_z, base_y, top_y, rear_z, half_w, rear_y, r=0.03):
 
 
 def mirror(side, pos, stalk_from, housing=(0.075, 0.036, 0.03)):
+    """A wing mirror on one side (side = 1 right, -1 left): housing, glass and stalk."""
     x, y, z = pos
     hx, hy, hz = housing
     shell = geo.ellipsoid((side * x, y, z), (hx, hy, hz), N=16, M=10)

@@ -1,5 +1,8 @@
 --!nonstrict
--- GoTrack Racing global configuration. Tune gameplay, economy and limits here.
+-- Every tunable number in the game lives here: car handling, race timing, the economy,
+-- ranked tiers and seasons, medals and sounds. The module is shared, so the server and
+-- every client read the same values. Handling is deliberately identical for every car
+-- and every game pass: only driving decides a race.
 
 local Config = {}
 
@@ -25,6 +28,7 @@ Config.StudioGrantAllPasses = true
 -- published game always counts too.
 Config.Owners = { 10461888408 } -- Bardan (@bardann04)
 
+-- True for the owners listed above and for whoever owns the published game.
 function Config.IsOwner(userId: number): boolean
 	if table.find(Config.Owners, userId) then
 		return true
@@ -56,7 +60,7 @@ Config.Car = {
 	GravelTopSpeed = 55, -- in gravel traps
 	GravelGrip = 0.35,
 	-- 2026-style active aero ("straight mode"): flat out on a straight, the rear-wing flap
-	-- opens for less drag. Closes the moment you brake or turn. Same for every car and AI.
+	-- opens for less drag. Closes the moment you brake or turn. Same for every car.
 	ActiveAero = {
 		Enabled = true,
 		MinSpeed = 0.55, -- fraction of TopSpeed before it can open
@@ -102,10 +106,26 @@ Config.AI = {
 	Enabled = true,
 	QuickSkill = { 0.8, 0.92 }, -- fraction of the ideal speed profile
 	Names = {
-		"Max Velocity", "Lewis Throttle", "Charles Apex", "Lando Drift", "Oscar Pace",
-		"Carlos Kerb", "Fernando Gear", "George Slip", "Yuki Boost", "Pierre Brake",
-		"Esteban Line", "Nico Chicane", "Alex Turbo", "Valtteri Pit", "Kimi Lap",
-		"Sergio Draft", "Daniel Grin", "Zhou Sector", "Logan Pole", "Ollie Rev",
+		"Max Velocity",
+		"Lewis Throttle",
+		"Charles Apex",
+		"Lando Drift",
+		"Oscar Pace",
+		"Carlos Kerb",
+		"Fernando Gear",
+		"George Slip",
+		"Yuki Boost",
+		"Pierre Brake",
+		"Esteban Line",
+		"Nico Chicane",
+		"Alex Turbo",
+		"Valtteri Pit",
+		"Kimi Lap",
+		"Sergio Draft",
+		"Daniel Grin",
+		"Zhou Sector",
+		"Logan Pole",
+		"Ollie Rev",
 	},
 }
 
@@ -130,6 +150,7 @@ Config.Economy = {
 	FeaturedCoinMultiplier = 1.5, -- races on the weekly featured circuit (Challenges.luau)
 }
 
+-- XP needed to go from `level` to the next one (grows linearly).
 function Config.XPForLevel(level: number): number
 	return 150 + (level - 1) * 80
 end
@@ -187,6 +208,7 @@ function Config.TierIndex(rp: number, champion: boolean?): number
 	return idx
 end
 
+-- The tier table entry ({ Name, Min, Color, Icon }) for this many ranked points.
 function Config.TierFor(rp: number, champion: boolean?)
 	return Config.Ranked.Tiers[Config.TierIndex(rp, champion)]
 end
@@ -210,10 +232,17 @@ function Config.DivisionFor(rp: number, champion: boolean?)
 	local d = math.clamp(math.floor((rp - tier.Min) / span), 0, 2)
 	local stepStart = tier.Min + d * span
 	local stepEnd = stepStart + span
-	local nextLabel = if d < 2 then (tier.Name .. " " .. NUMERALS[d + 2]) else (nextTier.Name .. (if tiers[ti + 2] then " III" else " (top " .. Config.Ranked.ChampionSlots .. ")"))
-	return tier, NUMERALS[d + 1], math.clamp((rp - stepStart) / span, 0, 1), math.max(0, math.ceil(stepEnd - rp)), nextLabel
+	local nextLabel = if d < 2
+		then (tier.Name .. " " .. NUMERALS[d + 2])
+		else (nextTier.Name .. (if tiers[ti + 2] then " III" else " (top " .. Config.Ranked.ChampionSlots .. ")"))
+	return tier,
+		NUMERALS[d + 1],
+		math.clamp((rp - stepStart) / span, 0, 1),
+		math.max(0, math.ceil(stepEnd - rp)),
+		nextLabel
 end
 
+-- Display name such as "Gold II" or "Champion".
 function Config.RankName(rp: number, champion: boolean?): string
 	local tier, div = Config.DivisionFor(rp, champion)
 	return if div ~= "" then tier.Name .. " " .. div else tier.Name
@@ -278,7 +307,8 @@ Config.Sounds = {
 	Shift = "",
 }
 
--- The ranked season at unix time t (seasons roll over automatically)
+-- The ranked season at unix time `t`. Season 1 ends at FirstSeasonEnds and every season
+-- after it lasts SeasonDays, so seasons keep rolling over with no code change.
 function Config.SeasonAt(t: number)
 	local R = Config.Ranked
 	local len = R.SeasonDays * 86400
@@ -289,6 +319,7 @@ function Config.SeasonAt(t: number)
 	local endsAt = R.FirstSeasonEnds + (n - 1) * len
 	return { Number = n, Name = "Season " .. n, EndsAt = endsAt, StartsAt = if n == 1 then 0 else endsAt - len }
 end
+-- Config.Ranked.Season always reads as the current season.
 Config.Ranked.Season = setmetatable({}, {
 	__index = function(_, key)
 		return Config.SeasonAt(os.time())[key]

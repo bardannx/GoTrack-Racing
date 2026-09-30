@@ -26,11 +26,20 @@ local spinAngle = 0
 local spinning = true
 local previewCar = nil
 
+-- Shorthand for the colour tables.
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
 
-local function P(parent, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
+-- An anchored scenery part for the paddock.
+local function P(
+	parent,
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?,
+	shape: Enum.PartType?
+): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
 	p.CanCollide = false
@@ -50,14 +59,24 @@ local function P(parent, size: Vector3, cf: CFrame, color: Color3, material: Enu
 	return p
 end
 
+-- A CFrame relative to the scene's base point.
 local function at(x: number, y: number, z: number): CFrame
 	return CFrame.new(BASE + Vector3.new(x, y, z))
 end
 
+-- An upright cylinder (Roblox cylinders lie on their side by default).
 local function vertCyl(parent, height: number, diameter: number, cf: CFrame, color: Color3, material: Enum.Material?)
-	return P(parent, Vector3.new(height, diameter, diameter), cf * CFrame.Angles(0, 0, math.pi / 2), color, material, Enum.PartType.Cylinder)
+	return P(
+		parent,
+		Vector3.new(height, diameter, diameter),
+		cf * CFrame.Angles(0, 0, math.pi / 2),
+		color,
+		material,
+		Enum.PartType.Cylinder
+	)
 end
 
+-- Text on one face of a part, with an optional smaller second line.
 local function sign(part: BasePart, face: Enum.NormalId, text: string, color: Color3, bg: Color3?, sub: string?)
 	local sg = Instance.new("SurfaceGui")
 	sg.Face = face
@@ -93,6 +112,7 @@ local function sign(part: BasePart, face: Enum.NormalId, text: string, color: Co
 	return sg
 end
 
+-- A stack of `n` tyres with a coloured band.
 local function tyreStack(parent, cf: CFrame, n: number, band: Color3)
 	for k = 0, n - 1 do
 		local c = cf * CFrame.new(0, 0.55 + k * 1.1, 0)
@@ -102,6 +122,7 @@ local function tyreStack(parent, cf: CFrame, n: number, band: Color3)
 	end
 end
 
+-- A team garage with its name over the door and `bays` open bays.
 local function garage(parent, cf: CFrame, width: number, team: Color3, name: string, bays: number)
 	local depth = 26
 	local h = 30
@@ -109,36 +130,87 @@ local function garage(parent, cf: CFrame, width: number, team: Color3, name: str
 	P(parent, Vector3.new(width, h, depth), cf * CFrame.new(0, h / 2, depth / 2), rgb(240, 242, 246))
 	-- team colour band + roof
 	P(parent, Vector3.new(width + 0.4, 5, depth + 0.4), cf * CFrame.new(0, h - 2.5, depth / 2), team)
-	P(parent, Vector3.new(width + 6, 1, depth + 8), cf * CFrame.new(0, h + 0.5, depth / 2 - 3), rgb(210, 213, 220), Enum.Material.Metal)
+	P(
+		parent,
+		Vector3.new(width + 6, 1, depth + 8),
+		cf * CFrame.new(0, h + 0.5, depth / 2 - 3),
+		rgb(210, 213, 220),
+		Enum.Material.Metal
+	)
 	-- upper glass floor
-	local glass = P(parent, Vector3.new(width - 6, 7, 0.4), cf * CFrame.new(0, 19, -0.1), rgb(90, 140, 185), Enum.Material.Glass)
+	local glass =
+		P(parent, Vector3.new(width - 6, 7, 0.4), cf * CFrame.new(0, 19, -0.1), rgb(90, 140, 185), Enum.Material.Glass)
 	glass.Reflectance = 0.25
 	for k = 1, math.floor(width / 12) do
-		P(parent, Vector3.new(0.5, 7, 0.6), cf * CFrame.new(-width / 2 + 3 + k * 12, 19, -0.2), rgb(225, 228, 235), Enum.Material.Metal)
+		P(
+			parent,
+			Vector3.new(0.5, 7, 0.6),
+			cf * CFrame.new(-width / 2 + 3 + k * 12, 19, -0.2),
+			rgb(225, 228, 235),
+			Enum.Material.Metal
+		)
 	end
 	-- sign
-	local signPart = P(parent, Vector3.new(math.min(width * 0.55, 90), 4.6, 0.5), cf * CFrame.new(0, h - 2.5, -0.35), rgb(20, 22, 30))
+	local signPart = P(
+		parent,
+		Vector3.new(math.min(width * 0.55, 90), 4.6, 0.5),
+		cf * CFrame.new(0, h - 2.5, -0.35),
+		rgb(20, 22, 30)
+	)
 	sign(signPart, Enum.NormalId.Front, name, rgb(255, 255, 255))
 	-- garage bays (dark openings with a lit interior)
 	local bayW = (width - 8) / bays
 	for b = 0, bays - 1 do
 		local x = -width / 2 + 4 + bayW * (b + 0.5)
 		P(parent, Vector3.new(bayW - 3, 12.5, 0.4), cf * CFrame.new(x, 6.25, -0.1), rgb(46, 49, 58))
-		P(parent, Vector3.new(bayW - 5, 0.4, 0.5), cf * CFrame.new(x, 12, -0.25), rgb(255, 250, 235), Enum.Material.Neon)
+		P(
+			parent,
+			Vector3.new(bayW - 5, 0.4, 0.5),
+			cf * CFrame.new(x, 12, -0.25),
+			rgb(255, 250, 235),
+			Enum.Material.Neon
+		)
 		P(parent, Vector3.new(bayW - 3, 1.4, 0.5), cf * CFrame.new(x, 1.2, -0.25), team:Lerp(Color3.new(0, 0, 0), 0.25))
 		-- tool chest & tyres in front of each bay
 		P(parent, Vector3.new(4, 3.4, 2), cf * CFrame.new(x - bayW * 0.3, 1.7, -3), team, Enum.Material.SmoothPlastic)
-		P(parent, Vector3.new(4.1, 0.3, 2.1), cf * CFrame.new(x - bayW * 0.3, 3.5, -3), rgb(50, 52, 58), Enum.Material.Metal)
-		tyreStack(parent, cf * CFrame.new(x + bayW * 0.32, 0, -3), 4, if b % 2 == 0 then rgb(230, 40, 40) else rgb(255, 210, 40))
+		P(
+			parent,
+			Vector3.new(4.1, 0.3, 2.1),
+			cf * CFrame.new(x - bayW * 0.3, 3.5, -3),
+			rgb(50, 52, 58),
+			Enum.Material.Metal
+		)
+		tyreStack(
+			parent,
+			cf * CFrame.new(x + bayW * 0.32, 0, -3),
+			4,
+			if b % 2 == 0 then rgb(230, 40, 40) else rgb(255, 210, 40)
+		)
 	end
 end
 
+-- A simple round tree.
 local function tree(parent, cf: CFrame, s: number)
 	P(parent, Vector3.new(1.6, 8, 1.6) * s, cf * CFrame.new(0, 4 * s, 0), rgb(110, 78, 50), Enum.Material.Wood)
-	P(parent, Vector3.new(10, 10, 10) * s, cf * CFrame.new(0, 11 * s, 0), rgb(76, 150, 62), Enum.Material.Grass, Enum.PartType.Ball)
-	P(parent, Vector3.new(7, 7, 7) * s, cf * CFrame.new(2.5 * s, 14 * s, 1 * s), rgb(90, 165, 70), Enum.Material.Grass, Enum.PartType.Ball)
+	P(
+		parent,
+		Vector3.new(10, 10, 10) * s,
+		cf * CFrame.new(0, 11 * s, 0),
+		rgb(76, 150, 62),
+		Enum.Material.Grass,
+		Enum.PartType.Ball
+	)
+	P(
+		parent,
+		Vector3.new(7, 7, 7) * s,
+		cf * CFrame.new(2.5 * s, 14 * s, 1 * s),
+		rgb(90, 165, 70),
+		Enum.Material.Grass,
+		Enum.PartType.Ball
+	)
 end
 
+-- Finds a child by name and class, or creates it.
 local function getOrMake(className: string, name: string, parent: Instance)
 	local e = parent:FindFirstChild(name)
 	if e and e.ClassName == className then
@@ -150,6 +222,7 @@ local function getOrMake(className: string, name: string, parent: Instance)
 	return n
 end
 
+-- Sunny afternoon lighting for the paddock.
 function Showroom.ApplyLighting()
 	Lighting.ClockTime = 14.3
 	Lighting.GeographicLatitude = 35
@@ -193,6 +266,7 @@ end
 -- from High, depth of field and clouds on Ultra / High. The circuit's scenery detail follows
 -- on the next race.
 local lastQuality = nil
+-- Turns shadows and post effects on or off for the graphics setting.
 function Showroom.ApplyQuality()
 	local q = State.Setting("Quality") or 3
 	lastQuality = q
@@ -216,6 +290,8 @@ State.Changed:Connect(function()
 	end
 end)
 
+-- Builds the paddock scene: plaza and pit lane, turntable, team garages, a big screen,
+-- a grandstand, trees and trackside props.
 local function build()
 	local f = Instance.new("Folder")
 	f.Name = "GoTrackShowroom"
@@ -249,7 +325,12 @@ local function build()
 	sp.Name = "Spinner"
 	for k = 0, 5 do
 		local a = k / 6 * math.pi * 2
-		local stripe = P(sp, Vector3.new(0.5, 0.06, 13), at(0, 1.43, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 7.2), rgb(74, 80, 94))
+		local stripe = P(
+			sp,
+			Vector3.new(0.5, 0.06, 13),
+			at(0, 1.43, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 7.2),
+			rgb(74, 80, 94)
+		)
 		stripe.CastShadow = false
 	end
 	local hub = vertCyl(sp, 0.08, 6, at(0, 1.44, 0), rgb(255, 170, 30))
@@ -274,8 +355,19 @@ local function build()
 
 	-- grandstand in the distance
 	for row = 0, 8 do
-		P(f, Vector3.new(260, 3 + row * 3.2, 6), at(0, (3 + row * 3.2) / 2, 170 + row * 6), rgb(215, 218, 226), Enum.Material.Concrete)
-		local seats = P(f, Vector3.new(258, 1.2, 3), at(0, 3.6 + row * 3.2, 170 + row * 6 - 1), if row % 3 == 0 then rgb(225, 32, 48) elseif row % 3 == 1 then rgb(245, 245, 245) else rgb(40, 110, 230))
+		P(
+			f,
+			Vector3.new(260, 3 + row * 3.2, 6),
+			at(0, (3 + row * 3.2) / 2, 170 + row * 6),
+			rgb(215, 218, 226),
+			Enum.Material.Concrete
+		)
+		local seats = P(
+			f,
+			Vector3.new(258, 1.2, 3),
+			at(0, 3.6 + row * 3.2, 170 + row * 6 - 1),
+			if row % 3 == 0 then rgb(225, 32, 48) elseif row % 3 == 1 then rgb(245, 245, 245) else rgb(40, 110, 230)
+		)
 		seats.CastShadow = false
 	end
 	P(f, Vector3.new(270, 1.5, 60), at(0, 34, 190), rgb(235, 237, 242), Enum.Material.Metal)
@@ -324,6 +416,7 @@ local function build()
 	return f
 end
 
+-- Builds the scene if needed and puts the player's car on the turntable.
 function Showroom.Show()
 	Showroom.ApplyLighting()
 	if folder then
@@ -346,6 +439,7 @@ function Showroom.Show()
 	end)
 end
 
+-- Removes the scene (a race is starting).
 function Showroom.Hide()
 	if conn then
 		conn:Disconnect()
@@ -359,6 +453,7 @@ function Showroom.Hide()
 	end
 end
 
+-- Whether the scene is built.
 function Showroom.IsShown(): boolean
 	return folder ~= nil
 end
@@ -383,6 +478,7 @@ function Showroom.RefreshCar(appearance)
 	Fx.RegisterRainbow(parts.Model)
 end
 
+-- Puts the player's own car back after a Garage or Shop preview.
 function Showroom.ClearPreview()
 	if previewCar then
 		previewCar = nil
@@ -390,15 +486,17 @@ function Showroom.ClearPreview()
 	end
 end
 
+-- Whether a preview car is on the turntable.
 function Showroom.IsPreviewing(): boolean
 	return previewCar ~= nil
 end
 
+-- Starts or stops the turntable.
 function Showroom.SetSpin(on: boolean)
 	spinning = on
 end
 
--- Camera presets -------------------------------------------------------------
+-- Camera presets --------------------------------------------------------------------------
 -- home: car framed on the right third (menu buttons live on the left)
 function Showroom.CamHome()
 	Cam.SetInteractive(false)

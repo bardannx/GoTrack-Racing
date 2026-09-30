@@ -1,5 +1,5 @@
 --!nonstrict
--- Ranked matchmaking across servers: real players only, never AI.
+-- Ranked matchmaking across servers. Real players only, never computer drivers.
 --  * Lobby servers put ranked players in one queue shared by every server (a MemoryStore
 --    sorted map keyed by user id, sorted by RP). One server at a time (a short lock)
 --    groups the queue into matches: a full grid at once, or fewer players the longer the
@@ -56,6 +56,7 @@ function MM.Enabled(): boolean
 	return not RunService:IsStudio() and game.PlaceId ~= 0 and queueMap ~= nil
 end
 
+-- Whether the player is searching for a ranked match.
 function MM.IsQueued(p: Player): boolean
 	return queued[p] ~= nil
 end
@@ -152,11 +153,14 @@ local function searchingInfo(p: Player)
 	}
 end
 
+-- Puts (or refreshes) the player's entry in the shared queue. Entries expire after
+-- ENTRY_TTL, so a crashed server's players drop out on their own.
 local function writeEntry(p: Player, q)
 	queueMap:SetAsync(tostring(p.UserId), { u = p.UserId, rp = q.rp, t = q.t, job = game.JobId }, ENTRY_TTL, q.rp)
 	q.refreshed = os.clock()
 end
 
+-- Starts searching for a ranked match.
 function MM.Join(p: Player)
 	if queued[p] then
 		return { ok = true, lobby = searchingInfo(p) }
@@ -172,6 +176,7 @@ function MM.Join(p: Player)
 	return { ok = true, lobby = searchingInfo(p) }
 end
 
+-- Stops searching.
 function MM.Leave(p: Player)
 	if not queued[p] then
 		return
@@ -205,7 +210,8 @@ local function matchTick()
 		for _, e in group do
 			table.insert(users, e.u)
 		end
-		local match = { id = HttpService:GenerateGUID(false), code = code, users = users, cands = candidates(), t = os.time() }
+		local match =
+			{ id = HttpService:GenerateGUID(false), code = code, users = users, cands = candidates(), t = os.time() }
 		for _, e in group do
 			local rec = table.clone(match)
 			rec.qt = e.t -- which queue entry this answers (see lobbyTick)
@@ -238,7 +244,14 @@ local function lobbyTick()
 		local go = {}
 		for _, p in m.players do
 			queued[p] = nil
-			deps.lobby(p, { Id = "Q", Mode = "ranked", Found = true, Count = #m.match.users, Max = Config.Race.MaxRacers, EndsAt = workspace:GetServerTimeNow() })
+			deps.lobby(p, {
+				Id = "Q",
+				Mode = "ranked",
+				Found = true,
+				Count = #m.match.users,
+				Max = Config.Race.MaxRacers,
+				EndsAt = workspace:GetServerTimeNow(),
+			})
 			pcall(function()
 				matchMap:RemoveAsync(tostring(p.UserId))
 			end)
@@ -280,6 +293,8 @@ local function lobbyTick()
 	end
 end
 
+-- The teleport to the match server failed: take the save back and put the player
+-- back in the menu (or ask them to rejoin if even that fails).
 function MM.TeleportFailed(p: Player)
 	if not teleporting[p] then
 		return
@@ -298,6 +313,7 @@ end
 ---------------------------------------------------------------------------
 local currentMatch = nil
 
+-- On a match server, the match the players were sent here for (nil elsewhere).
 function MM.Match()
 	return currentMatch
 end
@@ -336,6 +352,7 @@ function MM.ReturnToLobby(players: { Player }, message: string?)
 	end
 end
 
+-- Match server: reads the match from the arriving player's teleport data.
 local function onMatchPlayerAdded(p: Player)
 	local ok, join = pcall(function()
 		return p:GetJoinData()

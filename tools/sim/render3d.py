@@ -9,6 +9,7 @@ under a sky and sun that follow the circuit's time of day.
 
 Writes tools/sim/out/<id>_3d_<view>.png. Needs `pip install bpy numpy`.
 """
+
 import json
 import math
 import sys
@@ -19,13 +20,39 @@ import numpy as np
 OUT = Path(__file__).resolve().parent / "out"
 
 # Roblox material -> look class
-ROUGH = {"Concrete", "Grass", "LeafyGrass", "Sand", "Slate", "Wood", "WoodPlanks", "Brick", "Asphalt", "Ground", "Rock",
-         "Basalt", "Cobblestone", "Pebble", "Granite", "Limestone", "Mud", "Salt", "Sandstone", "Snow", "CrackedLava",
-         "Pavement", "Fabric", "Marble", "Ice", "Glacier"}
+ROUGH = {
+    "Concrete",
+    "Grass",
+    "LeafyGrass",
+    "Sand",
+    "Slate",
+    "Wood",
+    "WoodPlanks",
+    "Brick",
+    "Asphalt",
+    "Ground",
+    "Rock",
+    "Basalt",
+    "Cobblestone",
+    "Pebble",
+    "Granite",
+    "Limestone",
+    "Mud",
+    "Salt",
+    "Sandstone",
+    "Snow",
+    "CrackedLava",
+    "Pavement",
+    "Fabric",
+    "Marble",
+    "Ice",
+    "Glacier",
+}
 METAL = {"Metal", "DiamondPlate", "CorrodedMetal", "Foil"}
 
 
 def look_of(p):
+    """Which Blender material a part gets from its Roblox material and transparency."""
     m = p.get("m", "Plastic")
     t = p.get("t", 0) or 0
     if m == "Neon":
@@ -47,13 +74,16 @@ def box():
 
 
 def wedge():
-    # full height at +Z, sloping down to the bottom front edge (-Z)
-    v = np.array([[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [-0.5, 0.5, 0.5], [0.5, 0.5, 0.5]])
+    """A unit Roblox WedgePart: full height at +Z, sloping down to the bottom front edge (-Z)."""
+    v = np.array(
+        [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [-0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
+    )
     f = [[0, 2, 3, 1], [2, 4, 5, 3], [0, 1, 5, 4], [0, 4, 2], [1, 3, 5]]
     return v, f
 
 
 def cylinder(n=14):
+    """A unit cylinder along X."""
     v = []
     for x in (-0.5, 0.5):
         for k in range(n):
@@ -67,6 +97,7 @@ def cylinder(n=14):
 
 
 def sphere(nu=14, nv=8):
+    """A unit UV sphere."""
     v = [[0, 0.5, 0]]
     for j in range(1, nv):
         ph = math.pi * j / nv
@@ -122,6 +153,7 @@ def worldgen():
 
 
 def mesh_prim(name):
+    """Real geometry for a Blender world mesh (rebuilt from tools/worldgen, cached)."""
     if name in _MESHES:
         return _MESHES[name]
     wbuild = worldgen()
@@ -149,6 +181,7 @@ def mesh_prim(name):
 
 
 def kind_of(p):
+    """Which primitive a part is drawn with (block, wedge, cylinder, ball or a world mesh)."""
     if p.get("mesh"):
         return "Mesh:" + p["mesh"]
     if p.get("k") == "WedgePart":
@@ -160,6 +193,7 @@ def kind_of(p):
 
 
 def srgb_to_lin(c):
+    """0-255 sRGB to linear colour."""
     c = c / 255.0
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
@@ -168,6 +202,7 @@ JITTER = 0.0  # studs of height between overlapping parts (showcase.py sets it)
 
 
 def build_scene(data):
+    """Turns every part of the dump into Blender geometry, one mesh per material look."""
     import bpy
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -178,8 +213,6 @@ def build_scene(data):
         look = look_of(p)
         kind = kind_of(p)
         groups.setdefault(look, []).append((kind, p))
-
-    mats = {}
 
     def material(look):
         m = bpy.data.materials.new(look)
@@ -252,6 +285,7 @@ def build_scene(data):
 
 
 def setup_world(data):
+    """Sky, sun and exposure from the circuit's time of day."""
     import bpy
     import mathutils
 
@@ -293,7 +327,9 @@ def setup_world(data):
     so = bpy.data.objects.new("sun", sun)
     so.rotation_euler = mathutils.Euler((math.radians(90 - elev), 0, math.radians(azim)), "XYZ")
     sc.collection.objects.link(so)
-    sc.view_settings.view_transform = "AgX" if hasattr(sc.view_settings, "view_transform") else sc.view_settings.view_transform
+    sc.view_settings.view_transform = (
+        "AgX" if hasattr(sc.view_settings, "view_transform") else sc.view_settings.view_transform
+    )
     try:
         sc.view_settings.view_transform = "AgX"
         sc.view_settings.look = "AgX - Punchy"
@@ -302,6 +338,7 @@ def setup_world(data):
 
 
 def cameras(data):
+    """The camera positions for each view (aerial, start, side, lap, panorama...)."""
     tr = np.array(data["track"], float)  # Roblox coords
     tb = np.stack([tr[:, 0], -tr[:, 2], tr[:, 1]], axis=1)
     lo, hi = tb.min(axis=0), tb.max(axis=0)
@@ -335,11 +372,16 @@ def cameras(data):
     ahead /= max(np.linalg.norm(ahead), 1e-6)
     views["lap"] = (tb[j] - ahead * 24 + np.array([0, 0, 9]), tb[j] + ahead * 140 + np.array([0, 0, 6]), 24)
     # a high view from outside the circuit looking over it to the horizon
-    views["panorama"] = (centre + np.array([-span * 0.9, -span * 0.35, span * 0.16]), centre + np.array([span * 0.4, span * 0.2, 0]), 26)
+    views["panorama"] = (
+        centre + np.array([-span * 0.9, -span * 0.35, span * 0.16]),
+        centre + np.array([span * 0.4, span * 0.2, 0]),
+        26,
+    )
     return views
 
 
 def render(data, views, size, samples):
+    """Renders each view to tools/sim/out/<id>_3d_<view>.png."""
     import bpy
     import mathutils
 
@@ -375,6 +417,7 @@ def render(data, views, size, samples):
 
 
 def main():
+    """Command line: render3d.py <id ...> [--views a,b] [--size WxH] [--samples n]."""
     args = sys.argv[1:]
     ids, views, size, samples = [], ["aerial", "start", "side"], (1280, 720), 32
     i = 0

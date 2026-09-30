@@ -4,6 +4,7 @@ Coordinates are Roblox studs: x right, y up, z towards the back. A design sits o
 ground at the origin and its facade faces -z (towards the track). A face is a list of
 numpy points; every helper returns faces already wound outwards (right-hand rule).
 """
+
 import math
 
 import numpy as np
@@ -13,6 +14,7 @@ DOWN = np.array((0.0, -1.0, 0.0))
 
 
 def v(x, y, z):
+    """A numpy point."""
     return np.array((x, y, z), dtype=float)
 
 
@@ -29,6 +31,7 @@ def normal(face):
 
 
 def centroid(face):
+    """Average of a face's points."""
     return sum(face) / len(face)
 
 
@@ -40,6 +43,7 @@ def orient(face, want):
 
 
 def outward(faces, centre):
+    """Winds every face to point away from `centre`."""
     return [orient(f, centroid(f) - centre) for f in faces]
 
 
@@ -57,6 +61,7 @@ def move(faces, dx=0.0, dy=0.0, dz=0.0):
 
 
 def rot_y(faces, ang, cx=0.0, cz=0.0):
+    """Faces rotated about the vertical axis through (cx, cz)."""
     c, s = math.cos(ang), math.sin(ang)
     out = []
     for f in faces:
@@ -83,6 +88,7 @@ def rot_axis(faces, axis, ang, pivot=(0, 0, 0)):
 
 
 def scale(faces, sx, sy, sz, pivot=(0, 0, 0)):
+    """Faces scaled about `pivot`."""
     piv = np.array(pivot, dtype=float)
     s = v(sx, sy, sz)
     return [[piv + (p - piv) * s for p in f] for f in faces]
@@ -116,6 +122,7 @@ def ybox(cx, cz, sx, sz, y0, y1, skip=("ny",)):
 
 
 def _ccw(pts):
+    """The 2D outline in counter-clockwise order."""
     n = len(pts)
     area = sum(pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1] for i in range(n))
     return pts if area > 0 else pts[::-1]
@@ -138,7 +145,11 @@ def prism(poly, y0, y1, top=True, bottom=False):
 
 
 def ring(cx, cz, r, n, y, a0=0.0, sx=1.0, sz=1.0):
-    return [v(cx + math.cos(a0 + 2 * math.pi * k / n) * r * sx, y, cz + math.sin(a0 + 2 * math.pi * k / n) * r * sz) for k in range(n)]
+    """n points on a horizontal circle (or ellipse with sx/sz) at height y."""
+    return [
+        v(cx + math.cos(a0 + 2 * math.pi * k / n) * r * sx, y, cz + math.sin(a0 + 2 * math.pi * k / n) * r * sz)
+        for k in range(n)
+    ]
 
 
 def loft(rings, top=True, bottom=False, axis=None):
@@ -169,12 +180,14 @@ def loft(rings, top=True, bottom=False, axis=None):
 
 
 def frustum(cx, cz, r0, r1, y0, y1, n=12, a0=0.0, top=True, bottom=False, sx=1.0, sz=1.0):
+    """A cone with its top cut off (a cone when r1 is 0), optionally capped."""
     if r1 <= 1e-6:
         return cone(cx, cz, r0, y0, y1, n, a0, bottom, sx, sz)
     return loft([ring(cx, cz, r0, n, y0, a0, sx, sz), ring(cx, cz, r1, n, y1, a0, sx, sz)], top, bottom)
 
 
 def cone(cx, cz, r, y0, y1, n=12, a0=0.0, bottom=True, sx=1.0, sz=1.0):
+    """A cone from a base circle up to a point, optionally with a bottom."""
     base = ring(cx, cz, r, n, y0, a0, sx, sz)
     apex = v(cx, y1, cz)
     faces = []
@@ -204,7 +217,11 @@ def gable(cx, cz, w, d, y0, h, over=0.0, ridge_x=True):
     L0, L1 = v(cx - hw, y0, cz - hd), v(cx + hw, y0, cz - hd)
     R0, R1 = v(cx - hw, y0, cz + hd), v(cx + hw, y0, cz + hd)
     T0, T1 = v(cx - hw, y0 + h, cz), v(cx + hw, y0 + h, cz)
-    slopes = [orient([L0, L1, T1, T0], v(0, 1, -1)), orient([R0, R1, T1, T0], v(0, 1, 1)), orient([L0, L1, R1, R0], DOWN)]
+    slopes = [
+        orient([L0, L1, T1, T0], v(0, 1, -1)),
+        orient([R0, R1, T1, T0], v(0, 1, 1)),
+        orient([L0, L1, R1, R0], DOWN),
+    ]
     ends = [orient([L0, R0, T0], v(-1, 0, 0)), orient([L1, R1, T1], v(1, 0, 0))]
     return slopes, ends
 
@@ -238,13 +255,49 @@ _ICO = None
 
 
 def _icosahedron():
-    t = (1 + 5 ** 0.5) / 2
-    vs = [(-1, t, 0), (1, t, 0), (-1, -t, 0), (1, -t, 0), (0, -1, t), (0, 1, t), (0, -1, -t), (0, 1, -t), (t, 0, -1), (t, 0, 1), (-t, 0, -1), (-t, 0, 1)]
-    fs = [(0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11), (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6), (7, 1, 8), (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9), (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)]
+    """Vertices and faces of a unit icosahedron."""
+    t = (1 + 5**0.5) / 2
+    vs = [
+        (-1, t, 0),
+        (1, t, 0),
+        (-1, -t, 0),
+        (1, -t, 0),
+        (0, -1, t),
+        (0, 1, t),
+        (0, -1, -t),
+        (0, 1, -t),
+        (t, 0, -1),
+        (t, 0, 1),
+        (-t, 0, -1),
+        (-t, 0, 1),
+    ]
+    fs = [
+        (0, 11, 5),
+        (0, 5, 1),
+        (0, 1, 7),
+        (0, 7, 10),
+        (0, 10, 11),
+        (1, 5, 9),
+        (5, 11, 4),
+        (11, 10, 2),
+        (10, 7, 6),
+        (7, 1, 8),
+        (3, 9, 4),
+        (3, 4, 2),
+        (3, 2, 6),
+        (3, 6, 8),
+        (3, 8, 9),
+        (4, 9, 5),
+        (2, 4, 11),
+        (6, 2, 10),
+        (8, 6, 7),
+        (9, 8, 1),
+    ]
     return [np.array(p, dtype=float) / np.linalg.norm(p) for p in vs], fs
 
 
 def sphere_mesh(sub):
+    """A geodesic sphere: an icosahedron subdivided `sub` times."""
     vs, fs = _icosahedron()
     vs = list(vs)
     for _ in range(sub):
@@ -310,6 +363,7 @@ def heightfield(R, H, n, fn, rng):
 
 
 def slope_of(face):
+    """How steep a face is: 0 flat, 1 vertical."""
     n = normal(face)
     ln = np.linalg.norm(n)
     return 0.0 if ln < 1e-9 else 1.0 - abs(n[1]) / ln
@@ -352,7 +406,9 @@ def wall_panes(p0, p1, n, y0, y1, floor_h, col_w, pw, ph, off, rng, lit_split=0.
     return A, B
 
 
-def box_panes(cx, cz, w, d, y0, y1, floor_h, col_w, pw, ph, off, rng, ang=0.0, skip_floors=0, margin=0.0, sides=(0, 1, 2, 3)):
+def box_panes(
+    cx, cz, w, d, y0, y1, floor_h, col_w, pw, ph, off, rng, ang=0.0, skip_floors=0, margin=0.0, sides=(0, 1, 2, 3)
+):
     """Panes on the four walls of a w x d box (optionally rotated by ang about its centre)."""
     A, B = [], []
     hw, hd = w / 2, d / 2

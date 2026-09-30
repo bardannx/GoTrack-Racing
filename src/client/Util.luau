@@ -1,17 +1,18 @@
 --!nonstrict
--- Small client utilities: signals, remote calls, formatting.
+-- Small helpers used all over the client: signals, calling the server, formatting.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Net = require(Shared.Net)
 
 local Util = {}
 
--- Signal ----------------------------------------------------------------------
+-- Signal ----------------------------------------------------------------------------------
 export type Signal = {
 	Connect: (Signal, (...any) -> ()) -> { Disconnect: () -> () },
 	Fire: (Signal, ...any) -> (),
 }
 
+-- A minimal event: sig:Connect(fn) and sig:Fire(...).
 function Util.Signal(): Signal
 	local listeners = {}
 	local sig = {}
@@ -35,7 +36,7 @@ function Util.Signal(): Signal
 	return sig :: any
 end
 
--- Remotes ---------------------------------------------------------------------
+-- Remotes ---------------------------------------------------------------------------------
 function Util.Invoke(name: string, ...: any): any
 	local rf = Net.Function(name)
 	local args = table.pack(...)
@@ -49,7 +50,7 @@ function Util.Invoke(name: string, ...: any): any
 	return result
 end
 
--- Formatting --------------------------------------------------------------------
+-- Formatting ------------------------------------------------------------------------------
 function Util.Comma(n: number): string
 	local s = tostring(math.floor(n))
 	local formatted, k = s, 0
@@ -59,6 +60,7 @@ function Util.Comma(n: number): string
 	return formatted
 end
 
+-- Emoji for a circuit's environment (summer, winter, desert).
 function Util.EnvIcon(env: string): string
 	if env == "winter" then
 		return "❄️"
@@ -68,6 +70,7 @@ function Util.EnvIcon(env: string): string
 	return "☀️"
 end
 
+-- Display name for a circuit's environment.
 function Util.EnvName(env: string): string
 	if env == "winter" then
 		return "Winter"
@@ -77,6 +80,7 @@ function Util.EnvName(env: string): string
 	return "Summer"
 end
 
+-- Emoji for a Time Trial medal level (0-4).
 function Util.MedalIcon(level: number): string
 	if level >= 4 then
 		return "💠"
@@ -90,15 +94,29 @@ function Util.MedalIcon(level: number): string
 	return "⬜"
 end
 
+-- Removes a frame's children, optionally keeping its layout objects.
 function Util.Clear(inst: Instance, keepLayouts: boolean?)
 	for _, c in inst:GetChildren() do
-		if keepLayouts and (c:IsA("UIListLayout") or c:IsA("UIGridLayout") or c:IsA("UIPadding") or c:IsA("UICorner") or c:IsA("UIStroke") or c:IsA("UIGradient") or c:IsA("UIScale") or c:IsA("UIAspectRatioConstraint")) then
+		if
+			keepLayouts
+			and (
+				c:IsA("UIListLayout")
+				or c:IsA("UIGridLayout")
+				or c:IsA("UIPadding")
+				or c:IsA("UICorner")
+				or c:IsA("UIStroke")
+				or c:IsA("UIGradient")
+				or c:IsA("UIScale")
+				or c:IsA("UIAspectRatioConstraint")
+			)
+		then
 			continue
 		end
 		c:Destroy()
 	end
 end
 
+-- "just now", "5m ago", "3h ago", "2d ago".
 function Util.TimeAgo(t: number): string
 	local d = os.time() - t
 	if d < 60 then

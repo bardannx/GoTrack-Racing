@@ -42,6 +42,7 @@ CORNER_K = 1 / 260  # tighter than this counts as a corner
 
 
 def parse_circuits(path):
+    """Reads every circuit definition out of Circuits.luau."""
     src = open(path, encoding="utf-8").read()
     out = []
     for block in re.finditer(r"\n\t\{\n(.*?)\n\t\},", src, re.S):
@@ -53,13 +54,15 @@ def parse_circuits(path):
         name = re.search(r"Name = \"([^\"]+)\"", body)
         corners = re.search(r"Corners = \"([^\"]+)\"", body)
         points = re.search(r"Points = \"([^\"]+)\"", body)
-        out.append(dict(
-            id=cid.group(1),
-            name=name.group(1) if name else cid.group(1),
-            corners=corners.group(1) if corners else None,
-            points=points.group(1) if points else None,
-            width=int(width.group(1)) if width else 40,
-        ))
+        out.append(
+            dict(
+                id=cid.group(1),
+                name=name.group(1) if name else cid.group(1),
+                corners=corners.group(1) if corners else None,
+                points=points.group(1) if points else None,
+                width=int(width.group(1)) if width else 40,
+            )
+        )
     return out
 
 
@@ -92,13 +95,20 @@ def expand_corners(s):
         tl = min(want, la * 0.5, lb * 0.5)
         r = tl / math.tan(theta / 2)
         if tl < want - 1:
-            notes.append(f"corner {i + 1} ({a['x']/UNIT:g},{a['z']/UNIT:g}) squeezed: radius {a['r']:.0f} -> {r:.0f} (points too close)")
+            notes.append(
+                f"corner {i + 1} ({a['x'] / UNIT:g},{a['z'] / UNIT:g}) squeezed: radius {a['r']:.0f} -> {r:.0f} (points too close)"
+            )
         s = 1 if cross >= 0 else -1
         sx, sz = a["x"] - ax * tl, a["z"] - az * tl
         cx, cz = sx - az * s * r, sz + ax * s * r
         a0 = math.atan2(sz - cz, sx - cx)
         steps = max(2, math.ceil(theta * r / 30))
-        arcs.append([(cx + math.cos(a0 + s * theta * k / steps) * r, cz + math.sin(a0 + s * theta * k / steps) * r) for k in range(steps + 1)])
+        arcs.append(
+            [
+                (cx + math.cos(a0 + s * theta * k / steps) * r, cz + math.sin(a0 + s * theta * k / steps) * r)
+                for k in range(steps + 1)
+            ]
+        )
     out, mids = [], []
     for i in range(m):
         pts = arcs[i]
@@ -135,6 +145,7 @@ def expand_corners(s):
 
 
 def parse_points(s):
+    """Control points from a circuit's Points string."""
     pts = []
     for chunk in s.split(";"):
         nums = [float(n) for n in re.findall(r"-?[\d.]+", chunk)]
@@ -144,6 +155,8 @@ def parse_points(s):
 
 
 def catmull(p0, p1, p2, p3, t):
+    """A point on a centripetal Catmull-Rom segment (the same spline Track.luau uses)."""
+
     def d(a, b):
         return max(math.sqrt(math.sqrt(sum((b[k] - a[k]) ** 2 for k in range(3)))), 1e-4)
 
@@ -164,6 +177,7 @@ def catmull(p0, p1, p2, p3, t):
 
 
 def smooth(arr, radius, passes):
+    """Moving-average smoothing over a loop, `passes` times."""
     n = len(arr)
     for _ in range(passes):
         c = arr[:]
@@ -172,6 +186,7 @@ def smooth(arr, radius, passes):
 
 
 def build(defn):
+    """The centre line of a circuit: spline samples, heights, curvature and speed profile."""
     notes = []
     if defn.get("corners"):
         ctrl, notes = expand_corners(defn["corners"])
@@ -237,6 +252,8 @@ def build(defn):
 
 
 def analyse(defn, t):
+    """Runs the checks on one circuit. Returns the fails and warnings, plus stats: tightest
+    radius, corner count, longest straight and the closest gap between two bits of road."""
     n, ds, X, Y, Z, K = t["n"], t["ds"], t["X"], t["Y"], t["Z"], t["K"]
     W = defn["width"]
     fails, warns = [], list(t["notes"])
@@ -245,7 +262,7 @@ def analyse(defn, t):
     rmin = 1 / kmax
     if rmin < MIN_RADIUS:
         i = max(range(n), key=lambda i: abs(K[i]))
-        fails.append(f"corner too tight: radius {rmin:.0f} studs at ({X[i]/UNIT:.1f},{Z[i]/UNIT:.1f})")
+        fails.append(f"corner too tight: radius {rmin:.0f} studs at ({X[i] / UNIT:.1f},{Z[i] / UNIT:.1f})")
 
     # clearance between far-apart parts of the lap
     gap = W + MIN_GAP_EXTRA
@@ -271,7 +288,7 @@ def analyse(defn, t):
                             worst[key] = (d, i, o)
     for d, i, o in sorted(worst.values())[:4]:
         fails.append(
-            f"roads too close: {d:.0f} studs (need {gap}) between ({X[i]/UNIT:.1f},{Z[i]/UNIT:.1f}) and ({X[o]/UNIT:.1f},{Z[o]/UNIT:.1f}), height diff {abs(Y[o]-Y[i]):.0f}"
+            f"roads too close: {d:.0f} studs (need {gap}) between ({X[i] / UNIT:.1f},{Z[i] / UNIT:.1f}) and ({X[o] / UNIT:.1f},{Z[o] / UNIT:.1f}), height diff {abs(Y[o] - Y[i]):.0f}"
         )
 
     # start straight
@@ -281,11 +298,11 @@ def analyse(defn, t):
         if abs(K[i]) > START_MAX_K:
             bad = max(bad, abs(K[i]))
     if bad:
-        fails.append(f"start/finish area not straight (radius {1/bad:.0f} studs near the line)")
+        fails.append(f"start/finish area not straight (radius {1 / bad:.0f} studs near the line)")
 
     slope = max(abs(v) for v in t["TY"])
     if slope > MAX_SLOPE:
-        warns.append(f"steep: slope {slope*100:.0f}%")
+        warns.append(f"steep: slope {slope * 100:.0f}%")
 
     # corners: runs of samples tighter than CORNER_K, merged when close
     corners = []
@@ -316,6 +333,7 @@ def analyse(defn, t):
 
 
 def speed_colour(v):
+    """Red (slow) through yellow to green (fast), for the preview picture."""
     a = max(0.0, min(1.0, (v - 60) / (235 - 60)))
     if a < 0.5:
         return (230, int(60 + 360 * a), 50)
@@ -323,6 +341,7 @@ def speed_colour(v):
 
 
 def draw(defn, t, res, size=900):
+    """Preview picture of a circuit coloured by speed."""
     from PIL import Image, ImageDraw
 
     X, Z, V = t["X"], t["Z"], t["V"]
@@ -332,8 +351,10 @@ def draw(defn, t, res, size=900):
     sc = (size - 40) / span
 
     def P(x, z):
-        return (20 + (x - minx + pad + (span - (maxx - minx) - 2 * pad) / 2) * sc,
-                60 + (z - minz + pad + (span - (maxz - minz) - 2 * pad) / 2) * sc)
+        return (
+            20 + (x - minx + pad + (span - (maxx - minx) - 2 * pad) / 2) * sc,
+            60 + (z - minz + pad + (span - (maxz - minz) - 2 * pad) / 2) * sc,
+        )
 
     img = Image.new("RGB", (size, size + 40), (22, 26, 38))
     d = ImageDraw.Draw(img)
@@ -359,6 +380,7 @@ def draw(defn, t, res, size=900):
 
 
 def main():
+    """Command line: trackcheck.py [ids ...] [--no-images]."""
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     images = "--no-images" not in sys.argv
     defs = parse_circuits(CIRCUITS)
@@ -373,8 +395,10 @@ def main():
         r = analyse(c, t)
         ok = not r["fails"]
         nfail += 0 if ok else 1
-        print(f"{'OK  ' if ok else 'FAIL'} {c['id']:12s} len {t['length']:6.0f}  lap {t['lap']:5.1f}s x{t['laps']}  corners {r['corners']:2d}  "
-              f"min r {r['rmin']:4.0f}  longest straight {r['longest']:5.0f}")
+        print(
+            f"{'OK  ' if ok else 'FAIL'} {c['id']:12s} len {t['length']:6.0f}  lap {t['lap']:5.1f}s x{t['laps']}  corners {r['corners']:2d}  "
+            f"min r {r['rmin']:4.0f}  longest straight {r['longest']:5.0f}"
+        )
         for f in r["fails"]:
             print("       - " + f)
         for w in r["warns"]:

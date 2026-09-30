@@ -13,6 +13,6 @@ python3 tune.py twist_ov.json lakeside sakura          # score + plot (tune.png)
 ```
 
 - **Fun score** (what `tune.py` prints): `slow<170` = braking zones per lap, `<140` = hairpins, `flat` = % of the lap at top speed, `close` = road sections running into each other (must be 0; sakura's bridge crossover reads ~17).
-- **Targets used for v0.0.1:** 7–15 braking zones, ≥2 hairpins, flat ≤ 45%, close = 0.
+- **Targets the circuits were tuned to:** 7–15 braking zones, ≥2 hairpins, flat ≤ 45%, close = 0.
 - `poly.py` turns a rounded polygon `(x, z, height, cornerRadius)` into a Points string, which is the easiest way to design a new circuit.
 - Needs the `luau` CLI (set `LUAU=/path/to/luau` if it's not on PATH), Python 3 and matplotlib.

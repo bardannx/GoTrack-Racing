@@ -8,6 +8,7 @@ UIScale, UICorner, UIStroke, UIGradient (2 colours), rotation, ZIndex (sibling m
 ClipsDescendants and text (alignment, wrapping, TextScaled). Emoji are drawn with an emoji
 font when one is installed. Good enough to check layout, overlap and readability.
 """
+
 import json
 import math
 import os
@@ -22,6 +23,7 @@ _fonts = {}
 
 
 def font(size, bold):
+    """A font at a size (cached)."""
     size = max(6, int(round(size)))
     key = (size, bold)
     if key not in _fonts:
@@ -34,12 +36,14 @@ def font(size, bold):
 
 
 def text_w(t, size, bold):
+    """Width in pixels of the widest line of `t`."""
     f = font(size, bold)
     lines = t.split("\n") if t else [""]
     return max(f.getlength(l) for l in lines)
 
 
 def mods(n):
+    """The layout and style modifiers (UICorner, UIStroke, UIListLayout...) under a node."""
     m = {}
     for c in n.get("kids", []):
         k = c["k"]
@@ -49,10 +53,12 @@ def mods(n):
 
 
 def is_gui(n):
+    """Whether a dumped node is a GuiObject (it has a position)."""
     return "pos" in n
 
 
 def gui_kids(n):
+    """A node's visible GuiObject children."""
     return [c for c in n.get("kids", []) if is_gui(c) and c.get("vis", True)]
 
 
@@ -93,6 +99,7 @@ def measure(n, pw, ph, k):
 
 
 def blend(img, box, fill, radius, stroke, grad, rot):
+    """Draws one frame's background: fill, rounded corners, stroke, gradient and rotation."""
     x0, y0, x1, y1 = box
     if x1 - x0 < 0.5 or y1 - y0 < 0.5:
         return
@@ -135,6 +142,7 @@ def blend(img, box, fill, radius, stroke, grad, rot):
 
 
 def draw_text(img, n, box, k):
+    """Draws a label's text inside its box, with alignment, wrapping and scaling."""
     t = n.get("text") or ""
     if not t or n.get("tt", 0) >= 0.99:
         return
@@ -286,12 +294,13 @@ def render_node(img, n, pbox, k, sort_key=None):
 
 
 def main():
+    """Command line: uirender.py <dump.json> [out.png] [--bg picture.png]."""
     args = [a for a in sys.argv[1:]]
     bg = None
     if "--bg" in args:
         i = args.index("--bg")
         bg = args[i + 1]
-        del args[i:i + 2]
+        del args[i : i + 2]
     src = args[0]
     out = args[1] if len(args) > 1 else os.path.splitext(src)[0] + ".png"
     data = json.load(open(src))

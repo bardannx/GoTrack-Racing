@@ -4,6 +4,7 @@
   python3 tools/cargen/extract_meshes.py <place.rbxlx> assets/CarMeshes.rbxmx
   python3 tools/cargen/extract_meshes.py <place.rbxlx> assets/WorldMeshes.rbxmx WorldMeshes
 """
+
 import sys
 import xml.etree.ElementTree as ET
 
@@ -13,6 +14,7 @@ root = ET.parse(src).getroot()
 
 
 def name_of(item):
+    """The Name property of an item in the .rbxlx XML."""
     for c in item.find("Properties"):
         if c.get("name") == "Name":
             return c.text

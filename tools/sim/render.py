@@ -7,6 +7,7 @@ Writes tools/sim/out/<id>_<view>.png. It's a painter's-algorithm box renderer (n
 textures, balls and cylinders drawn as boxes/prisms): good enough to judge layout,
 density, colours and whether a map looks different from the others.
 """
+
 import json
 import math
 import sys
@@ -21,6 +22,7 @@ MAT_GLOW = {"Neon"}
 
 
 def unit_box():
+    """A unit cube as (vertices, faces)."""
     v = np.array([[x, y, z] for x in (-0.5, 0.5) for y in (-0.5, 0.5) for z in (-0.5, 0.5)])
     # faces as vertex index lists (outward winding not required, normals computed)
     faces = [
@@ -35,18 +37,23 @@ def unit_box():
 
 
 def unit_wedge():
-    # Roblox WedgePart: full height at +Z, slope down to the bottom front edge (-Z)
-    v = np.array([
-        [-0.5, -0.5, -0.5], [0.5, -0.5, -0.5],
-        [-0.5, -0.5, 0.5], [0.5, -0.5, 0.5],
-        [-0.5, 0.5, 0.5], [0.5, 0.5, 0.5],
-    ])
+    """A unit Roblox WedgePart: full height at +Z, sloping down to the bottom front edge (-Z)."""
+    v = np.array(
+        [
+            [-0.5, -0.5, -0.5],
+            [0.5, -0.5, -0.5],
+            [-0.5, -0.5, 0.5],
+            [0.5, -0.5, 0.5],
+            [-0.5, 0.5, 0.5],
+            [0.5, 0.5, 0.5],
+        ]
+    )
     faces = [[0, 1, 3, 2], [2, 3, 5, 4], [0, 1, 5, 4], [0, 2, 4], [1, 3, 5]]
     return v, faces
 
 
 def unit_cyl(n=8):
-    # axis along X, radius 0.5 in Y/Z
+    """A unit cylinder along X, radius 0.5 in Y and Z."""
     v = []
     for x in (-0.5, 0.5):
         for k in range(n):
@@ -60,7 +67,7 @@ def unit_cyl(n=8):
 
 
 def unit_ball(n=8):
-    # octahedral-ish prism approximation: two stacked 8-gons
+    """A rough unit ball for the box renderer: three stacked octagons with a point top and bottom."""
     v = []
     for y, r in ((-0.35, 0.35), (0.0, 0.5), (0.35, 0.35)):
         for k in range(n):
@@ -85,6 +92,7 @@ SHAPES = {"Block": unit_box(), "Wedge": unit_wedge(), "Cylinder": unit_cyl(), "B
 
 
 def look_at(eye, target):
+    """Camera basis looking from `eye` to `target`."""
     f = target - eye
     f = f / np.linalg.norm(f)
     r = np.cross(f, [0, 1, 0])
@@ -94,6 +102,7 @@ def look_at(eye, target):
 
 
 def render(data, view, size):
+    """Draws every part of the dump from one view (painter's algorithm, far to near)."""
     W, H = size
     parts = data["parts"]
     track = np.array(data["track"])
@@ -111,7 +120,7 @@ def render(data, view, size):
         fov = 50
     else:  # grid: behind the start line, low
         p0, p1 = track[0], track[3]
-        d = (p1 - p0)
+        d = p1 - p0
         d = d / np.linalg.norm(d)
         eye = p0 - d * 140 + np.array([0, 38, 0])
         target = p0 + d * 260 + np.array([0, 4, 0])
@@ -148,7 +157,6 @@ def render(data, view, size):
         col = np.array(p["col"], dtype=float)
         glow = p["m"] in MAT_GLOW
         alpha = int(255 * (1 - p["t"]))
-        centre_rel = pos - eye
         for fi in faces:
             fz = zc[fi]
             if fz.min() < 1:
@@ -182,7 +190,9 @@ def render(data, view, size):
             key = -1e12 + depth if False else depth
             if big:
                 key = 1e12 + depth  # ground and sea first
-            polys.append((key, list(zip(px.tolist(), py.tolist())), tuple(int(max(0, min(255, v))) for v in shade) + (alpha,)))
+            polys.append(
+                (key, list(zip(px.tolist(), py.tolist())), tuple(int(max(0, min(255, v))) for v in shade) + (alpha,))
+            )
     polys.sort(key=lambda x: -x[0])
     top = (40, 50, 95) if night else (120, 170, 230)
     bot = (110, 90, 140) if night else (215, 228, 245)
@@ -190,7 +200,6 @@ def render(data, view, size):
     grad = np.linspace(0, 1, H)[:, None]
     arr = (np.array(top)[None, :] * (1 - grad) + np.array(bot)[None, :] * grad).astype(np.uint8)
     img = Image.fromarray(np.repeat(arr[:, None, :], W, axis=1), "RGB").convert("RGBA")
-    over = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img, "RGBA")
     for _, pts, colr in polys:
         if len(pts) >= 3:
@@ -199,6 +208,7 @@ def render(data, view, size):
 
 
 def main():
+    """Command line: render.py <id ...> [--views a,b] [--size WxH]."""
     args = sys.argv[1:]
     views = ["aerial", "grid"]
     size = (960, 540)

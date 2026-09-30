@@ -1,5 +1,5 @@
 --!nocheck
--- Server simulation: a fake player joins, races the weekly featured circuit against 9 AI
+-- Server simulation: a fake player joins, races the weekly featured circuit against 9 computer
 -- drivers (sending car states and checkpoints like a real client), and finishes. Checks
 -- results, coins (incl. the featured bonus), stats and challenge progress, then claims.
 --   lune run tools/sim/server.luau
@@ -7,6 +7,7 @@ local process = require("@lune/process")
 local Env = require("./env")
 local roblox = Env.Roblox
 
+-- Prints the failure and exits with an error code.
 local function fail(msg)
 	print("FAIL: " .. msg)
 	process.exit(1)
@@ -63,6 +64,7 @@ local coins0 = d.coins
 
 -- capture what the server sends
 local results
+-- A fake RemoteEvent that records everything sent with FireClient.
 local function ev()
 	local e = { Sent = {} }
 	function e:FireClient(_p, payload)
@@ -71,7 +73,16 @@ local function ev()
 	e.OnServerEvent = Env.Signal()
 	return e
 end
-local events = { Lobby = ev(), Start = ev(), Gate = ev(), Standings = ev(), Results = ev(), Leave = ev(), StateIn = ev(), StatesOut = ev() }
+local events = {
+	Lobby = ev(),
+	Start = ev(),
+	Gate = ev(),
+	Standings = ev(),
+	Results = ev(),
+	Leave = ev(),
+	StateIn = ev(),
+	StatesOut = ev(),
+}
 RM._test.setEvents(events)
 
 local featured = ChallengeService.Featured()
@@ -85,7 +96,9 @@ local start = events.Start.Sent[1]
 if not start then
 	fail("no RaceStart sent")
 end
-print(string.format("race on %s (featured: %s), %d laps, %d racers", start.TrackId, featured, start.Laps, #start.Racers))
+print(
+	string.format("race on %s (featured: %s), %d laps, %d racers", start.TrackId, featured, start.Laps, #start.Racers)
+)
 local s = nil
 for _, ss in T.sessions do
 	s = ss
@@ -131,7 +144,16 @@ if not results then
 	fail("race never ended")
 end
 local you = results.You
-print(string.format("finished P%s (finished=%s), +%s coins, +%s XP, featured bonus=%s", tostring(you.Pos), tostring(you.Finished), tostring(you.Coins), tostring(you.XP), tostring(you.Featured)))
+print(
+	string.format(
+		"finished P%s (finished=%s), +%s coins, +%s XP, featured bonus=%s",
+		tostring(you.Pos),
+		tostring(you.Finished),
+		tostring(you.Coins),
+		tostring(you.XP),
+		tostring(you.Featured)
+	)
+)
 if not you.Finished then
 	fail("player did not finish")
 end

@@ -1,10 +1,15 @@
 --!nonstrict
--- Multiplayer races: lobbies (Quick Race with map choice, Ranked with a map vote,
--- friends-only Private races), 10-car sessions, lap/gate validation, live standings,
--- position relay, results, rewards and ranked points. Quick races fill empty grid slots
--- with computer drivers; Ranked is real players only: live servers match players across
--- servers and race them on a reserved match server (RankedMatchmaker), Studio waits for
--- real players on the same server.
+-- Runs every multiplayer race on the server, from the lobby to the results.
+--
+-- Lobbies: Quick Race (pick a circuit), Ranked (vote on a circuit) and friends-only
+-- private races. A Quick Race fills its empty grid slots with computer drivers; ranked
+-- never does. On a live server ranked players are matched across servers and raced on
+-- their own match server (RankedMatchmaker); in Studio they wait for a second player on
+-- the same server.
+--
+-- Races: each client drives its own car and streams its position here. The server keeps
+-- the order, checks that every lap passed the timing gates in order, relays everyone's
+-- position to everyone else, drives the computer cars and hands out coins, XP and RP.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -37,15 +42,18 @@ local LobbyEvent, StartEvent, GateEvent, StandingsEvent, ResultsEvent, LeaveEven
 local StateIn, StatesOut
 local notify = function(_p, _m, _k) end
 
+-- Shared clock: the same on the server and every client, so start lights and lap times agree.
 local function now(): number
 	return workspace:GetServerTimeNow()
 end
 
+-- Short unique id for a lobby ("L3") or a race session ("S7").
 local function newId(prefix: string): string
 	idCounter += 1
 	return prefix .. idCounter
 end
 
+-- Any circuit, for when nobody picked one.
 local function randomTrack(): string
 	return Circuits.List[math.random(1, #Circuits.List)].Id
 end
@@ -66,6 +74,7 @@ local function voteCounts(l)
 	return counts
 end
 
+-- What a client needs to draw a lobby: players, circuit, countdown, map vote.
 local function lobbyInfo(l, forPlayer: Player?)
 	local names = {}
 	for _, p in l.Players do
@@ -93,11 +102,13 @@ local function lobbyInfo(l, forPlayer: Player?)
 	}
 end
 
+-- A player's ranked points (new players start at Config.Ranked.StartRP).
 local function rpOf(p: Player): number
 	local d = DataService.Get(p)
 	return if d then (d.rp or Config.Ranked.StartRP) else Config.Ranked.StartRP
 end
 
+-- Sends the latest lobby state to everyone in it.
 local function pushLobby(l)
 	if l.Mode == "ranked" then
 		local sum = 0
@@ -111,6 +122,7 @@ local function pushLobby(l)
 	end
 end
 
+-- Takes a player out of their lobby; an empty lobby is closed.
 local function removeFromLobby(p: Player, silent: boolean?)
 	local l = playerLobby[p]
 	if not l then
@@ -137,6 +149,7 @@ local function removeFromLobby(p: Player, silent: boolean?)
 	end
 end
 
+-- Puts a player in a lobby. A full grid starts in 3 seconds.
 local function addToLobby(p: Player, l)
 	removeFromLobby(p, true)
 	table.insert(l.Players, p)
@@ -152,6 +165,7 @@ local function addToLobby(p: Player, l)
 	pushLobby(l)
 end
 
+-- Opens a new lobby with `host` in it.
 local function createLobby(mode: string, trackId: string, host: Player, private: boolean?, laps: number?)
 	local l = {
 		Id = newId("L"),
@@ -182,6 +196,7 @@ local function createLobby(mode: string, trackId: string, host: Player, private:
 end
 
 local friendCache = {}
+-- Friend check for private lobbies (cached, it's a web call).
 local function isFriend(p: Player, userId: number): boolean
 	if p.UserId == userId then
 		return true
@@ -202,6 +217,7 @@ local function isFriend(p: Player, userId: number): boolean
 	return friendCache[key]
 end
 
+-- Open lobbies this player can see (private ones only if they're the host's friend).
 function RM.GetLobbies(p: Player)
 	local out = {}
 	for _, l in lobbies do
@@ -215,6 +231,7 @@ function RM.GetLobbies(p: Player)
 	return { ok = true, lobbies = out, mine = if playerLobby[p] then playerLobby[p].Id else nil }
 end
 
+-- Joins an open Quick Race lobby on that circuit, or opens a new one.
 function RM.QuickRace(p: Player, trackId: any, private: any, laps: any)
 	if playerSession[p] then
 		return { ok = false, err = "You're already in a race" }
@@ -231,14 +248,21 @@ function RM.QuickRace(p: Player, trackId: any, private: any, laps: any)
 			return { ok = false, err = "Private races need the Private Races pass" }
 		end
 		local tid = if trackId == "random" then randomTrack() else trackId
-		local l = createLobby("quick", tid, p, true, math.clamp(math.floor(tonumber(laps) or Track.Get(tid).Laps), 1, 10))
+		local l =
+			createLobby("quick", tid, p, true, math.clamp(math.floor(tonumber(laps) or Track.Get(tid).Laps), 1, 10))
 		addToLobby(p, l)
 		return { ok = true, lobby = lobbyInfo(l, p) }
 	end
 	-- join an open lobby for the same circuit (or any circuit for "random")
 	local best = nil
 	for _, l in lobbies do
-		if l.Mode == "quick" and not l.Private and #l.Players < RC.MaxRacers and l.EndsAt - now() > 3 and (trackId == "random" or l.TrackId == trackId) then
+		if
+			l.Mode == "quick"
+			and not l.Private
+			and #l.Players < RC.MaxRacers
+			and l.EndsAt - now() > 3
+			and (trackId == "random" or l.TrackId == trackId)
+		then
 			if not best or l.EndsAt < best.EndsAt then
 				best = l
 			end
@@ -251,6 +275,8 @@ function RM.QuickRace(p: Player, trackId: any, private: any, laps: any)
 	return { ok = true, lobby = lobbyInfo(best, p) }
 end
 
+-- Ranked: on a live server this joins the cross-server queue; in Studio it joins
+-- the local ranked lobby; on a match server it just confirms the player's match.
 function RM.RankedQueue(p: Player)
 	if playerSession[p] then
 		return { ok = false, err = "You're already in a race" }
@@ -273,7 +299,13 @@ function RM.RankedQueue(p: Player)
 	local myRp = rpOf(p)
 	local best, bestDiff = nil, math.huge
 	for _, l in lobbies do
-		if l.Mode == "ranked" and not l.Match and #l.Players < RC.MaxRacers and (l.Waiting or l.EndsAt - now() > 3) and not table.find(l.Players, p) then
+		if
+			l.Mode == "ranked"
+			and not l.Match
+			and #l.Players < RC.MaxRacers
+			and (l.Waiting or l.EndsAt - now() > 3)
+			and not table.find(l.Players, p)
+		then
 			local diff = math.abs((l.AvgRp or myRp) - myRp)
 			local allowed = Config.Ranked.MatchmakingSpread + (now() - l.Created) * 25
 			if diff <= allowed and diff < bestDiff then
@@ -288,6 +320,7 @@ function RM.RankedQueue(p: Player)
 	return { ok = true, lobby = lobbyInfo(best, p) }
 end
 
+-- A vote for one of the ranked lobby's candidate circuits.
 function RM.VoteMap(p: Player, trackId: any)
 	local l = playerLobby[p]
 	if not l or not l.Candidates or not table.find(l.Candidates, trackId) then
@@ -298,6 +331,7 @@ function RM.VoteMap(p: Player, trackId: any)
 	return { ok = true }
 end
 
+-- Joins a specific lobby from the list.
 function RM.JoinLobby(p: Player, id: any)
 	if playerSession[p] then
 		return { ok = false, err = "You're already in a race" }
@@ -326,6 +360,7 @@ function RM.JoinLobby(p: Player, id: any)
 	return { ok = true, lobby = lobbyInfo(l, p) }
 end
 
+-- Leaves the lobby or the ranked queue.
 function RM.LeaveLobby(p: Player)
 	Matchmaker.Leave(p)
 	local l = playerLobby[p]
@@ -368,6 +403,7 @@ function RM.MatchPlayer(p: Player, match)
 	end
 end
 
+-- The host of a Quick Race skips the rest of the countdown.
 function RM.StartNow(p: Player)
 	local l = playerLobby[p]
 	if not l or l.Host ~= p or l.Mode == "ranked" then
@@ -382,9 +418,11 @@ end
 -- Sessions
 ---------------------------------------------------------------------------
 local FREE_BODIES = { "gt1", "gt1", "aeros", "arrow", "falcon", "stealth", "vortex", "apex", "nova", "viper" }
-local AI_PATTERNS = { "pattern_stripe", "pattern_side", "pattern_split", "pattern_chevron", "pattern_none", "pattern_checker" }
+local AI_PATTERNS =
+	{ "pattern_stripe", "pattern_side", "pattern_split", "pattern_chevron", "pattern_none", "pattern_checker" }
 local AI_HELMETS = { "helmet_white", "helmet_black", "helmet_red", "helmet_yellow", "helmet_blue", "helmet_green" }
 
+-- A random paint for a computer driver (no rainbow or neon, those are earned).
 local function randomPaint(): string
 	local list = Cosmetics.ByCategory.Paint
 	while true do
@@ -395,6 +433,7 @@ local function randomPaint(): string
 	end
 end
 
+-- A computer driver's car: a free chassis in random colours.
 local function aiCar(number: number)
 	return {
 		Body = FREE_BODIES[math.random(1, #FREE_BODIES)],
@@ -409,11 +448,13 @@ local function aiCar(number: number)
 	}
 end
 
+-- The player's equipped title, if it's not the default.
 local function titleOf(p: Player): string?
 	local t = p:GetAttribute("Title")
 	return if typeof(t) == "string" and t ~= "Racer" then t else nil
 end
 
+-- Puts a racer on their grid slot, facing down the track.
 local function gridState(s, r)
 	local t = s.Track
 	local gs, lat = Track.GridSlot(t, r.Slot)
@@ -434,6 +475,7 @@ local function gridState(s, r)
 	r.LastReset = -100
 end
 
+-- Picks the circuit with the most votes (ties broken at random).
 local function resolveVote(l)
 	if not l.Candidates then
 		return
@@ -451,6 +493,7 @@ local function resolveVote(l)
 	l.TrackId = best[math.random(1, #best)]
 end
 
+-- Turns a lobby into a race: fills the grid, sends everyone the start, and counts down.
 local function startSession(l)
 	lobbies[l.Id] = nil
 	resolveVote(l)
@@ -545,7 +588,16 @@ local function startSession(l)
 	-- tell the players
 	local list = {}
 	for _, r in s.Racers do
-		table.insert(list, { Rid = r.Rid, Name = r.Name, IsAI = r.IsAI, UserId = r.UserId, Car = r.Car, Number = r.Number, Slot = r.Slot, Title = r.Title })
+		table.insert(list, {
+			Rid = r.Rid,
+			Name = r.Name,
+			IsAI = r.IsAI,
+			UserId = r.UserId,
+			Car = r.Car,
+			Number = r.Number,
+			Slot = r.Slot,
+			Title = r.Title,
+		})
 	end
 	for p, r in s.ByPlayer do
 		LobbyEvent:FireClient(p, nil)
@@ -562,6 +614,7 @@ local function startSession(l)
 	end
 end
 
+-- A racer took the chequered flag.
 local function finishRacer(s, r, raceTime: number)
 	if r.Finished then
 		return
@@ -576,6 +629,7 @@ local function finishRacer(s, r, raceTime: number)
 	end
 end
 
+-- Updates the racer's best lap and the race's fastest lap.
 local function recordLap(s, r, lapTime: number)
 	if not r.BestLap or lapTime < r.BestLap then
 		r.BestLap = lapTime
@@ -618,6 +672,7 @@ local function carAhead(s, r, range: number)
 	return best, bestGap
 end
 
+-- Computer driver's position from its distance along the track and sideways offset.
 local function placeAI(s, r)
 	local t = s.Track
 	local x, y, z, tx, ty, tz = Track.PointAt(t, r.Dist % t.Length, r.Lateral)
@@ -625,9 +680,15 @@ local function placeAI(s, r)
 	r.Yaw = math.atan2(-tx, -tz)
 	r.Pitch = math.asin(math.clamp(ty, -1, 1))
 	r.Roll = 0
-	r.VX, r.VY, r.VZ = tx * r.Speed + t.RX[r.Idx or 1] * (r.LatVel or 0), ty * r.Speed, tz * r.Speed + t.RZ[r.Idx or 1] * (r.LatVel or 0)
+	r.VX, r.VY, r.VZ =
+		tx * r.Speed + t.RX[r.Idx or 1] * (r.LatVel or 0),
+		ty * r.Speed,
+		tz * r.Speed + t.RZ[r.Idx or 1] * (r.LatVel or 0)
 end
 
+-- Drives the computer cars: they follow the track's speed profile at their own skill
+-- level, get the same active-aero boost as players, and pass or follow the car ahead
+-- instead of driving into it.
 local function stepAI(s, dt: number)
 	local t = s.Track
 	local L = t.Length
@@ -723,6 +784,7 @@ local function isGhost(s, r, tNow: number): boolean
 	return (r.WrongWayTime or 0) > 0.8
 end
 
+-- Race order: finishers by time, then everyone still racing by distance, DNFs last.
 local function standingsOrder(s)
 	local list = {}
 	for _, r in s.Racers do
@@ -743,6 +805,7 @@ local function standingsOrder(s)
 	return list
 end
 
+-- Gap to the leader: (seconds, 0) when both passed the same gate, or (nil, laps down).
 local function gapInfo(leader, r)
 	if r == leader then
 		return nil, 0
@@ -761,6 +824,7 @@ local function gapInfo(leader, r)
 	return nil, 0
 end
 
+-- Sends the live order, gaps and fastest lap to every racer.
 local function sendStandings(s)
 	local order = standingsOrder(s)
 	local leader = order[1]
@@ -789,6 +853,8 @@ local function sendStandings(s)
 	end
 end
 
+-- Final results: pays coins and XP, updates stats, challenges, ranked RP and
+-- leaderboards, then shows everyone the results screen.
 local function endSession(s)
 	if s.State == "ended" then
 		return
@@ -847,7 +913,14 @@ local function endSession(s)
 			d.stats.races += 1
 			local lapsDone = math.clamp(r.LapsDone or 0, 0, s.Laps)
 			d.stats.laps += lapsDone
-			ChallengeService.RaceResult(d, { finished = finished, pos = pos, laps = lapsDone, ranked = s.Mode == "ranked", trackId = s.TrackId, fastest = fastest })
+			ChallengeService.RaceResult(d, {
+				finished = finished,
+				pos = pos,
+				laps = lapsDone,
+				ranked = s.Mode == "ranked",
+				trackId = s.TrackId,
+				fastest = fastest,
+			})
 			if finished and pos == 1 then
 				d.stats.wins += 1
 				LeaderboardService.SubmitBest(Config.DataStores.Wins, p.UserId, d.stats.wins, false)
@@ -860,7 +933,9 @@ local function endSession(s)
 			if s.Mode == "ranked" then
 				-- a smaller field spreads the same table: last place is always the last slot
 				local n = #order
-				local slot = if n <= 1 then 1 else math.floor(1 + (pos - 1) * (#Config.Ranked.PositionRP - 1) / (n - 1) + 0.5)
+				local slot = if n <= 1
+					then 1
+					else math.floor(1 + (pos - 1) * (#Config.Ranked.PositionRP - 1) / (n - 1) + 0.5)
 				local worst = Config.Ranked.PositionRP[#Config.Ranked.PositionRP]
 				rpDelta = if finished then (Config.Ranked.PositionRP[slot] or worst) else worst
 				oldRp = d.rp or Config.Ranked.StartRP
@@ -889,7 +964,15 @@ local function endSession(s)
 				Featured = featured,
 			}
 		end
-		ResultsEvent:FireClient(p, { SessionId = s.Id, Mode = s.Mode, TrackId = s.TrackId, Results = results, You = you, Fastest = s.Fastest, LeftEarly = r.LeftEarly })
+		ResultsEvent:FireClient(p, {
+			SessionId = s.Id,
+			Mode = s.Mode,
+			TrackId = s.TrackId,
+			Results = results,
+			You = you,
+			Fastest = s.Fastest,
+			LeftEarly = r.LeftEarly,
+		})
 		if playerSession[p] == s then
 			playerSession[p] = nil
 		end
@@ -903,6 +986,8 @@ local function endSession(s)
 	end
 end
 
+-- Moves a race along: lights out, then the end once every player is home, the grace
+-- time after the first finisher runs out, or the race runs far too long.
 local function tickSession(s)
 	if s.State == "ended" then
 		return
@@ -986,6 +1071,8 @@ local function onGate(p: Player, gate: any, clientTime: any)
 	crossGate(s, r, r.GateCount, ct)
 end
 
+-- A player's car state (position, rotation, speed). Positions that are impossible
+-- (too fast, not a number) are thrown away.
 local function onState(p: Player, b: any)
 	local s = playerSession[p]
 	if not s or typeof(b) ~= "buffer" or buffer.len(b) ~= Net.StateSize then
@@ -1008,7 +1095,10 @@ local function onState(p: Player, b: any)
 	r.X, r.Y, r.Z, r.Yaw, r.Pitch, r.Roll = x, y, z, yaw, pitch, roll
 	r.VX, r.VY, r.VZ, r.Speed = vx, vy, vz, speed
 	-- only damage bits come from the client; the ghost bit is decided here
-	r.Flags = bit32.band(flags, bit32.bor(Net.Flags.FrontWing, Net.Flags.RearWing, Net.Flags.Smoke, Net.Flags.Brake, Net.Flags.Aero))
+	r.Flags = bit32.band(
+		flags,
+		bit32.bor(Net.Flags.FrontWing, Net.Flags.RearWing, Net.Flags.Smoke, Net.Flags.Brake, Net.Flags.Aero)
+	)
 	local t = s.Track
 	local idx, lateral = Track.Project(t, x, y, z, r.Idx)
 	r.Idx = idx
@@ -1033,6 +1123,7 @@ local function onState(p: Player, b: any)
 	r.Dist = r.LapsDone * L + prog
 end
 
+-- A player reset their car to the track.
 local function onReset(p: Player)
 	local s = playerSession[p]
 	local r = s and s.ByPlayer[p]
@@ -1072,6 +1163,8 @@ local function onBump(p: Player, b: any)
 	ai.Speed = math.max(0, ai.Speed + math.clamp(along, -60, 25))
 end
 
+-- Sends every racer's position to every other racer, RC.SendRate times a second,
+-- plus the standings 4 times a second.
 local function relayLoop()
 	local interval = 1 / RC.SendRate
 	local standingsTimer = 0
@@ -1100,7 +1193,21 @@ local function relayLoop()
 							flags = bit32.bor(flags, Net.Flags.Ghost)
 						end
 						buffer.writeu8(b, off, r.Rid)
-						Net.WriteState(b, off + 1, r.T or 0, r.X, r.Y, r.Z, r.Yaw or 0, r.Pitch or 0, r.Roll or 0, r.VX or 0, r.VY or 0, r.VZ or 0, flags)
+						Net.WriteState(
+							b,
+							off + 1,
+							r.T or 0,
+							r.X,
+							r.Y,
+							r.Z,
+							r.Yaw or 0,
+							r.Pitch or 0,
+							r.Roll or 0,
+							r.VX or 0,
+							r.VY or 0,
+							r.VZ or 0,
+							flags
+						)
 						count += 1
 					end
 				end
@@ -1141,7 +1248,11 @@ local function lobbyTick(tNow: number)
 				for _, p in back do
 					playerLobby[p] = nil
 				end
-				task.spawn(Matchmaker.ReturnToLobby, back, "Not enough racers made it to this match - no points lost. Back to the lobby!")
+				task.spawn(
+					Matchmaker.ReturnToLobby,
+					back,
+					"Not enough racers made it to this match - no points lost. Back to the lobby!"
+				)
 			else
 				l.Waiting = true
 				l.EndsAt = tNow + 10
@@ -1168,6 +1279,8 @@ local function lobbyTick(tNow: number)
 	end
 end
 
+-- A player quit mid-race. Finishers keep their result; anyone else is out (DNF), and in
+-- ranked it costs them Config.Ranked.LeaveRP.
 function RM.PlayerLeftRace(p: Player)
 	local s = playerSession[p]
 	if not s then
@@ -1198,6 +1311,7 @@ function RM.PlayerLeftRace(p: Player)
 	s.ByPlayer[p] = nil
 end
 
+-- Adds a race to the player's recent-results list (the last 10 are kept).
 function RM.AddHistory(d, s, pos: number?, delta: number)
 	d.history = d.history or {}
 	table.insert(d.history, { t = s.TrackId, p = pos, d = delta, at = os.time(), n = #s.Racers })
@@ -1206,14 +1320,17 @@ function RM.AddHistory(d, s, pos: number?, delta: number)
 	end
 end
 
+-- Whether the player is in a race right now.
 function RM.InRace(p: Player): boolean
 	return playerSession[p] ~= nil
 end
 
+-- How to show a player a toast (set by init.server).
 function RM.SetNotifier(fn)
 	notify = fn
 end
 
+-- Creates the race remotes and starts the lobby, race and relay loops.
 function RM.Init()
 	LobbyEvent = Net.Event("LobbyUpdate")
 	StartEvent = Net.Event("RaceStart")

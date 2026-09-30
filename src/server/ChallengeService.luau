@@ -21,6 +21,7 @@ local function weekState(d)
 	return wk, w
 end
 
+-- Adds `n` (default 1) to one of this week's stats, e.g. Bump(d, "wins").
 function ChallengeService.Bump(d, stat: string, n: number?)
 	local wk = weekState(d)
 	wk.counts[stat] = (wk.counts[stat] or 0) + (n or 1)
@@ -87,7 +88,13 @@ function ChallengeService.Snapshot(d)
 			claimed = d.starter[c.Id] == true,
 		})
 	end
-	return { week = w, featured = Challenges.Featured(w), endsAt = Challenges.WeekEnds(w), list = list, starter = starter }
+	return {
+		week = w,
+		featured = Challenges.Featured(w),
+		endsAt = Challenges.WeekEnds(w),
+		list = list,
+		starter = starter,
+	}
 end
 
 -- kind: "weekly" (id = 1..3) or "starter" (id = checklist id)

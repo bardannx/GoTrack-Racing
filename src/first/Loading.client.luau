@@ -1,5 +1,6 @@
 --!nonstrict
--- Custom loading screen shown while the game loads.
+-- The loading screen. Runs first (ReplicatedFirst), replaces Roblox's default screen,
+-- and fades out once the game has loaded and the main menu exists.
 
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
@@ -11,6 +12,7 @@ ReplicatedFirst:RemoveDefaultLoadingScreen()
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+-- Tiny Instance helper. This runs from ReplicatedFirst before the UI Kit exists.
 local function new(className, props, parent)
 	local i = Instance.new(className)
 	for k, v in props do
@@ -20,9 +22,15 @@ local function new(className, props, parent)
 	return i
 end
 
-local gui = new("ScreenGui", { Name = "GoTrackLoading", IgnoreGuiInset = true, DisplayOrder = 100, ResetOnSpawn = false }, nil)
-local bg = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, gui)
-new("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(26, 30, 56), Color3.fromRGB(8, 9, 16)), Rotation = 90 }, bg)
+local gui =
+	new("ScreenGui", { Name = "GoTrackLoading", IgnoreGuiInset = true, DisplayOrder = 100, ResetOnSpawn = false }, nil)
+local bg =
+	new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, gui)
+new(
+	"UIGradient",
+	{ Color = ColorSequence.new(Color3.fromRGB(26, 30, 56), Color3.fromRGB(8, 9, 16)), Rotation = 90 },
+	bg
+)
 
 -- animated racing stripes
 local stripes = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ClipsDescendants = true }, bg)
@@ -65,16 +73,47 @@ local logo = new("TextLabel", {
 	TextScaled = true,
 	TextColor3 = Color3.new(1, 1, 1),
 }, bg)
-new("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 226, 90)), ColorSequenceKeypoint.new(0.55, Color3.fromRGB(255, 176, 40)), ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 104, 36)) }), Rotation = 90 }, logo)
+new("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 226, 90)),
+		ColorSequenceKeypoint.new(0.55, Color3.fromRGB(255, 176, 40)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 104, 36)),
+	}),
+	Rotation = 90,
+}, logo)
 new("UIStroke", { Color = Color3.fromRGB(34, 12, 4), Thickness = 3 }, logo)
-local subRow = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.51), Size = UDim2.fromScale(0.5, 0.05), BackgroundTransparency = 1 }, bg)
-new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0.02, 0), SortOrder = Enum.SortOrder.LayoutOrder }, subRow)
+local subRow = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.51),
+	Size = UDim2.fromScale(0.5, 0.05),
+	BackgroundTransparency = 1,
+}, bg)
+new("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal,
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	Padding = UDim.new(0.02, 0),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+}, subRow)
+-- One of the slanted colour bars under the logo.
 local function speedBar(order, color)
-	local b = new("Frame", { Size = UDim2.fromScale(0.16, 0.14), BackgroundColor3 = color, BorderSizePixel = 0, LayoutOrder = order }, subRow)
+	local b = new(
+		"Frame",
+		{ Size = UDim2.fromScale(0.16, 0.14), BackgroundColor3 = color, BorderSizePixel = 0, LayoutOrder = order },
+		subRow
+	)
 	new("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
 end
 speedBar(1, Color3.fromRGB(236, 38, 58))
-new("TextLabel", { Size = UDim2.fromScale(0.34, 1), BackgroundTransparency = 1, Text = "RACING", FontFace = SUB, TextScaled = true, TextColor3 = Color3.fromRGB(248, 249, 255), LayoutOrder = 2 }, subRow)
+new("TextLabel", {
+	Size = UDim2.fromScale(0.34, 1),
+	BackgroundTransparency = 1,
+	Text = "RACING",
+	FontFace = SUB,
+	TextScaled = true,
+	TextColor3 = Color3.fromRGB(248, 249, 255),
+	LayoutOrder = 2,
+}, subRow)
 speedBar(3, Color3.fromRGB(255, 184, 28))
 new("TextLabel", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -87,9 +126,20 @@ new("TextLabel", {
 	TextColor3 = Color3.fromRGB(190, 198, 222),
 }, bg)
 
-local barBg = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.66), Size = UDim2.fromScale(0.3, 0.01), BackgroundColor3 = Color3.fromRGB(43, 48, 71), BorderSizePixel = 0, ClipsDescendants = true }, bg)
+local barBg = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.66),
+	Size = UDim2.fromScale(0.3, 0.01),
+	BackgroundColor3 = Color3.fromRGB(43, 48, 71),
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+}, bg)
 new("UICorner", { CornerRadius = UDim.new(1, 0) }, barBg)
-local bar = new("Frame", { Size = UDim2.fromScale(0.3, 1), BackgroundColor3 = Color3.fromRGB(255, 184, 28), BorderSizePixel = 0 }, barBg)
+local bar = new(
+	"Frame",
+	{ Size = UDim2.fromScale(0.3, 1), BackgroundColor3 = Color3.fromRGB(255, 184, 28), BorderSizePixel = 0 },
+	barBg
+)
 new("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
 
 gui.Parent = playerGui

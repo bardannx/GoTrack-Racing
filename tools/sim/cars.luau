@@ -28,7 +28,18 @@ for _, item in Cosmetics.ByCategory.Body do
 			CarBuilder.SetRainLight(res.RainLight, false, true)
 			assert(res.Plank.ClassName == "ParticleEmitter")
 		end)
-		print(string.format("%-10s %-10s parts %3d  rain light %s  spray %d  plank %s  %s", item.Id, res.Design, n, tostring(res.RainLight ~= nil), #(res.Spray or {}), tostring(res.Plank ~= nil), if okFx then "" else ("FX FAILED " .. tostring(errFx))))
+		print(
+			string.format(
+				"%-10s %-10s parts %3d  rain light %s  spray %d  plank %s  %s",
+				item.Id,
+				res.Design,
+				n,
+				tostring(res.RainLight ~= nil),
+				#(res.Spray or {}),
+				tostring(res.Plank ~= nil),
+				if okFx then "" else ("FX FAILED " .. tostring(errFx))
+			)
+		)
 		if not okFx or not res.RainLight then
 			fails += 1
 		end
@@ -69,8 +80,20 @@ if folder then
 				end
 			end
 			local okFlap = pcall(CarBuilder.SetFlap, res.Flap, 1)
-			local good = res.Design == want and ((D.Flap == nil) == (res.Flap == nil)) and (res.Flap == nil or flapParts > 0) and okFlap
-			print(string.format("%-10s -> %-10s flap %s (%d parts)  %s", item.Id, res.Design, tostring(res.Flap ~= nil), flapParts, if good then "ok" else "WRONG"))
+			local good = res.Design == want
+				and ((D.Flap == nil) == (res.Flap == nil))
+				and (res.Flap == nil or flapParts > 0)
+				and okFlap
+			print(
+				string.format(
+					"%-10s -> %-10s flap %s (%d parts)  %s",
+					item.Id,
+					res.Design,
+					tostring(res.Flap ~= nil),
+					flapParts,
+					if good then "ok" else "WRONG"
+				)
+			)
 			if not good then
 				fails += 1
 			end

@@ -1,10 +1,11 @@
 """Promo renders (game icon / thumbnails) of the real GoTrack car models.
 
-  python3 promo.py cache                 # build + pickle the car geometry (slow, once)
-  python3 promo.py icon  out.png
-  python3 promo.py hero  out.png
-  python3 promo.py lineup out.png
+python3 promo.py cache                 # build + pickle the car geometry (slow, once)
+python3 promo.py icon  out.png
+python3 promo.py hero  out.png
+python3 promo.py lineup out.png
 """
+
 import math
 import os
 import pickle
@@ -12,7 +13,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build
-import designs
 import wheels
 
 CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promo_cache.pkl")
@@ -20,16 +20,29 @@ NEEDED = ["gt1", "falcon", "nova", "aeros", "stealth", "neonracer", "viper", "au
 
 
 def rgb(r, g, b):
+    """0-255 sRGB colour to linear RGBA, for Blender materials."""
+
     def lin(c):
         c /= 255
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
     return (lin(r), lin(g), lin(b))
 
 
 PAINT = {
-    "red": rgb(215, 25, 35), "white": rgb(240, 240, 240), "black": rgb(22, 22, 26), "teal": rgb(0, 160, 150),
-    "purple": rgb(120, 50, 200), "midnight": rgb(15, 20, 55), "silver": rgb(170, 175, 185), "orange": rgb(255, 120, 20),
-    "green": rgb(20, 150, 80), "sky": rgb(120, 190, 255), "navy": rgb(15, 25, 80), "yellow": rgb(255, 210, 30), "cyan": rgb(40, 200, 255),
+    "red": rgb(215, 25, 35),
+    "white": rgb(240, 240, 240),
+    "black": rgb(22, 22, 26),
+    "teal": rgb(0, 160, 150),
+    "purple": rgb(120, 50, 200),
+    "midnight": rgb(15, 20, 55),
+    "silver": rgb(170, 175, 185),
+    "orange": rgb(255, 120, 20),
+    "green": rgb(20, 150, 80),
+    "sky": rgb(120, 190, 255),
+    "navy": rgb(15, 25, 80),
+    "yellow": rgb(255, 210, 30),
+    "cyan": rgb(40, 200, 255),
 }
 PATTERN_KEYS = {
     "stripe": [("stripe", "Secondary")],
@@ -40,6 +53,7 @@ PATTERN_KEYS = {
 
 
 def cache():
+    """Builds the geometry of every car the promo shots need and pickles it (slow, run once)."""
     objs, anchors = build.collect(NEEDED, shared=True)
     sh, st, vi, co = wheels.helmet2()
     objs["h2.shell"], objs["h2.stripe"], objs["h2.visor"], objs["h2.collar"] = sh, st, vi, co
@@ -49,6 +63,7 @@ def cache():
 
 
 def load():
+    """Loads the pickled car geometry."""
     return pickle.load(open(CACHE, "rb"))
 
 
@@ -58,6 +73,7 @@ EXPOSURE = -1.0
 
 
 def mat(name, color, rough=0.3, metal=0.0, coat=0.0, emit=0.0, alpha=1.0, cache={}):
+    """A Principled BSDF material (cached by its settings)."""
     key = (name, color, rough, metal, coat, emit, alpha)
     if key in cache:
         return cache[key]
@@ -86,6 +102,7 @@ def mat(name, color, rough=0.3, metal=0.0, coat=0.0, emit=0.0, alpha=1.0, cache=
 
 
 def slot_material(slot, livery):
+    """The material for a colour slot in a given livery."""
     P, S, A = livery["Primary"], livery["Secondary"], livery["Accent"]
     table = {
         "Primary": lambda: mat("paint", PAINT[P], 0.18, 0.0, 1.0),
@@ -105,7 +122,21 @@ def slot_material(slot, livery):
     return table.get(slot, lambda: mat("grey", rgb(128, 128, 128)))()
 
 
-def add_car(objs, anchors, design, livery, variants=("rwA",), pattern="stripe", neon=False, loc=(0, 0, 0), yaw=0.0, rim="classic"):
+def add_car(
+    objs,
+    anchors,
+    design,
+    livery,
+    variants=("rwA",),
+    pattern="stripe",
+    neon=False,
+    loc=(0, 0, 0),
+    yaw=0.0,
+    rim="classic",
+):
+    """Places one car in the scene: body, wheels, helmet, livery pattern and variants.
+    Returns its root object.
+    """
     col = bpy.context.scene.collection
     root = bpy.data.objects.new(design + "_root", None)
     col.objects.link(root)
@@ -136,12 +167,14 @@ def add_car(objs, anchors, design, livery, variants=("rwA",), pattern="stripe", 
         t = w["tyre"]
         inner = 0.64 if t == "t18" else 0.47
         tn = "18" if t == "t18" else "13"
-        parts_ = [(f"w.tyre{tn}", 1.0, mat("tyre", rgb(30, 30, 33), 0.75)),
-                  (f"w.comp{tn}", 1.0, mat("comp", rgb(230, 40, 40), 0.5)),
-                  ("w.barrel", inner, mat("rim", rgb(25, 25, 28), 0.3, 0.6)),
-                  ("w.back", inner, mat("dark", rgb(10, 10, 12), 0.5)),
-                  ("w.hub", inner, mat("hub", rgb(210, 40, 40), 0.3)),
-                  ("w.rim." + rim, inner, mat("rim", rgb(25, 25, 28), 0.3, 0.6))]
+        parts_ = [
+            (f"w.tyre{tn}", 1.0, mat("tyre", rgb(30, 30, 33), 0.75)),
+            (f"w.comp{tn}", 1.0, mat("comp", rgb(230, 40, 40), 0.5)),
+            ("w.barrel", inner, mat("rim", rgb(25, 25, 28), 0.3, 0.6)),
+            ("w.back", inner, mat("dark", rgb(10, 10, 12), 0.5)),
+            ("w.hub", inner, mat("hub", rgb(210, 40, 40), 0.3)),
+            ("w.rim." + rim, inner, mat("rim", rgb(25, 25, 28), 0.3, 0.6)),
+        ]
         for nm, sc, m in parts_:
             ob, *_ = build.make_object(f"{nm}#{design}{i}", objs[nm], col, center=False)
             ob.data.materials.append(m)
@@ -149,8 +182,13 @@ def add_car(objs, anchors, design, livery, variants=("rwA",), pattern="stripe", 
             ob.location = (w["pos"][0], -w["pos"][2], w["pos"][1])
             ob.parent = root
     hp = A["head"]
-    for nm, m in (("h2.shell", mat("helmet", rgb(245, 245, 245), 0.2, 0, 1.0)), ("h2.stripe", mat("hstripe", PAINT[livery["Primary"]], 0.2, 0, 1.0)),
-                  ("h2.visor", mat("visor", rgb(10, 12, 18), 0.05, 0.3)), ("h2.collar", mat("carbon", rgb(30, 30, 34), 0.35)), ("h2.headrest", mat("dark", rgb(10, 10, 12), 0.5))):
+    for nm, m in (
+        ("h2.shell", mat("helmet", rgb(245, 245, 245), 0.2, 0, 1.0)),
+        ("h2.stripe", mat("hstripe", PAINT[livery["Primary"]], 0.2, 0, 1.0)),
+        ("h2.visor", mat("visor", rgb(10, 12, 18), 0.05, 0.3)),
+        ("h2.collar", mat("carbon", rgb(30, 30, 34), 0.35)),
+        ("h2.headrest", mat("dark", rgb(10, 10, 12), 0.5)),
+    ):
         ob, *_ = build.make_object(nm + "#" + design, objs[nm], col, center=False)
         ob.data.materials.append(m)
         ob.location = (hp[0], -hp[2], hp[1])
@@ -161,6 +199,7 @@ def add_car(objs, anchors, design, livery, variants=("rwA",), pattern="stripe", 
 
 
 def scene(sun_elev=7.0, sun_rot=200.0, strength=0.55):
+    """A fresh scene with a Nishita sky and the sun at the given elevation and angle."""
     global bpy
     bpy = build.bl()
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -202,7 +241,7 @@ def scene(sun_elev=7.0, sun_rot=200.0, strength=0.55):
 
 
 def track_lines(y0=-200, y1=200, half=17, kerb_side=1):
-    sc = bpy.context.scene
+    """White edge lines and red/white kerbs along the straight."""
     for x in (-half, half):
         bpy.ops.mesh.primitive_plane_add(size=1, location=(x, (y0 + y1) / 2, -1.94))
         o = bpy.context.object
@@ -214,7 +253,9 @@ def track_lines(y0=-200, y1=200, half=17, kerb_side=1):
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y0 + k * 4 + 2, -1.88))
         o = bpy.context.object
         o.scale = (2.6, 4.0, 0.12)
-        o.data.materials.append(mat("kerbw" if k % 2 else "kerbr", rgb(240, 240, 240) if k % 2 else rgb(220, 30, 40), 0.45))
+        o.data.materials.append(
+            mat("kerbw" if k % 2 else "kerbr", rgb(240, 240, 240) if k % 2 else rgb(220, 30, 40), 0.45)
+        )
     # grass beyond
     for s in (-1, 1):
         bpy.ops.mesh.primitive_plane_add(size=1, location=(s * (half + 60), (y0 + y1) / 2, -1.945))
@@ -224,7 +265,10 @@ def track_lines(y0=-200, y1=200, half=17, kerb_side=1):
 
 
 def venue(half=17, y0=-260, y1=120):
+    """The small circuit around the cars: barriers with sponsor panels, grandstands with a
+    crowd, and trees on the horizon."""
     import random
+
     rnd = random.Random(7)
     # tyre-wall / barrier with sponsor-coloured panels on both sides
     cols = [rgb(20, 90, 200), rgb(240, 240, 240), rgb(230, 40, 50), rgb(250, 190, 30), rgb(20, 20, 26)]
@@ -248,10 +292,26 @@ def venue(half=17, y0=-260, y1=120):
                 o.scale = (1.6, 28, 1.1 + step * 2.2 * 0)
                 o.data.materials.append(mat("stand", rgb(120, 125, 135), 0.7))
                 for c in range(14):
-                    bpy.ops.mesh.primitive_cube_add(size=1, location=(base + s * step * 1.6, yy - 13 + c * 2 + rnd.uniform(-0.3, 0.3), -0.35 + step * 1.1))
+                    bpy.ops.mesh.primitive_cube_add(
+                        size=1,
+                        location=(base + s * step * 1.6, yy - 13 + c * 2 + rnd.uniform(-0.3, 0.3), -0.35 + step * 1.1),
+                    )
                     o = bpy.context.object
                     o.scale = (0.7, 0.8, 0.9)
-                    o.data.materials.append(mat("crowd%d" % (c % 6), [rgb(230, 40, 50), rgb(250, 190, 30), rgb(40, 120, 230), rgb(240, 240, 240), rgb(30, 160, 90), rgb(160, 60, 200)][rnd.randrange(6)], 0.8))
+                    o.data.materials.append(
+                        mat(
+                            "crowd%d" % (c % 6),
+                            [
+                                rgb(230, 40, 50),
+                                rgb(250, 190, 30),
+                                rgb(40, 120, 230),
+                                rgb(240, 240, 240),
+                                rgb(30, 160, 90),
+                                rgb(160, 60, 200),
+                            ][rnd.randrange(6)],
+                            0.8,
+                        )
+                    )
             bpy.ops.mesh.primitive_cube_add(size=1, location=(base + s * 5, yy, 7.2))
             o = bpy.context.object
             o.scale = (11, 30, 0.4)
@@ -267,6 +327,7 @@ def venue(half=17, y0=-260, y1=120):
 
 
 def camera(loc, target, lens=50, focus=None, fstop=4.0):
+    """Adds the camera at `loc` looking at `target`, with depth of field."""
     import mathutils
 
     sc = bpy.context.scene
@@ -284,6 +345,7 @@ def camera(loc, target, lens=50, focus=None, fstop=4.0):
 
 
 def render(out, res, samples=64):
+    """Renders to `out` with Cycles (PROMO_TEST=1 renders a quick low-res version)."""
     if os.environ.get("PROMO_TEST"):
         res, samples = (res[0] // 3, res[1] // 3), 16
     sc = bpy.context.scene
@@ -294,7 +356,11 @@ def render(out, res, samples=64):
         sc.cycles.use_denoising = True
     except Exception:
         pass
-    sc.view_settings.view_transform = "AgX" if "AgX" in [v.identifier for v in sc.view_settings.bl_rna.properties["view_transform"].enum_items] else "Filmic"
+    sc.view_settings.view_transform = (
+        "AgX"
+        if "AgX" in [v.identifier for v in sc.view_settings.bl_rna.properties["view_transform"].enum_items]
+        else "Filmic"
+    )
     try:
         sc.view_settings.look = "AgX - Punchy"
     except Exception:
@@ -322,7 +388,10 @@ PATS = {"aeros": "side", "arrow": "split"}
 
 
 def car(objs, anchors, d, loc, yaw, rim="classic"):
-    return add_car(objs, anchors, d, LIV[d], VARS.get(d, ()), PATS.get(d, "stripe"), d in ("nova", "neonracer"), loc, yaw, rim)
+    """add_car with a design's store livery, variants and pattern."""
+    return add_car(
+        objs, anchors, d, LIV[d], VARS.get(d, ()), PATS.get(d, "stripe"), d in ("nova", "neonracer"), loc, yaw, rim
+    )
 
 
 if __name__ == "__main__":

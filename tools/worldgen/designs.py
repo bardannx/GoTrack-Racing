@@ -13,6 +13,7 @@ Slots
 
 Units are studs. A person is ~5 studs, a race car 14.6 studs long, a floor ~10 studs.
 """
+
 import math
 
 import numpy as np
@@ -24,6 +25,10 @@ DESIGNS = {}
 
 
 def design(name, kind, w, d, smooth=False):
+    """Registers a design function under `name`, with its kind and footprint (w x d studs).
+    `smooth` asks for smooth shading (mountains).
+    """
+
     def deco(fn):
         DESIGNS[name] = {"fn": fn, "kind": kind, "w": w, "d": d, "smooth": smooth}
         return fn
@@ -32,6 +37,8 @@ def design(name, kind, w, d, smooth=False):
 
 
 class Out:
+    """Collects a design's faces by colour slot."""
+
     def __init__(self):
         self.slots = {}
 
@@ -51,6 +58,7 @@ def rng_for(name):
 
 
 def allp(pair):
+    """Both halves of a (WinA, WinB) pane pair as one list."""
     return pair[0] + pair[1]
 
 
@@ -93,6 +101,7 @@ def fins(out, cx, cz, w, d, y0, y1, n_w, n_d, depth=0.8, width=0.7, ang=0.0):
 
 
 def bands(out, cx, cz, w, d, ys, t=0.8, over=0.5, slot="Frame", ang=0.0):
+    """Horizontal floor bands wrapped round a block at heights `ys`."""
     faces = []
     for y in ys:
         faces += G.box(0, y, 0, w + over * 2, t, d + over * 2)
@@ -102,6 +111,7 @@ def bands(out, cx, cz, w, d, ys, t=0.8, over=0.5, slot="Frame", ang=0.0):
 
 
 def rooftop_plant(out, cx, cz, w, d, y, rng, n=3, slot="Roof"):
+    """A parapet slab with a few boxy AC units on a roof."""
     faces = G.ybox(cx, cz, w, d, y, y + 1.2, skip=())  # parapet slab
     for _ in range(n):
         x = cx + rng.uniform(-w / 2 + 3, w / 2 - 3)
@@ -111,6 +121,7 @@ def rooftop_plant(out, cx, cz, w, d, y, rng, n=3, slot="Roof"):
 
 
 def mast(out, x, z, y0, h, r=0.7):
+    """A thin mast with an aircraft warning light on top."""
     out.add("Frame", G.frustum(x, z, r, r * 0.45, y0, y0 + h, 6))
     out.add("Beacon", G.box(x, y0 + h + 0.6, z, 1.4, 1.2, 1.4))
 
@@ -140,6 +151,7 @@ def tower_glass():
 
 @design("tower_deco", "tower", 40, 40)
 def tower_deco():
+    """Art-deco stone tower with setbacks and a spire."""
     o, r = Out(), rng_for("tower_deco")
     tiers = [(40, 0, 120), (32, 120, 190), (24, 190, 236)]
     for w, y0, y1 in tiers:
@@ -169,6 +181,7 @@ def tower_deco():
 
 @design("tower_twist", "tower", 38, 38)
 def tower_twist():
+    """Glass tower whose floors twist as it rises."""
     o, r = Out(), rng_for("tower_twist")
     n = 26
     for k in range(n):
@@ -191,6 +204,7 @@ def tower_twist():
 
 @design("tower_round", "tower", 36, 36)
 def tower_round():
+    """Round glass tower with ring balconies."""
     o, r = Out(), rng_for("tower_round")
     n, R = 20, 16
     o.add("Glass", G.frustum(0, 0, R + 2, R + 2, 0, 9, n))
@@ -217,6 +231,7 @@ def tower_round():
 
 @design("tower_blade", "tower", 44, 36)
 def tower_blade():
+    """Tapering glass shard."""
     o, r = Out(), rng_for("tower_blade")
     H = 300
 
@@ -242,7 +257,14 @@ def tower_blade():
         y = f * 10 + 5
         w, d = rect(y)
         k = 0.85
-        for side, (p0, p1, n) in enumerate([((-w / 2, -d / 2), (w / 2, -d / 2), (0, 0, -1)), ((w / 2, -d / 2), (w / 2, d / 2), (1, 0, 0)), ((w / 2, d / 2), (-w / 2, d / 2), (0, 0, 1)), ((-w / 2, d / 2), (-w / 2, -d / 2), (-1, 0, 0))]):
+        for side, (p0, p1, n) in enumerate(
+            [
+                ((-w / 2, -d / 2), (w / 2, -d / 2), (0, 0, -1)),
+                ((w / 2, -d / 2), (w / 2, d / 2), (1, 0, 0)),
+                ((w / 2, d / 2), (-w / 2, d / 2), (0, 0, 1)),
+                ((-w / 2, d / 2), (-w / 2, -d / 2), (-1, 0, 0)),
+            ]
+        ):
             # the faces lean inwards: tilt the strip normal to match
             mid = v((p0[0] + p1[0]) / 2, y, (p0[1] + p1[1]) / 2)
             L = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
@@ -261,6 +283,7 @@ def tower_blade():
 
 @design("tower_twin", "tower", 64, 28)
 def tower_twin():
+    """Twin towers joined by a skybridge."""
     o, r = Out(), rng_for("tower_twin")
     for sx in (-18, 18):
         o.add("Glass", G.frustum(sx, 0, 11.5, 11.5, 0, 196, 8, a0=math.pi / 8, top=False))
@@ -288,6 +311,7 @@ def tower_twin():
 
 @design("tower_stack", "tower", 42, 42)
 def tower_stack():
+    """Stack of offset boxes."""
     o, r = Out(), rng_for("tower_stack")
     offs = [(0, 0), (5, -4), (-4, 3), (4, 5), (-3, -5)]
     y = 0
@@ -310,6 +334,7 @@ def tower_stack():
 
 @design("tower_resi", "tower", 40, 24)
 def tower_resi():
+    """Residential slab with balconies."""
     o, r = Out(), rng_for("tower_resi")
     W, D, H, fh = 38, 18, 180, 9
     o.add("Wall", G.ybox(0, 0, W, D, 0, H))
@@ -355,6 +380,7 @@ def mid_office():
 
 @design("mid_apart", "mid", 32, 24)
 def mid_apart():
+    """Apartment block: balconies, a shop window at street level, a water tank on the roof."""
     o, r = Out(), rng_for("mid_apart")
     W, D, H, fh = 30, 20, 44, 8.4
     o.add("Wall", G.ybox(0, 0, W, D, 0, H))
@@ -382,6 +408,7 @@ def mid_apart():
 
 @design("mid_euro", "mid", 30, 22)
 def mid_euro():
+    """European city block: mansard roof, dormers and a shopfront."""
     o, r = Out(), rng_for("mid_euro")
     W, D = 28, 18
     o.add("Wall", G.ybox(0, 0, W, D, 0, 32))
@@ -397,7 +424,21 @@ def mid_euro():
             tr += G.box(x, y - 3.1, -D / 2 - 0.3, 3.4, 0.5, 0.6)
     o.add("Trim", tr)
     # mansard roof with dormers
-    o.add("Roof", G.loft([[v(-W / 2, 32.9, -D / 2), v(W / 2, 32.9, -D / 2), v(W / 2, 32.9, D / 2), v(-W / 2, 32.9, D / 2)], [v(-W / 2 + 4, 41, -D / 2 + 4), v(W / 2 - 4, 41, -D / 2 + 4), v(W / 2 - 4, 41, D / 2 - 4), v(-W / 2 + 4, 41, D / 2 - 4)]], top=True))
+    o.add(
+        "Roof",
+        G.loft(
+            [
+                [v(-W / 2, 32.9, -D / 2), v(W / 2, 32.9, -D / 2), v(W / 2, 32.9, D / 2), v(-W / 2, 32.9, D / 2)],
+                [
+                    v(-W / 2 + 4, 41, -D / 2 + 4),
+                    v(W / 2 - 4, 41, -D / 2 + 4),
+                    v(W / 2 - 4, 41, D / 2 - 4),
+                    v(-W / 2 + 4, 41, D / 2 - 4),
+                ],
+            ],
+            top=True,
+        ),
+    )
     dorm = []
     wa = []
     for k in (-1, 0, 1):
@@ -416,6 +457,7 @@ def mid_euro():
 
 @design("mid_loft", "mid", 44, 32)
 def mid_loft():
+    """Brick loft building with a water tower."""
     o, r = Out(), rng_for("mid_loft")
     W, D, H = 42, 28, 36
     o.add("Wall", G.ybox(0, 0, W, D, 0, H))
@@ -439,6 +481,7 @@ def mid_loft():
 
 @design("mall", "mid", 72, 52)
 def mall():
+    """A low, wide shopping mall."""
     o, r = Out(), rng_for("mall")
     W, D = 70, 50
     o.add("Wall", G.ybox(0, 0, W, D, 0, 16))
@@ -473,6 +516,7 @@ def house_gable():
 
 @design("house_hip", "house", 26, 22)
 def house_hip():
+    """House with a hip roof and a garage door."""
     o, r = Out(), rng_for("house_hip")
     W, D, H = 24, 17, 9
     o.add("Wall", G.ybox(0, 0, W, D, 0, H))
@@ -487,7 +531,8 @@ def house_hip():
 
 @design("house_modern", "house", 28, 24)
 def house_modern():
-    o, r = Out(), rng_for("house_modern")
+    """Modern two-storey house: flat roofs, big glass fronts and wooden slats."""
+    o = Out()
     o.add("Wall", G.ybox(-2, 0, 24, 18, 0, 8.5))
     o.add("Wall", G.ybox(3, -1, 20, 20, 8.5, 16))
     o.add("Glass", G.box(-4, 4.2, -9.15, 16, 7, 0.3))
@@ -504,7 +549,8 @@ def house_modern():
 
 @design("house_villa", "house", 26, 24)
 def house_villa():
-    o, r = Out(), rng_for("house_villa")
+    """Villa with a hip roof, shuttered windows and a ground-floor loggia."""
+    o = Out()
     W, D, H = 22, 18, 14
     o.add("Wall", G.ybox(0, 0, W, D, 0, H))
     o.add("Roof", G.hip(0, 0, W, D, H, 5, 1.6))
@@ -545,7 +591,8 @@ def tree_oak():
 
 @design("tree_pine", "tree", 14, 14)
 def tree_pine():
-    o, r = Out(), rng_for("tree_pine")
+    """Pine tree."""
+    o = Out()
     o.add("Trunk", G.frustum(0, 0, 0.9, 0.5, 0, 8, 6))
     tiers = [(6.6, 4, 13), (5.4, 9, 17), (4.2, 13, 21), (2.9, 17, 26)]
     for k, (rad, y0, y1) in enumerate(tiers):
@@ -556,26 +603,29 @@ def tree_pine():
 @design("tree_snowpine", "tree", 14, 14)
 def tree_snowpine():
     """Pine with a band of snow lying on every tier."""
-    o, r = Out(), rng_for("tree_snowpine")
+    o = Out()
     o.add("Trunk", G.frustum(0, 0, 0.9, 0.5, 0, 8, 6))
     tiers = [(6.6, 4, 13), (5.4, 9, 17), (4.2, 13, 21), (2.9, 17, 26)]
     for k, (rad, y0, y1) in enumerate(tiers):
         h = y1 - y0
         a = k * 0.4
         o.add("Leaf", G.frustum(0, 0, rad, rad * 0.8, y0, y0 + 0.2 * h, 8, a0=a, top=False, bottom=True))
-        o.add("Snow", G.frustum(0, 0, rad * 0.8 + 0.15, rad * 0.5 + 0.15, y0 + 0.2 * h, y0 + 0.5 * h, 8, a0=a, top=False))
+        o.add(
+            "Snow", G.frustum(0, 0, rad * 0.8 + 0.15, rad * 0.5 + 0.15, y0 + 0.2 * h, y0 + 0.5 * h, 8, a0=a, top=False)
+        )
         o.add("Leaf" if k < 3 else "Snow", G.cone(0, 0, rad * 0.5, y0 + 0.5 * h, y1, 8, a0=a, bottom=False))
     return o
 
 
 @design("tree_palm", "tree", 18, 18)
 def tree_palm():
+    """Palm tree."""
     o, r = Out(), rng_for("tree_palm")
     segs, H = 8, 26
     rings = []
     for k in range(segs + 1):
         t = k / segs
-        x = 3.2 * t ** 1.6
+        x = 3.2 * t**1.6
         rad = 1.05 - 0.4 * t
         rings.append(G.ring(x, 0, rad, 7, t * H))
     o.add("Trunk", G.loft(rings, top=True))
@@ -604,6 +654,7 @@ def tree_palm():
 
 @design("tree_cypress", "tree", 8, 8)
 def tree_cypress():
+    """Tall narrow cypress."""
     o, r = Out(), rng_for("tree_cypress")
     o.add("Trunk", G.frustum(0, 0, 0.7, 0.5, 0, 4, 6))
     o.add("Leaf", G.blob(0, 13, 0, 1, 2, 0.1, r, 3.4, 11, 3.4))
@@ -612,6 +663,7 @@ def tree_cypress():
 
 @design("tree_birch", "tree", 14, 14)
 def tree_birch():
+    """Birch tree."""
     o, r = Out(), rng_for("tree_birch")
     o.add("Trunk", G.frustum(0, 0, 0.8, 0.45, 0, 16, 6))
     o.add("Leaf", G.blob(0, 14, 0, 5.2, 1, 0.22, r, 1, 1.3, 1))
@@ -622,17 +674,25 @@ def tree_birch():
 
 @design("tree_cherry", "tree", 20, 20)
 def tree_cherry():
+    """Cherry tree in blossom."""
     o, r = Out(), rng_for("tree_cherry")
     o.add("Trunk", G.frustum(0, 0, 1.1, 0.8, 0, 5, 6))
     o.add("Trunk", G.rot_axis(G.frustum(0, 0, 0.7, 0.4, 4.5, 11, 5), (0, 0, 1), 0.55, (0, 4.5, 0)))
     o.add("Trunk", G.rot_axis(G.frustum(0, 0, 0.7, 0.4, 4.5, 11, 5), (0, 0, 1), -0.5, (0, 4.5, 0)))
-    for (x, y, z, rad) in [(0, 11.5, 0, 5.4), (-4.6, 10.2, 1.5, 4.2), (4.8, 10.4, -1.2, 4.3), (1.5, 12, 4.2, 3.8), (-1, 11.6, -4.4, 3.8)]:
+    for x, y, z, rad in [
+        (0, 11.5, 0, 5.4),
+        (-4.6, 10.2, 1.5, 4.2),
+        (4.8, 10.4, -1.2, 4.3),
+        (1.5, 12, 4.2, 3.8),
+        (-1, 11.6, -4.4, 3.8),
+    ]:
         o.add("Leaf", G.blob(x, y, z, rad, 1, 0.2, r, 1, 0.7, 1))
     return o
 
 
 @design("tree_jungle", "tree", 24, 24)
 def tree_jungle():
+    """Tall jungle tree with buttress roots and a high canopy."""
     o, r = Out(), rng_for("tree_jungle")
     o.add("Trunk", G.frustum(0, 0, 1.4, 0.8, 0, 24, 7))
     for k in range(4):
@@ -640,7 +700,10 @@ def tree_jungle():
         fin = [v(0, 0, 0), v(math.cos(a) * 4, 0, math.sin(a) * 4), v(0, 6, 0)]
         fin2 = [p + v(-math.sin(a), 0, math.cos(a)) * 0.35 for p in fin]
         fins_ = [fin, fin2[::-1], [fin[0], fin[1], fin2[1], fin2[0]], [fin[1], fin[2], fin2[2], fin2[1]]]
-        o.add("Trunk", G.outward(fins_, v(math.cos(a) * 1.3, 2, math.sin(a) * 1.3) + v(-math.sin(a), 0, math.cos(a)) * 0.175))
+        o.add(
+            "Trunk",
+            G.outward(fins_, v(math.cos(a) * 1.3, 2, math.sin(a) * 1.3) + v(-math.sin(a), 0, math.cos(a)) * 0.175),
+        )
     o.add("Leaf", G.blob(0, 25, 0, 9, 1, 0.2, r, 1, 0.42, 1))
     o.add("Leaf", G.blob(5, 21, -3, 5.6, 1, 0.2, r, 1, 0.5, 1))
     o.add("Leaf", G.blob(-4.6, 22.5, 3.4, 5.2, 1, 0.2, r, 1, 0.5, 1))
@@ -649,6 +712,7 @@ def tree_jungle():
 
 @design("tree_acacia", "tree", 22, 22)
 def tree_acacia():
+    """Flat-topped acacia with a forked trunk."""
     o, r = Out(), rng_for("tree_acacia")
     o.add("Trunk", G.frustum(0, 0, 1.0, 0.7, 0, 7, 6))
     o.add("Trunk", G.rot_axis(G.frustum(0, 0, 0.6, 0.35, 6, 14, 5), (0, 0, 1), 0.5, (0, 6, 0)))
@@ -660,6 +724,7 @@ def tree_acacia():
 
 @design("bush", "tree", 9, 8)
 def bush():
+    """Low round bush."""
     o, r = Out(), rng_for("bush")
     o.add("Leaf", G.blob(0, 1.8, 0, 3.4, 1, 0.22, r, 1.1, 0.75, 1, flat_bottom=-0.5))
     o.add("Leaf", G.blob(2.8, 1.5, 1.2, 2.6, 1, 0.22, r, 1, 0.8, 1, flat_bottom=-0.4))
@@ -679,6 +744,7 @@ def rock_a():
 
 @design("rock_b", "rock", 16, 14)
 def rock_b():
+    """Cluster of three boulders."""
     o, r = Out(), rng_for("rock_b")
     o.add("Rock", G.blob(0, 2.6, 0, 5, 1, 0.32, r, 1.1, 0.9, 1, flat_bottom=-2.6))
     o.add("Rock", G.blob(4.6, 1.5, 2.4, 3.2, 1, 0.3, r, 1, 0.8, 1, flat_bottom=-1.5))
@@ -704,7 +770,11 @@ def rock_spire():
 
 
 def _noise(rng, n=5):
-    waves = [(rng.uniform(0.5, 3) * (k + 1), rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi), 1 / (k + 1)) for k in range(n)]
+    """Smooth random bumps (a few sine waves) for mountain surfaces."""
+    waves = [
+        (rng.uniform(0.5, 3) * (k + 1), rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi), 1 / (k + 1))
+        for k in range(n)
+    ]
 
     def f(x, z):
         s = 0.0
@@ -716,12 +786,16 @@ def _noise(rng, n=5):
 
 
 def mountain(name, R, H, peaks, rng, snow=0.62, base=0.1, n=18, rough=0.18, mesa=False):
+    """A mountain as a heightfield from a few peaks (x, z, radius, height as fractions of R
+    and H). Faces are coloured by height and slope: snow on high gentle slopes, ground
+    colour low down, rock elsewhere; a mesa gets a flat top and striped cliffs.
+    """
     o = Out()
     nz = _noise(rng)
 
     def fn(x, z):
         h = 0.0
-        for (px, pz, pr, ph) in peaks:
+        for px, pz, pr, ph in peaks:
             d = math.hypot(x - px * R, z - pz * R) / (pr * R)
             if d < 1:
                 k = (1 - d) ** (1.25 if not mesa else 0.35)
@@ -753,24 +827,35 @@ def mountain(name, R, H, peaks, rng, snow=0.62, base=0.1, n=18, rough=0.18, mesa
 
 @design("mtn_peak", "mountain", 1200, 1200, smooth=True)
 def mtn_peak():
+    """A three-peaked mountain."""
     r = rng_for("mtn_peak")
     return mountain("mtn_peak", 600, 560, [(0, 0, 1.0, 1.0), (0.3, -0.2, 0.55, 0.62), (-0.35, 0.25, 0.5, 0.5)], r)
 
 
 @design("mtn_ridge", "mountain", 1400, 900, smooth=True)
 def mtn_ridge():
+    """A long mountain ridge."""
     r = rng_for("mtn_ridge")
-    return mountain("mtn_ridge", 700, 480, [(-0.4, 0, 0.6, 0.9), (0.05, 0.05, 0.55, 1.0), (0.45, -0.05, 0.5, 0.8), (0, 0.3, 0.5, 0.5)], r, n=20)
+    return mountain(
+        "mtn_ridge",
+        700,
+        480,
+        [(-0.4, 0, 0.6, 0.9), (0.05, 0.05, 0.55, 1.0), (0.45, -0.05, 0.5, 0.8), (0, 0.3, 0.5, 0.5)],
+        r,
+        n=20,
+    )
 
 
 @design("mtn_mesa", "mountain", 1000, 1000, smooth=False)
 def mtn_mesa():
+    """A flat-topped desert mesa with banded cliffs."""
     r = rng_for("mtn_mesa")
     return mountain("mtn_mesa", 500, 260, [(0, 0, 0.95, 1.4), (0.35, 0.3, 0.45, 1.2)], r, n=16, rough=0.08, mesa=True)
 
 
 @design("hill", "mountain", 900, 900, smooth=True)
 def hill():
+    """A low grassy hill with no snow."""
     r = rng_for("hill")
     return mountain("hill", 450, 150, [(0, 0, 1.0, 1.0), (0.3, 0.2, 0.6, 0.8)], r, snow=9, base=0.5, n=14, rough=0.1)
 
@@ -788,6 +873,7 @@ def _side_profile(pts, width, slot, o):
 
 
 def _wheels(o, x, zs, r=1.35, w=1.0):
+    """A pair of dark wheels (at +x and -x) on each axle position in `zs`."""
     for z in zs:
         for sx in (-1, 1):
             o.add("Dark", G.tube_x(sx * x, r, z, r, w, 10))
@@ -795,8 +881,14 @@ def _wheels(o, x, zs, r=1.35, w=1.0):
 
 @design("car_sedan", "vehicle", 7, 15)
 def car_sedan():
+    """Saloon car."""
     o = Out()
-    _side_profile([(-7.4, 1.0), (-7.4, 2.9), (-6.6, 3.5), (-2.6, 3.8), (4.8, 3.8), (7.2, 3.5), (7.4, 2.8), (7.4, 1.0)], 6.2, "Body", o)
+    _side_profile(
+        [(-7.4, 1.0), (-7.4, 2.9), (-6.6, 3.5), (-2.6, 3.8), (4.8, 3.8), (7.2, 3.5), (7.4, 2.8), (7.4, 1.0)],
+        6.2,
+        "Body",
+        o,
+    )
     _side_profile([(-2.4, 3.7), (-0.8, 5.5), (3.4, 5.5), (5.0, 3.7)], 5.6, "Glass", o)
     o.add("Body", G.box(0, 5.62, 1.3, 5.0, 0.25, 4.0))
     _wheels(o, 2.75, (-4.6, 4.6))
@@ -807,6 +899,7 @@ def car_sedan():
 
 @design("car_suv", "vehicle", 7, 16)
 def car_suv():
+    """SUV."""
     o = Out()
     _side_profile([(-7.8, 1.2), (-7.8, 3.6), (-6.8, 4.4), (-3.6, 4.6), (7.8, 4.6), (7.8, 1.2)], 6.6, "Body", o)
     _side_profile([(-3.4, 4.5), (-1.8, 6.9), (7.2, 6.9), (7.6, 4.5)], 6.0, "Glass", o)
@@ -819,6 +912,7 @@ def car_suv():
 
 @design("bus", "vehicle", 9, 36)
 def bus():
+    """City bus."""
     o = Out()
     o.add("Body", G.box(0, 5.6, 0, 8, 8.6, 34))
     o.add("Glass", G.box(0, 7.2, 1, 8.2, 3.2, 28) + G.box(0, 6.2, -17.05, 7, 5.4, 0.2))

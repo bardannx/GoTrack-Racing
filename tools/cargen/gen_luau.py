@@ -1,4 +1,12 @@
-"""manifest.json -> src/shared/CarData.luau"""
+"""Writes src/shared/CarData.luau from the export manifest: the centre and size of every
+car mesh, each design's anchors (wheels, head, cameras, steering wheel, number plates)
+and which design each chassis uses (PRESETS).
+
+  python3 tools/cargen/gen_luau.py assets/cars/manifest.json src/shared/CarData.luau
+
+CarData.luau is generated: change this script and re-run it rather than editing the file.
+"""
+
 import json
 import sys
 
@@ -7,6 +15,7 @@ out = sys.argv[2]
 
 
 def v3(v):
+    """A Luau Vector3 literal."""
     return "Vector3.new(%.4f, %.4f, %.4f)" % tuple(v)
 
 
@@ -52,11 +61,18 @@ for dn, a in man["anchors"].items():
     L.append("\t\tEngine = %s," % v3(a["engine"]))
     L.append("\t\tTrail = { %s, %s }," % (v3(a["trail"][0]), v3(a["trail"][1])))
     nn = a["numberNose"]
-    L.append("\t\tNumberNose = { Pos = %s, Size = Vector2.new(%.3f, %.3f), Pitch = %.1f }," % (v3(nn["pos"]), nn["size"][0], nn["size"][1], nn["pitch"]))
+    L.append(
+        "\t\tNumberNose = { Pos = %s, Size = Vector2.new(%.3f, %.3f), Pitch = %.1f },"
+        % (v3(nn["pos"]), nn["size"][0], nn["size"][1], nn["pitch"])
+    )
     ns = a["numberSide"]
-    L.append("\t\tNumberSide = { Pos = %s, Size = Vector2.new(%.3f, %.3f) }," % (v3(ns["pos"]), ns["size"][0], ns["size"][1]))
+    L.append(
+        "\t\tNumberSide = { Pos = %s, Size = Vector2.new(%.3f, %.3f) }," % (v3(ns["pos"]), ns["size"][0], ns["size"][1])
+    )
     ug = a["underglow"]
-    L.append("\t\tUnderglow = { Pos = %s, Size = Vector2.new(%.3f, %.3f) }," % (v3(ug["pos"]), ug["size"][0], ug["size"][1]))
+    L.append(
+        "\t\tUnderglow = { Pos = %s, Size = Vector2.new(%.3f, %.3f) }," % (v3(ug["pos"]), ug["size"][0], ug["size"][1])
+    )
     cockpit = (head[0], head[1] + 0.03, head[2] - 0.14)
     nose = (0, nn["pos"][1] + 0.3, nn["pos"][2] + 0.9)
     tcam = (0, head[1] + 0.95, head[2] + 1.35)
@@ -73,11 +89,15 @@ L.append("D.Presets = {")
 
 
 def qlist(xs):
+    """A list of quoted Luau strings."""
     return ", ".join('"%s"' % x for x in xs)
 
 
 for k, (dn, vars_, neon, old, old_vars) in PRESETS.items():
-    L.append('\t%s = { Design = "%s", Variants = { %s }, Neon = %s, Old = "%s", OldVariants = { %s } },' % (k, dn, qlist(vars_), "true" if neon else "false", old, qlist(old_vars)))
+    L.append(
+        '\t%s = { Design = "%s", Variants = { %s }, Neon = %s, Old = "%s", OldVariants = { %s } },'
+        % (k, dn, qlist(vars_), "true" if neon else "false", old, qlist(old_vars))
+    )
 L.append("}")
 L.append("return D")
 open(out, "w").write("\n".join(L) + "\n")

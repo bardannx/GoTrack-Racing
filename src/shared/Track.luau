@@ -1,7 +1,10 @@
 --!nonstrict
--- Circuit geometry (pure maths, no Roblox APIs so server, client and tests share it).
--- Turns a circuit's control points into an evenly spaced centre line with tangents,
--- curvature, an ideal speed profile, timing gates, grid slots and a minimap outline.
+-- Circuit geometry. Turns a circuit's handful of control points (Circuits.luau) into an
+-- evenly sampled centre line with tangents, curvature, an ideal speed profile, a racing
+-- line, timing gates, grid slots and a minimap outline.
+--
+-- This file is pure maths with no Roblox APIs on purpose: the server validates laps with
+-- it, the client builds the circuit from it, and the offline test harness runs it as is.
 
 local Circuits = require(script.Parent.Circuits)
 
@@ -12,7 +15,7 @@ Track.Unit = 50 -- control point units -> studs
 Track.GateCount = 24
 Track.SectorGates = { 8, 16 } -- gate indexes that end sector 1 and 2
 
--- Tuning for the ideal speed profile (used by AI drivers, lap counts and medals)
+-- Tuning for the ideal speed profile (used by the computer drivers, lap counts and medals)
 Track.Profile = {
 	TopSpeed = 235,
 	LateralAccel = 240,
@@ -24,6 +27,12 @@ Track.RaceLaps = 2 -- laps on normal circuits (Quick / Ranked)
 Track.ShortLaps = 3 -- laps on short circuits (ideal lap under ShortLapSeconds)
 Track.ShortLapSeconds = 32
 
+-- A circuit sampled every DS studs. Arrays are indexed 1..N along the lap.
+--   X, Y, Z     centre line position       TX, TY, TZ  unit tangent (direction of travel)
+--   RX, RZ      horizontal unit "right"    K           signed curvature (+ = turning right)
+--   V           ideal speed (studs/s)      S           distance from the start line
+--   RL          racing-line offset         Over        true where the road passes over itself
+--   Gates       sample index of each timing gate (gate 1 is the start/finish line)
 export type Sampled = {
 	Id: string,
 	Def: any,
@@ -50,6 +59,7 @@ export type Sampled = {
 	Minimap: { { number } },
 }
 
+-- Control points are written "x,z[,height]; x,z; ..." in Track.Unit units.
 local function parsePoints(str: string): { { number } }
 	local pts = {}
 	for chunk in string.gmatch(str, "[^;]+") do
@@ -65,7 +75,8 @@ local function parsePoints(str: string): { { number } }
 end
 Track.ParsePoints = parsePoints
 
--- Centripetal Catmull-Rom (alpha = 0.5), closed loop
+-- Centripetal Catmull-Rom (alpha = 0.5): passes through every control point without the
+-- loops and cusps a uniform spline makes on tight corners.
 local function catmull(p0, p1, p2, p3, t)
 	local function d(a, b)
 		local dx, dy, dz = b[1] - a[1], b[2] - a[2], b[3] - a[3]
@@ -88,6 +99,7 @@ local function catmull(p0, p1, p2, p3, t)
 	return out
 end
 
+-- Box-blurs a looped array in place (the end wraps round to the start).
 local function smoothArray(arr: { number }, n: number, radius: number, passes: number)
 	for _ = 1, passes do
 		local copy = table.clone(arr)
@@ -105,6 +117,7 @@ end
 
 local cache: { [string]: Sampled } = {}
 
+-- Samples a circuit definition. Callers normally want Track.Get, which caches the result.
 function Track.Build(def): Sampled
 	local ctrl = parsePoints(def.Points)
 	local m = #ctrl
@@ -174,7 +187,8 @@ function Track.Build(def): Sampled
 	end
 	smoothArray(K, n, 2, 1)
 
-	-- ideal speed profile
+	-- Ideal speed profile: the corner speed limit from curvature, then a few backward
+	-- (braking) and forward (acceleration) passes so the speed changes realistically.
 	local P = Track.Profile
 	local V = {}
 	for i = 1, n do
@@ -232,11 +246,13 @@ function Track.Build(def): Sampled
 		end
 	end
 
+	-- timing gates, evenly spread round the lap
 	local gates = {}
 	for g = 0, Track.GateCount - 1 do
 		gates[g + 1] = math.floor(g * n / Track.GateCount) + 1
 	end
 
+	-- bounding box and a coarse outline for the minimap
 	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
 	for i = 1, n do
 		minX, maxX = math.min(minX, X[i]), math.max(maxX, X[i])
@@ -291,6 +307,7 @@ function Track.Build(def): Sampled
 	}
 end
 
+-- The sampled circuit for a circuit id (built once, then cached).
 function Track.Get(id: string): Sampled?
 	if cache[id] then
 		return cache[id]
@@ -309,7 +326,8 @@ function Track.Wrap(t: Sampled, i: number): number
 	return ((i - 1) % t.N) + 1
 end
 
--- Position at a (fractional) distance along the lap plus a lateral offset.
+-- Position at a distance `s` along the lap, shifted `lateral` studs to the right.
+-- Returns x, y, z and the tangent tx, ty, tz, interpolated between samples.
 function Track.PointAt(t: Sampled, s: number, lateral: number?): (number, number, number, number, number, number)
 	local fi = (s % t.Length) / t.Length * t.N
 	local i0 = math.floor(fi) + 1
@@ -326,12 +344,14 @@ function Track.PointAt(t: Sampled, s: number, lateral: number?): (number, number
 	return x, y, z, tx, ty, tz
 end
 
+-- Ideal speed at distance `s` along the lap.
 function Track.SpeedAt(t: Sampled, s: number): number
 	local i = Track.Wrap(t, math.floor((s % t.Length) / t.Length * t.N) + 1)
 	return t.V[i]
 end
 
--- Nearest sample index to a position. `hint` limits the search window.
+-- Nearest sample to a position, plus the lateral and vertical offset from it. Pass the
+-- previous result as `hint` to search only nearby (much faster every frame).
 function Track.Project(t: Sampled, x: number, y: number, z: number, hint: number?): (number, number, number)
 	local best, bestD = 1, math.huge
 	if hint then

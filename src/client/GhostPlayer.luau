@@ -1,5 +1,6 @@
 --!nonstrict
--- Replays recorded runs as translucent ghost cars.
+-- Ghost cars for Time Trial: replays a recorded lap (your best, or a leaderboard time)
+-- as a see-through car you can race against.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local CarBuilder = require(Shared.CarBuilder)
@@ -11,11 +12,13 @@ GhostPlayer.__index = GhostPlayer
 
 export type GhostData = { ms: number, rate: number, f: { number }, car: any, name: string?, title: string? }
 
+-- Position and rotation of recorded frame `i` (6 numbers per frame).
 local function frameCF(f: { number }, i: number): CFrame
 	local b = i * 6
 	return CFrame.new(f[b + 1], f[b + 2], f[b + 3]) * CFrame.fromEulerAnglesXYZ(f[b + 4], f[b + 5], f[b + 6])
 end
 
+-- A see-through copy of the recorded car with a name tag above it.
 function GhostPlayer.new(data: GhostData, label: string, color: Color3?)
 	local parts = CarBuilder.Build(data.car, { Ghost = true })
 	local model = parts.Model
@@ -75,6 +78,7 @@ function GhostPlayer.TimeAtRegion(data: GhostData, inRegion: (Vector3) -> boolea
 	return nil
 end
 
+-- Moves the ghost to where it was `t` seconds into its lap, blending between frames.
 function GhostPlayer:Update(t: number)
 	local n = self.Count
 	if n < 1 then
@@ -105,10 +109,12 @@ function GhostPlayer:Update(t: number)
 	end
 end
 
+-- Shows or hides the ghost.
 function GhostPlayer:SetVisible(v: boolean)
 	self.Model.Parent = if v then workspace else nil
 end
 
+-- Removes the ghost car.
 function GhostPlayer:Destroy()
 	self.Model:Destroy()
 end

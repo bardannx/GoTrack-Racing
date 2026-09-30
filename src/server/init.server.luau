@@ -1,5 +1,7 @@
 --!nonstrict
--- GoTrack Racing server entry point: wires services and remote handlers.
+-- Server entry point. Starts every service and handles the client's requests: equipping
+-- and buying cosmetics, daily rewards, challenges, joining races and time trials, and
+-- leaderboards. Every handler checks its arguments itself, never trusting the client.
 
 local Players = game:GetService("Players")
 
@@ -21,6 +23,7 @@ Net.GetFolder()
 local NotifyEvent = Net.Event("Notify")
 local ProfileEvent = Net.Event("ProfileUpdated")
 
+-- Shows the player a toast message (kind: info, success, warn, error).
 local function notify(player: Player, msg: string, kind: string?)
 	NotifyEvent:FireClient(player, msg, kind or "info")
 end
@@ -42,6 +45,7 @@ local function liveStreak(data): number
 	return 0
 end
 
+-- The part of a save the client is allowed to see, sent whenever it changes.
 local function snapshot(player: Player)
 	local d = DataService.Get(player)
 	if not d then
@@ -75,6 +79,7 @@ local function snapshot(player: Player)
 	}
 end
 
+-- Wins, rank and level on the Roblox player list.
 local function updateLeaderstats(player: Player)
 	local d = DataService.Get(player)
 	if not d then
@@ -116,11 +121,13 @@ DataService.OnChanged(function(player: Player)
 end)
 
 ---------------------------------------------------------------------------
--- Rate limiting + binding
+-- Rate limiting and remote handlers
 ---------------------------------------------------------------------------
 local buckets = {}
 local HEAVY = { GetLeaderboard = true, GetGhost = true, GetLobbies = true }
 
+-- Token bucket per player and remote: a burst of 15 calls (10 for the heavy ones),
+-- refilled at 5 per second (2). Stops a client from spamming the server.
 local function allow(player: Player, name: string): boolean
 	local pb = buckets[player]
 	if not pb then
@@ -144,6 +151,8 @@ local function allow(player: Player, name: string): boolean
 	return true
 end
 
+-- Registers a remote handler with rate limiting and error catching, so a bad call
+-- returns an error to that client instead of breaking the server.
 local function bind(name: string, fn)
 	Net.Function(name).OnServerInvoke = function(player: Player, ...)
 		if not allow(player, name) then
@@ -423,7 +432,12 @@ bind("GetLeaderboard", function(player, kind, id)
 		end
 		entries[i] = out
 	end
-	return { ok = true, entries = entries, mine = if d then boardValue(d, kind, id) else nil, champion = if kind == "ranked" and d then ChampionService.IsChampion(player.UserId, d.rp) else nil }
+	return {
+		ok = true,
+		entries = entries,
+		mine = if d then boardValue(d, kind, id) else nil,
+		champion = if kind == "ranked" and d then ChampionService.IsChampion(player.UserId, d.rp) else nil,
+	}
 end)
 
 bind("GetGhost", function(_player, trackId, userId)

@@ -11,11 +11,26 @@ local Dump = require("./dumpui")
 local Cosmetics = Env.Require("src/shared/Cosmetics")
 local Config = Env.Require("src/shared/Config")
 local profile = {
-	coins = 1250, xp = 340, level = 7, xpNeeded = 900, owned = {}, car = table.clone(Cosmetics.DefaultCar),
-	bests = { lakeside = 61234, harbor = 70500 }, medals = { lakeside = 3, harbor = 1 },
+	coins = 1250,
+	xp = 340,
+	level = 7,
+	xpNeeded = 900,
+	owned = {},
+	car = table.clone(Cosmetics.DefaultCar),
+	bests = { lakeside = 61234, harbor = 70500 },
+	medals = { lakeside = 3, harbor = 1 },
 	stats = { races = 14, wins = 3, podiums = 6, fastestLaps = 2, rankedRaces = 4, laps = 40 },
-	rp = 1180, peakRp = 1240, peakTier = 2, history = {}, daily = { streak = 3, available = true },
-	settings = {}, passes = {}, boostUntil = 0, serverTime = os.time(), offline = false, userId = 1,
+	rp = 1180,
+	peakRp = 1240,
+	peakTier = 2,
+	history = {},
+	daily = { streak = 3, available = true },
+	settings = {},
+	passes = {},
+	boostUntil = 0,
+	serverTime = os.time(),
+	offline = false,
+	userId = 1,
 }
 -- challenge snapshot like ChallengeService.Snapshot builds it
 do
@@ -23,13 +38,29 @@ do
 	local w = Challenges.WeekAt(os.time())
 	local list = {}
 	for i, c in Challenges.ForWeek(w) do
-		table.insert(list, { i = c.Index, text = c.Text, goal = c.Goal, progress = if i == 1 then c.Goal else math.floor(c.Goal / 2), coins = c.Coins, claimed = false })
+		table.insert(list, {
+			i = c.Index,
+			text = c.Text,
+			goal = c.Goal,
+			progress = if i == 1 then c.Goal else math.floor(c.Goal / 2),
+			coins = c.Coins,
+			claimed = false,
+		})
 	end
 	local starter = {}
 	for i, c in Challenges.Starter do
-		table.insert(starter, { id = c.Id, text = c.Text, icon = c.Icon, goal = c.Goal, progress = if i <= 2 then 1 else 0, coins = c.Coins, claimed = i == 1 })
+		table.insert(starter, {
+			id = c.Id,
+			text = c.Text,
+			icon = c.Icon,
+			goal = c.Goal,
+			progress = if i <= 2 then 1 else 0,
+			coins = c.Coins,
+			claimed = i == 1,
+		})
 	end
-	profile.challenges = { week = w, featured = Challenges.Featured(w), endsAt = Challenges.WeekEnds(w), list = list, starter = starter }
+	profile.challenges =
+		{ week = w, featured = Challenges.Featured(w), endsAt = Challenges.WeekEnds(w), list = list, starter = starter }
 	profile.flags = { onboarded = false, coached = false }
 	profile.daily = { streak = 3, available = false }
 end
@@ -40,12 +71,32 @@ Env.Server.GetLobbies = function()
 	return { lobbies = {} }
 end
 -- sample boards: a few players (the first ones Champions on the ranked board)
-local SAMPLE_NAMES = { "Max Velocity", "Lina Slide", "Carlos Kerb", "Yuki Boost", "Pit Stopz", "Grid Walker", "Tura Boost", "Alex Turbo", "Nico Chicane", "Oscar Pace", "Zhou Sector", "Esteban Line" }
+local SAMPLE_NAMES = {
+	"Max Velocity",
+	"Lina Slide",
+	"Carlos Kerb",
+	"Yuki Boost",
+	"Pit Stopz",
+	"Grid Walker",
+	"Tura Boost",
+	"Alex Turbo",
+	"Nico Chicane",
+	"Oscar Pace",
+	"Zhou Sector",
+	"Esteban Line",
+}
 Env.Server.GetLeaderboard = function(kind)
 	local entries = {}
 	for i, n in SAMPLE_NAMES do
-		local v = if kind == "ranked" then 3100 - i * 170 elseif kind == "tt" then 60000 + i * 850 elseif kind == "level" then (40 - i) * 1000000 else 120 - i * 9
-		table.insert(entries, { userId = 1000 + i, name = n, value = v, rank = i, champion = kind == "ranked" and v >= 2400 })
+		local v = if kind == "ranked"
+			then 3100 - i * 170
+			elseif kind == "tt" then 60000 + i * 850
+			elseif kind == "level" then (40 - i) * 1000000
+			else 120 - i * 9
+		table.insert(
+			entries,
+			{ userId = 1000 + i, name = n, value = v, rank = i, champion = kind == "ranked" and v >= 2400 }
+		)
 	end
 	return { ok = true, entries = entries, mine = if kind == "ranked" then profile.rp else nil }
 end
@@ -88,12 +139,31 @@ for _, pg in pages do
 			local Results = Env.Require("src/client/UI/Results")
 			local list = {}
 			for i = 1, 10 do
-				table.insert(list, { Rid = i, P = i, Name = if i == 4 then "Bardan" else SAMPLE_NAMES[i], IsAI = i ~= 4, UserId = if i == 4 then 1 else 0, Time = 98.5 + i * 0.7, Best = 47 + i * 0.3, Car = { Primary = "paint_red" } })
+				table.insert(list, {
+					Rid = i,
+					P = i,
+					Name = if i == 4 then "Bardan" else SAMPLE_NAMES[i],
+					IsAI = i ~= 4,
+					UserId = if i == 4 then 1 else 0,
+					Time = 98.5 + i * 0.7,
+					Best = 47 + i * 0.3,
+					Car = { Primary = "paint_red" },
+				})
 			end
-			Results.Show({ Results = list, You = { Pos = 4, Coins = 180, XP = 72, RpDelta = 12, Rp = 1192, OldRp = 1180, Finished = true }, Mode = "ranked", TrackId = "dragon", Fastest = { Rid = 1 } }, 4, {
-				{ "🏁 Race Again", "primary", function() end },
-				{ "🏠 Menu", "secondary", function() end },
-			})
+			Results.Show(
+				{
+					Results = list,
+					You = { Pos = 4, Coins = 180, XP = 72, RpDelta = 12, Rp = 1192, OldRp = 1180, Finished = true },
+					Mode = "ranked",
+					TrackId = "dragon",
+					Fastest = { Rid = 1 },
+				},
+				4,
+				{
+					{ "🏁 Race Again", "primary", function() end },
+					{ "🏠 Menu", "secondary", function() end },
+				}
+			)
 		elseif pg == "searching" or pg == "found" or pg == "waiting" or pg == "vote" then
 			-- the ranked lobby panel: cross-server search, match found, waiting for a rival, map vote
 			Menu.Open("ranked")
@@ -101,10 +171,47 @@ for _, pg in pages do
 			Env.SetServerTime(t0)
 			local cands = { "capital", "alpine", "canyon" }
 			local info = if pg == "searching"
-				then { Id = "Q", Mode = "ranked", Searching = true, Since = t0 - 37, Queue = 6, Count = 1, Max = 10, EndsAt = t0 }
-				elseif pg == "found" then { Id = "Q", Mode = "ranked", Found = true, Count = 4, Max = 10, EndsAt = t0 }
-				elseif pg == "waiting" then { Id = "L1", Mode = "ranked", Candidates = cands, Votes = {}, Count = 1, Max = 10, EndsAt = t0 + 8, Waiting = true, Created = t0 - 42, Names = { "Bardan" } }
-				else { Id = "L1", Mode = "ranked", Candidates = cands, Votes = { capital = 2, canyon = 1 }, MyVote = "capital", Count = 3, Max = 10, EndsAt = t0 + 12, Names = { "Bardan" } }
+				then {
+					Id = "Q",
+					Mode = "ranked",
+					Searching = true,
+					Since = t0 - 37,
+					Queue = 6,
+					Count = 1,
+					Max = 10,
+					EndsAt = t0,
+				}
+				elseif pg == "found" then {
+					Id = "Q",
+					Mode = "ranked",
+					Found = true,
+					Count = 4,
+					Max = 10,
+					EndsAt = t0,
+				}
+				elseif pg == "waiting" then {
+					Id = "L1",
+					Mode = "ranked",
+					Candidates = cands,
+					Votes = {},
+					Count = 1,
+					Max = 10,
+					EndsAt = t0 + 8,
+					Waiting = true,
+					Created = t0 - 42,
+					Names = { "Bardan" },
+				}
+				else {
+					Id = "L1",
+					Mode = "ranked",
+					Candidates = cands,
+					Votes = { capital = 2, canyon = 1 },
+					MyVote = "capital",
+					Count = 3,
+					Max = 10,
+					EndsAt = t0 + 12,
+					Names = { "Bardan" },
+				}
 			Menu.SetLobby(info)
 		elseif pg == "challenges" then
 			ChallengesPanel.Open()

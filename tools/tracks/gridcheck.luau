@@ -1,3 +1,7 @@
+-- Warns about circuits whose grid or start straight is curved (a radius under 350
+-- studs within 230 studs before or 160 after the line), where cars would start crooked.
+--   luau gridcheck.luau
+
 local Circuits = require("./Circuits")
 local Track = require("./Track")
 for _, c in Circuits.List do
@@ -6,8 +10,12 @@ for _, c in Circuits.List do
 	for i = 1, t.N do
 		local s = t.S[i]
 		local k = math.abs(t.K[i])
-		if s > t.Length - 230 then worstBack = math.max(worstBack, k) end
-		if s < 160 then worstFwd = math.max(worstFwd, k) end
+		if s > t.Length - 230 then
+			worstBack = math.max(worstBack, k)
+		end
+		if s < 160 then
+			worstFwd = math.max(worstFwd, k)
+		end
 	end
 	local rb = if worstBack > 0 then 1 / worstBack else 1e9
 	local rf = if worstFwd > 0 then 1 / worstFwd else 1e9

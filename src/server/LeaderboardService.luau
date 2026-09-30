@@ -1,6 +1,7 @@
 --!nonstrict
--- Leaderboards (OrderedDataStores): time-trial lap records per circuit, ranked points,
--- race wins. Also stores time-trial ghosts.
+-- Leaderboards: time-trial lap records per circuit, ranked points and race wins, each in
+-- its own OrderedDataStore. Boards are cached for Config.Leaderboard.CacheSeconds so a
+-- busy server doesn't hit the DataStore limits. Also saves and loads time-trial ghosts.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -16,6 +17,7 @@ pcall(function()
 end)
 
 local ordered = {}
+-- The OrderedDataStore called `name`, opened once and reused (nil without DataStore access).
 local function store(name: string)
 	if ordered[name] then
 		return ordered[name]
@@ -31,6 +33,7 @@ local function store(name: string)
 end
 
 local names = {}
+-- Display name for a user id, cached so each name is only looked up once.
 local function nameOf(userId: number): string
 	if names[userId] then
 		return names[userId]
@@ -86,6 +89,8 @@ function L.GetTop(storeName: string, ascending: boolean)
 	return entries
 end
 
+-- Puts a new score straight into the cached board, so the player sees their record
+-- without waiting for the next refresh.
 local function patchCache(storeName: string, userId: number, value: number, ascending: boolean)
 	local c = cache[storeName]
 	if not c then
@@ -156,9 +161,10 @@ function L.SetValue(storeName: string, userId: number, value: number, ascending:
 	patchCache(storeName, userId, value, ascending)
 end
 
--- Ghosts ---------------------------------------------------------------------
+-- Ghosts ----------------------------------------------------------------------------------
 local ghostCache = {}
 
+-- Saves the player's best lap on a circuit as a ghost others can race against.
 function L.SaveGhost(trackId: string, userId: number, ghost)
 	local key = trackId .. "_" .. userId
 	ghostCache[key] = { t = os.clock(), g = ghost }
@@ -181,6 +187,7 @@ function L.SaveGhost(trackId: string, userId: number, ghost)
 	end)
 end
 
+-- Loads a ghost (cached for 5 minutes).
 function L.GetGhost(trackId: string, userId: number)
 	local key = trackId .. "_" .. userId
 	local c = ghostCache[key]

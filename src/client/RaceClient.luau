@@ -43,16 +43,19 @@ local ResetEvent = Net.Event("RaceReset")
 
 local SECTOR_END = { [9] = 1, [17] = 2, [1] = 3 } -- gate crossed -> sector finished
 
+-- Whether a race is running on this client.
 function RaceClient.IsActive(): boolean
 	return active ~= nil
 end
 
+-- A car-sized spot on the track `s` studs along and `lateral` studs off the centre line.
 local function spawnCF(t, s: number, lateral: number): CFrame
 	local x, y, z, tx, ty, tz = Track.PointAt(t, s, lateral)
 	local p = Vector3.new(x, y + 0.6 + 2.1, z)
 	return CFrame.lookAt(p, p + Vector3.new(tx, ty, tz))
 end
 
+-- Tears down everything a race created: car, other racers, circuit, connections.
 local function cleanup(race)
 	for _, c in race.Connections do
 		c:Disconnect()
@@ -187,9 +190,13 @@ function RaceClient.Start(info, handlers)
 			end
 			Kit.Modal("Leave the race?", "You'll be marked DNF and won't earn position rewards.", {
 				{ "Keep racing", "secondary" },
-				{ "Leave", "danger", function()
-					RaceClient.Quit(handlers)
-				end },
+				{
+					"Leave",
+					"danger",
+					function()
+						RaceClient.Quit(handlers)
+					end,
+				},
 			})
 		end,
 	})
@@ -197,225 +204,256 @@ function RaceClient.Start(info, handlers)
 	RacingLine.Start(t, car)
 	Hud.SetDamage(car.Damage)
 
-	table.insert(race.Connections, StatesIn.OnClientEvent:Connect(function(b)
-		if active == race then
-			race.Remote:Push(b)
-		end
-	end))
-	table.insert(race.Connections, StandingsEvent.OnClientEvent:Connect(function(s)
-		if active ~= race then
-			return
-		end
-		race.Standings = s
-		Hud.UpdateTower(s)
-		local posMap = {}
-		for _, e in s.List do
-			posMap[e.Rid] = e.P
-			if e.Rid == info.YourRid then
-				race.MyPos = e.P
-				Hud.SetPosition(e.P, #s.List)
-				-- the server is authoritative for the next gate (adopt only a persistent mismatch)
-				if e.NG and e.NG ~= race.NextGate and not race.Finished then
-					race.MismatchSince = race.MismatchSince or os.clock()
-					if os.clock() - race.MismatchSince > 1.2 then
-						race.NextGate = e.NG
+	table.insert(
+		race.Connections,
+		StatesIn.OnClientEvent:Connect(function(b)
+			if active == race then
+				race.Remote:Push(b)
+			end
+		end)
+	)
+	table.insert(
+		race.Connections,
+		StandingsEvent.OnClientEvent:Connect(function(s)
+			if active ~= race then
+				return
+			end
+			race.Standings = s
+			Hud.UpdateTower(s)
+			local posMap = {}
+			for _, e in s.List do
+				posMap[e.Rid] = e.P
+				if e.Rid == info.YourRid then
+					race.MyPos = e.P
+					Hud.SetPosition(e.P, #s.List)
+					-- the server is authoritative for the next gate (adopt only a persistent mismatch)
+					if e.NG and e.NG ~= race.NextGate and not race.Finished then
+						race.MismatchSince = race.MismatchSince or os.clock()
+						if os.clock() - race.MismatchSince > 1.2 then
+							race.NextGate = e.NG
+							race.MismatchSince = false
+						end
+					else
 						race.MismatchSince = false
 					end
-				else
-					race.MismatchSince = false
 				end
 			end
-		end
-		race.Remote:SetPositions(posMap)
-		if State.HasPass("ProRacer") then
-			local ahead, behind = nil, nil
-			for i, e in s.List do
-				if e.Rid == info.YourRid then
-					ahead = s.List[i - 1]
-					behind = s.List[i + 1]
+			race.Remote:SetPositions(posMap)
+			if State.HasPass("ProRacer") then
+				local ahead, behind = nil, nil
+				for i, e in s.List do
+					if e.Rid == info.YourRid then
+						ahead = s.List[i - 1]
+						behind = s.List[i + 1]
+					end
 				end
-			end
-			local mine = nil
-			for _, e in s.List do
-				if e.Rid == info.YourRid then
-					mine = e
+				local mine = nil
+				for _, e in s.List do
+					if e.Rid == info.YourRid then
+						mine = e
+					end
 				end
+				local txt = ""
+				if ahead and mine and mine.G and (ahead.G or ahead.P == 1) then
+					txt ..= string.format("AHEAD -%.2f  ", mine.G - (ahead.G or 0))
+				end
+				if behind and behind.G and mine then
+					txt ..= string.format("BEHIND +%.2f", behind.G - (mine.G or 0))
+				end
+				Hud.SetGapText(txt)
 			end
-			local txt = ""
-			if ahead and mine and mine.G and (ahead.G or ahead.P == 1) then
-				txt ..= string.format("AHEAD -%.2f  ", mine.G - (ahead.G or 0))
-			end
-			if behind and behind.G and mine then
-				txt ..= string.format("BEHIND +%.2f", behind.G - (mine.G or 0))
-			end
-			Hud.SetGapText(txt)
-		end
-	end))
+		end)
+	)
 	-- the server ended this race without results (it broke): back to the menu
-	table.insert(race.Connections, LeaveEvent.OnClientEvent:Connect(function()
-		if active == race then
-			RaceClient.Quit(handlers)
-		end
-	end))
-	table.insert(race.Connections, ResultsEvent.OnClientEvent:Connect(function(payload)
-		if active == race and payload.SessionId == info.SessionId then
-			active = nil
-			cleanup(race)
-			if handlers.OnResults then
-				handlers.OnResults(payload, info.YourRid)
+	table.insert(
+		race.Connections,
+		LeaveEvent.OnClientEvent:Connect(function()
+			if active == race then
+				RaceClient.Quit(handlers)
 			end
-		end
-	end))
-	table.insert(race.Connections, UserInputService.InputBegan:Connect(function(io, processed)
-		if processed or active ~= race then
-			return
-		end
-		local k = io.KeyCode
-		if k == Enum.KeyCode.R or k == Enum.KeyCode.ButtonY or k == Enum.KeyCode.Backspace then
-			RaceClient.Reset()
-		elseif k == Enum.KeyCode.P or k == Enum.KeyCode.ButtonStart or k == Enum.KeyCode.Tab then
-			Hud.TogglePause()
-		elseif k == Enum.KeyCode.C or k == Enum.KeyCode.ButtonSelect then
-			Hud.CameraToast(State.CycleCamera())
-		end
-	end))
+		end)
+	)
+	table.insert(
+		race.Connections,
+		ResultsEvent.OnClientEvent:Connect(function(payload)
+			if active == race and payload.SessionId == info.SessionId then
+				active = nil
+				cleanup(race)
+				if handlers.OnResults then
+					handlers.OnResults(payload, info.YourRid)
+				end
+			end
+		end)
+	)
+	table.insert(
+		race.Connections,
+		UserInputService.InputBegan:Connect(function(io, processed)
+			if processed or active ~= race then
+				return
+			end
+			local k = io.KeyCode
+			if k == Enum.KeyCode.R or k == Enum.KeyCode.ButtonY or k == Enum.KeyCode.Backspace then
+				RaceClient.Reset()
+			elseif k == Enum.KeyCode.P or k == Enum.KeyCode.ButtonStart or k == Enum.KeyCode.Tab then
+				Hud.TogglePause()
+			elseif k == Enum.KeyCode.C or k == Enum.KeyCode.ButtonSelect then
+				Hud.CameraToast(State.CycleCamera())
+			end
+		end)
+	)
 
 	local sendTimer = 0
 	local mapTimer = 0
-	table.insert(race.Connections, RunService.Heartbeat:Connect(function(dt)
-		if active ~= race then
-			return
-		end
-		local now = workspace:GetServerTimeNow()
-		local chassis = car.Chassis
-		if not chassis.Parent then
-			return
-		end
-		-- start lights (the intro always hands over before the first light)
-		if not race.IntroDone and now >= info.LightsStart - 0.3 then
-			race.EndIntro()
-		end
-		if not race.Started then
-			-- countdown: 3 (2 red lights), 2 (4 red), 1 (all 5 red) ... then green GO
-			if now >= info.LightsStart and now < info.GoTime then
-				local num = math.clamp(math.ceil(info.GoTime - now - 1e-3), 1, 3)
-				if num ~= race.LightsShown then
-					race.LightsShown = num
-					local red = ({ [3] = 2, [2] = 4, [1] = 5 })[num]
-					Hud.SetLights(red)
-					CircuitBuilder.SetStartLights(red)
-					Hud.Message(tostring(num), Color3.fromRGB(255, 60, 60), 0.9)
-					Fx.Play("Countdown", 0.5, 0.9)
-				end
+	table.insert(
+		race.Connections,
+		RunService.Heartbeat:Connect(function(dt)
+			if active ~= race then
+				return
 			end
-			if now >= info.GoTime then
-				race.Started = true
-				Hud.SetLights("go")
-				CircuitBuilder.SetStartLights(-1)
-				car:Freeze(false)
-				car.Enabled = true
-				Fx.Play("Go", 0.7, 1.4)
-				Hud.Message("GO!", Kit.Colors.Success, 1.4)
-				-- a few tips during the player's very first race
-				Onboarding.CoachFirstRace(Hud.Message, function()
-					return active == race and not race.Finished
-				end)
-				task.delay(1.5, function()
-					if active == race then
-						Hud.SetLights(-1)
-						CircuitBuilder.SetStartLights(0)
+			local now = workspace:GetServerTimeNow()
+			local chassis = car.Chassis
+			if not chassis.Parent then
+				return
+			end
+			-- start lights (the intro always hands over before the first light)
+			if not race.IntroDone and now >= info.LightsStart - 0.3 then
+				race.EndIntro()
+			end
+			if not race.Started then
+				-- countdown: 3 (2 red lights), 2 (4 red), 1 (all 5 red) ... then green GO
+				if now >= info.LightsStart and now < info.GoTime then
+					local num = math.clamp(math.ceil(info.GoTime - now - 1e-3), 1, 3)
+					if num ~= race.LightsShown then
+						race.LightsShown = num
+						local red = ({ [3] = 2, [2] = 4, [1] = 5 })[num]
+						Hud.SetLights(red)
+						CircuitBuilder.SetStartLights(red)
+						Hud.Message(tostring(num), Color3.fromRGB(255, 60, 60), 0.9)
+						Fx.Play("Countdown", 0.5, 0.9)
 					end
-				end)
-			end
-		end
-		local raceTime = now - info.GoTime
-		-- position on track
-		local p = chassis.Position
-		local idx, lateral, vertical = Track.Project(t, p.X, p.Y, p.Z, race.LastIdx)
-		local prev = race.LastIdx or idx
-		race.LastIdx = idx
-		if race.Started and not race.Finished then
-			local gi = t.Gates[race.NextGate]
-			local step = Track.IndexDelta(t, prev, idx)
-			if math.abs(step) < 150 and Track.IndexDelta(t, prev, gi) > 0 and Track.IndexDelta(t, gi, idx) >= 0 and math.abs(lateral) < t.Width / 2 + 70 then
-				RaceClient._gate(race, race.NextGate, raceTime)
-			end
-			-- lap timer
-			if race.LapStart then
-				Hud.SetLapTime((raceTime - race.LapStart) * 1000)
-			else
-				Hud.SetLapTime(0)
-			end
-			Hud.SetSubText(string.format("%s  •  RACE %s", circuit.Name, Medals.FormatTime(math.max(raceTime, 0) * 1000)))
-			-- track limits / off track far / wrong way
-			local farOff = math.abs(lateral) > t.Width / 2 + 90 or vertical < -14
-			race.OffTime = if farOff then race.OffTime + dt else 0
-			if race.OffTime > 2.5 then
-				RaceClient.Reset()
-			end
-			local tangent = Vector3.new(t.TX[idx], t.TY[idx], t.TZ[idx])
-			local vel = chassis.AssemblyLinearVelocity
-			local wrong = vel.Magnitude > 15 and vel.Unit:Dot(tangent) < -0.4
-			race.WrongTime = if wrong then race.WrongTime + dt else 0
-			local missed = Track.IndexDelta(t, gi, idx)
-			if race.WrongTime > 1.2 then
-				Hud.Warning("⚠ WRONG WAY")
-			elseif race.LapStart and missed > 40 and missed < t.N / 3 then
-				Hud.Warning("⚠ MISSED CHECKPOINT - GO BACK")
-			elseif (car.OffTrack > 0.5 or car.OnRunoff) and car.Speed > 20 then
-				Hud.Warning(if car.Gravel > 0.3 then "IN THE GRAVEL" else "TRACK LIMITS")
-			else
-				Hud.Warning(nil)
-			end
-		end
-		-- no-contact windows: race start, after a reset, driving the wrong way, finished
-		car.Ghost = now < info.GoTime + Config.Contact.GhostStartSeconds or now < race.GhostUntil or race.WrongTime > 0.8 or race.Finished
-		-- wrecked cars get reset automatically after a moment
-		if car.Wrecked and race.Started and not race.Finished then
-			race.WreckedTime += dt
-			if race.WreckedTime > 3 then
-				RaceClient.Reset()
-			end
-		else
-			race.WreckedTime = 0
-		end
-		-- struggling device? lower the graphics once, 12s into the race
-		if race.Started and not race.PerfChecked and raceTime > 12 then
-			race.PerfChecked = true
-			Perf.CheckAutoLower()
-		end
-		-- slipstream
-		car.Slipstream = if race.Started then race.Remote:SlipstreamFactor(chassis.CFrame) else 0
-		local gear, rpm = car:Gear()
-		Hud.SetSpeed(car.Speed, gear, rpm, car.Slipstream, car.AeroOpen)
-		-- send our state
-		sendTimer += dt
-		if sendTimer >= 1 / Config.Race.SendRate then
-			sendTimer = 0
-			local pitch, yaw, roll = chassis.CFrame:ToEulerAnglesYXZ()
-			local v = chassis.AssemblyLinearVelocity
-			local b = buffer.create(Net.StateSize)
-			Net.WriteState(b, 0, now - info.GoTime, p.X, p.Y, p.Z, yaw, pitch, roll, v.X, v.Y, v.Z, car:Flags())
-			StateOut:FireServer(b)
-		end
-		-- minimap
-		mapTimer += dt
-		if mapTimer > 0.1 then
-			mapTimer = 0
-			local positions = { [info.YourRid] = { p.X, p.Z } }
-			for rid, rc in race.Remote.Cars do
-				if rc.CF then
-					positions[rid] = { rc.CF.Position.X, rc.CF.Position.Z }
+				end
+				if now >= info.GoTime then
+					race.Started = true
+					Hud.SetLights("go")
+					CircuitBuilder.SetStartLights(-1)
+					car:Freeze(false)
+					car.Enabled = true
+					Fx.Play("Go", 0.7, 1.4)
+					Hud.Message("GO!", Kit.Colors.Success, 1.4)
+					-- a few tips during the player's very first race
+					Onboarding.CoachFirstRace(Hud.Message, function()
+						return active == race and not race.Finished
+					end)
+					task.delay(1.5, function()
+						if active == race then
+							Hud.SetLights(-1)
+							CircuitBuilder.SetStartLights(0)
+						end
+					end)
 				end
 			end
-			Hud.UpdateMinimap(positions)
-		end
-	end))
-	table.insert(race.Connections, RunService.RenderStepped:Connect(function(dt)
-		if active == race then
-			race.Remote:Update(dt)
-		end
-	end))
+			local raceTime = now - info.GoTime
+			-- position on track
+			local p = chassis.Position
+			local idx, lateral, vertical = Track.Project(t, p.X, p.Y, p.Z, race.LastIdx)
+			local prev = race.LastIdx or idx
+			race.LastIdx = idx
+			if race.Started and not race.Finished then
+				local gi = t.Gates[race.NextGate]
+				local step = Track.IndexDelta(t, prev, idx)
+				if
+					math.abs(step) < 150
+					and Track.IndexDelta(t, prev, gi) > 0
+					and Track.IndexDelta(t, gi, idx) >= 0
+					and math.abs(lateral) < t.Width / 2 + 70
+				then
+					RaceClient._gate(race, race.NextGate, raceTime)
+				end
+				-- lap timer
+				if race.LapStart then
+					Hud.SetLapTime((raceTime - race.LapStart) * 1000)
+				else
+					Hud.SetLapTime(0)
+				end
+				Hud.SetSubText(
+					string.format("%s  •  RACE %s", circuit.Name, Medals.FormatTime(math.max(raceTime, 0) * 1000))
+				)
+				-- track limits / off track far / wrong way
+				local farOff = math.abs(lateral) > t.Width / 2 + 90 or vertical < -14
+				race.OffTime = if farOff then race.OffTime + dt else 0
+				if race.OffTime > 2.5 then
+					RaceClient.Reset()
+				end
+				local tangent = Vector3.new(t.TX[idx], t.TY[idx], t.TZ[idx])
+				local vel = chassis.AssemblyLinearVelocity
+				local wrong = vel.Magnitude > 15 and vel.Unit:Dot(tangent) < -0.4
+				race.WrongTime = if wrong then race.WrongTime + dt else 0
+				local missed = Track.IndexDelta(t, gi, idx)
+				if race.WrongTime > 1.2 then
+					Hud.Warning("⚠ WRONG WAY")
+				elseif race.LapStart and missed > 40 and missed < t.N / 3 then
+					Hud.Warning("⚠ MISSED CHECKPOINT - GO BACK")
+				elseif (car.OffTrack > 0.5 or car.OnRunoff) and car.Speed > 20 then
+					Hud.Warning(if car.Gravel > 0.3 then "IN THE GRAVEL" else "TRACK LIMITS")
+				else
+					Hud.Warning(nil)
+				end
+			end
+			-- no-contact windows: race start, after a reset, driving the wrong way, finished
+			car.Ghost = now < info.GoTime + Config.Contact.GhostStartSeconds
+				or now < race.GhostUntil
+				or race.WrongTime > 0.8
+				or race.Finished
+			-- wrecked cars get reset automatically after a moment
+			if car.Wrecked and race.Started and not race.Finished then
+				race.WreckedTime += dt
+				if race.WreckedTime > 3 then
+					RaceClient.Reset()
+				end
+			else
+				race.WreckedTime = 0
+			end
+			-- struggling device? lower the graphics once, 12s into the race
+			if race.Started and not race.PerfChecked and raceTime > 12 then
+				race.PerfChecked = true
+				Perf.CheckAutoLower()
+			end
+			-- slipstream
+			car.Slipstream = if race.Started then race.Remote:SlipstreamFactor(chassis.CFrame) else 0
+			local gear, rpm = car:Gear()
+			Hud.SetSpeed(car.Speed, gear, rpm, car.Slipstream, car.AeroOpen)
+			-- send our state
+			sendTimer += dt
+			if sendTimer >= 1 / Config.Race.SendRate then
+				sendTimer = 0
+				local pitch, yaw, roll = chassis.CFrame:ToEulerAnglesYXZ()
+				local v = chassis.AssemblyLinearVelocity
+				local b = buffer.create(Net.StateSize)
+				Net.WriteState(b, 0, now - info.GoTime, p.X, p.Y, p.Z, yaw, pitch, roll, v.X, v.Y, v.Z, car:Flags())
+				StateOut:FireServer(b)
+			end
+			-- minimap
+			mapTimer += dt
+			if mapTimer > 0.1 then
+				mapTimer = 0
+				local positions = { [info.YourRid] = { p.X, p.Z } }
+				for rid, rc in race.Remote.Cars do
+					if rc.CF then
+						positions[rid] = { rc.CF.Position.X, rc.CF.Position.Z }
+					end
+				end
+				Hud.UpdateMinimap(positions)
+			end
+		end)
+	)
+	table.insert(
+		race.Connections,
+		RunService.RenderStepped:Connect(function(dt)
+			if active == race then
+				race.Remote:Update(dt)
+			end
+		end)
+	)
 
 	-- intro flyover until just before the lights, then the HUD and chase camera
 	race.EndIntro = function()
@@ -434,9 +472,10 @@ function RaceClient.Start(info, handlers)
 	Intro.Reveal(world, { EndsAt = info.LightsStart - 0.6, Car = car, OnDone = race.EndIntro })
 end
 
+-- The car crossed a timing gate: tell the server, and update the sector times and
+-- lap delta on the HUD.
 function RaceClient._gate(race, gate: number, raceTime: number)
 	GateEvent:FireServer(gate, raceTime)
-	local t = race.Track
 	local pro = State.HasPass("ProRacer")
 	-- sector timing
 	local sector = SECTOR_END[gate]
@@ -524,7 +563,11 @@ function RaceClient.Reset()
 	ResetEvent:FireServer()
 	car:Freeze(true)
 	car.Enabled = false
-	Hud.Message(if damaged then "🔧 Repairing..." else "Reset to track", Kit.Colors.Accent2, Config.Damage.ResetRepairSeconds)
+	Hud.Message(
+		if damaged then "🔧 Repairing..." else "Reset to track",
+		Kit.Colors.Accent2,
+		Config.Damage.ResetRepairSeconds
+	)
 	task.delay(Config.Damage.ResetRepairSeconds, function()
 		if active == race and car.Chassis.Parent then
 			car:Freeze(false)
@@ -534,6 +577,7 @@ function RaceClient.Reset()
 	end)
 end
 
+-- Leaves the race and cleans up; the caller's OnQuit takes the player back to the menu.
 function RaceClient.Quit(handlers)
 	local race = active
 	if not race then

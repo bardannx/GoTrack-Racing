@@ -20,10 +20,12 @@ local STORE = "GTR_Champions_v1" -- one key per season: today's list
 local snap = nil -- { day, season, ids = { [userId string] = place }, count, cutoff, offline }
 local retryAt = 0
 
+-- Days since 1970 in UTC; the list is re-picked when this changes.
 local function today(): number
 	return os.time() // 86400
 end
 
+-- RP needed for the top tier (a driver needs this as well as a top-500 place).
 local function minRp(): number
 	local tiers = Config.Ranked.Tiers
 	return tiers[#tiers].Min
@@ -98,6 +100,7 @@ function CS.Refresh(): boolean
 	return true
 end
 
+-- Whether this player holds the Champion rank today.
 function CS.IsChampion(userId: number, rp: number?): boolean
 	if not snap then
 		CS.Refresh()
@@ -136,6 +139,7 @@ local function applyTo(player: Player)
 	DataService.Changed(player)
 end
 
+-- Loads today's list and checks once a minute for the daily re-pick.
 function CS.Start()
 	task.spawn(function()
 		while true do

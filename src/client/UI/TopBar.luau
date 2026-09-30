@@ -18,6 +18,7 @@ local refs: { [string]: any } = {}
 local shownCoins = nil
 local coinValue = Instance.new("NumberValue")
 
+-- A clickable rounded box in the bar.
 local function pill(parent, order: number, accent: Color3, onClick): TextButton
 	local b = Kit.new("TextButton", {
 		Text = "",
@@ -42,17 +43,48 @@ local function pill(parent, order: number, accent: Color3, onClick): TextButton
 	return b
 end
 
-local function stacked(parent, order: number, top: string, bottom: string, topColor: Color3?): (Frame, TextLabel, TextLabel)
-	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 36), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = order, Parent = parent })
+-- Two lines of text, small on top and bold below ("LEVEL" over "12").
+local function stacked(
+	parent,
+	order: number,
+	top: string,
+	bottom: string,
+	topColor: Color3?
+): (Frame, TextLabel, TextLabel)
+	local f = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(0, 36),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = order,
+		Parent = parent,
+	})
 	Kit.List(f, Enum.FillDirection.Vertical, 0, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center)
-	local t = Kit.Label(f, top, 15, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, 18), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = topColor or C.Text, LayoutOrder = 1 })
-	local b = Kit.Label(f, bottom, 11, { Font = Kit.Fonts.Bold, Size = UDim2.fromOffset(0, 14), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = C.SubText, LayoutOrder = 2 })
+	local t = Kit.Label(f, top, 15, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = topColor or C.Text,
+		LayoutOrder = 1,
+	})
+	local b = Kit.Label(f, bottom, 11, {
+		Font = Kit.Fonts.Bold,
+		Size = UDim2.fromOffset(0, 14),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = C.SubText,
+		LayoutOrder = 2,
+	})
 	return f, t, b
 end
 
 -- menu: the MainMenu module (for navigation)
 function TopBar.Build(root: Frame, menu)
-	bar = Kit.new("Frame", { Name = "TopBar", BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0.5), Size = UDim2.fromOffset(900, 44), Parent = root })
+	bar = Kit.new("Frame", {
+		Name = "TopBar",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0.5),
+		Size = UDim2.fromOffset(900, 44),
+		Parent = root,
+	})
 	Kit.List(bar, Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
 	Kit.BindInset(function(top, _left, right)
 		bar.Position = UDim2.new(1, -(right + 14), 0, math.max(top, 50) / 2 + 2)
@@ -63,10 +95,24 @@ function TopBar.Build(root: Frame, menu)
 		ChallengesPanel.Open()
 	end)
 	Kit.IconTile(ch, "🎯", 34, C.Accent2, { LayoutOrder = 1 })
-	refs.chLabel = Kit.Label(ch, "CHALLENGES", 14, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, 20), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = C.Accent2, LayoutOrder = 2 })
-	local badge = Kit.new("Frame", { BackgroundColor3 = C.Red, Size = UDim2.fromOffset(22, 22), LayoutOrder = 3, Visible = false, Parent = ch })
+	refs.chLabel = Kit.Label(ch, "CHALLENGES", 14, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, 20),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = C.Accent2,
+		LayoutOrder = 2,
+	})
+	local badge = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Red, Size = UDim2.fromOffset(22, 22), LayoutOrder = 3, Visible = false, Parent = ch }
+	)
 	Kit.Round(badge)
-	refs.chCount = Kit.Label(badge, "1", 13, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center })
+	refs.chCount = Kit.Label(
+		badge,
+		"1",
+		13,
+		{ Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center }
+	)
 	refs.chBadge = badge
 	refs.ch = ch
 
@@ -75,7 +121,13 @@ function TopBar.Build(root: Frame, menu)
 		menu.ShowDaily()
 	end)
 	Kit.IconTile(daily, "🎁", 34, C.Success, { LayoutOrder = 1 })
-	Kit.Label(daily, "DAILY", 14, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, 20), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = C.Success, LayoutOrder = 2 })
+	Kit.Label(daily, "DAILY", 14, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, 20),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = C.Success,
+		LayoutOrder = 2,
+	})
 	refs.daily = daily
 
 	-- coin boost
@@ -90,7 +142,10 @@ function TopBar.Build(root: Frame, menu)
 	local rank = pill(bar, 3, C.Purple, function()
 		menu.Open("ranked")
 	end)
-	local badgeHolder = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(36, 36), LayoutOrder = 1, Parent = rank })
+	local badgeHolder = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.fromOffset(36, 36), LayoutOrder = 1, Parent = rank }
+	)
 	local _, rankTop, rankBottom = stacked(rank, 2, "BRONZE III", "100 RP")
 	refs.rank, refs.badgeHolder, refs.rankTop, refs.rankBottom = rank, badgeHolder, rankTop, rankBottom
 
@@ -98,15 +153,34 @@ function TopBar.Build(root: Frame, menu)
 	local level = pill(bar, 4, C.Accent2, function()
 		menu.Open("leaderboards", "level")
 	end)
-	local lvlCircle = Kit.new("Frame", { BackgroundColor3 = C.Accent2, Size = UDim2.fromOffset(34, 34), LayoutOrder = 1, Parent = level })
+	local lvlCircle = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Accent2, Size = UDim2.fromOffset(34, 34), LayoutOrder = 1, Parent = level }
+	)
 	Kit.Round(lvlCircle)
 	Kit.Gradient(lvlCircle, Color3.fromRGB(120, 220, 255), Color3.fromRGB(20, 110, 220), 45)
 	Kit.Stroke(lvlCircle, Color3.fromRGB(190, 240, 255), 1.5, 0.2)
-	local lvlNum = Kit.Label(lvlCircle, "1", 16, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center })
-	local lvlInfo = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(104, 36), LayoutOrder = 2, Parent = level })
+	local lvlNum = Kit.Label(
+		lvlCircle,
+		"1",
+		16,
+		{ Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center }
+	)
+	local lvlInfo = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.fromOffset(104, 36), LayoutOrder = 2, Parent = level }
+	)
 	Kit.Label(lvlInfo, "LEVEL", 11, { Font = Kit.Fonts.Title, Size = UDim2.new(1, 0, 0, 14), TextColor3 = C.SubText })
-	local xpText = Kit.Label(lvlInfo, "0 / 150", 11, { Font = Kit.Fonts.Bold, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Size = UDim2.new(1, 0, 0, 14), TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = C.SubText })
-	local _, xpFill = Kit.Bar(lvlInfo, 0, C.Accent2, { Position = UDim2.fromOffset(0, 21), Size = UDim2.new(1, 0, 0, 8) })
+	local xpText = Kit.Label(lvlInfo, "0 / 150", 11, {
+		Font = Kit.Fonts.Bold,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.new(1, 0, 0, 14),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = C.SubText,
+	})
+	local _, xpFill =
+		Kit.Bar(lvlInfo, 0, C.Accent2, { Position = UDim2.fromOffset(0, 21), Size = UDim2.new(1, 0, 0, 8) })
 	refs.lvlNum, refs.xpText, refs.xpFill = lvlNum, xpText, xpFill
 
 	-- coins
@@ -114,11 +188,24 @@ function TopBar.Build(root: Frame, menu)
 		menu.Open("shop", "coins")
 	end)
 	Kit.Coin(coins, 32, { LayoutOrder = 1 })
-	local coinLabel = Kit.Label(coins, "0", 18, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2 })
-	local plus = Kit.new("Frame", { BackgroundColor3 = C.Success, Size = UDim2.fromOffset(26, 26), LayoutOrder = 3, Parent = coins })
+	local coinLabel = Kit.Label(coins, "0", 18, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+	})
+	local plus = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Success, Size = UDim2.fromOffset(26, 26), LayoutOrder = 3, Parent = coins }
+	)
 	Kit.Round(plus)
 	Kit.Depth(plus, C.Success)
-	Kit.Label(plus, "+", 20, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(8, 40, 18) })
+	Kit.Label(plus, "+", 20, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = Color3.fromRGB(8, 40, 18),
+	})
 	refs.coins, refs.coinLabel = coins, coinLabel
 
 	coinValue:GetPropertyChangedSignal("Value"):Connect(function()
@@ -129,6 +216,7 @@ function TopBar.Build(root: Frame, menu)
 end
 
 local lastBadge = nil
+-- Updates every pill from the profile (the coin count animates to its new value).
 function TopBar.Refresh()
 	local p = State.Profile
 	if not p or not bar then
@@ -183,6 +271,7 @@ function TopBar.Refresh()
 	end
 end
 
+-- Shows or hides the bar.
 function TopBar.SetVisible(on: boolean)
 	if bar then
 		bar.Visible = on

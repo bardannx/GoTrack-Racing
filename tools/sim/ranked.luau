@@ -2,7 +2,7 @@
 -- Ranked check: real players only, never computer drivers.
 --  1. Cross-server grouping (RankedMatchmaker.FormMatches): full grids at once, smaller
 --     grids only after a long wait, RP window widening, nobody matched twice.
---  2. Studio / local ranked lobby: one player waits (no race, no AI), a second player
+--  2. Studio / local ranked lobby: one player waits (no race, no computer drivers), a second player
 --     joins, the race starts with exactly those two, and RP uses the whole table.
 --  3. A reserved match server: the match lobby, map candidates, early start once
 --     everyone arrived, a match nobody joined is cancelled, latecomers are sent back.
@@ -10,10 +10,12 @@
 local process = require("@lune/process")
 local Env = require("./env")
 
+-- Prints the failure and exits with an error code.
 local function fail(msg)
 	print("FAIL: " .. msg)
 	process.exit(1)
 end
+-- Fails with `msg` unless `cond` holds.
 local function check(cond, msg)
 	if not cond then
 		fail(msg)
@@ -23,6 +25,7 @@ end
 -- fake players
 local all = {}
 local kicked = {}
+-- A fake Player with attributes, enough for the race server.
 local function newPlayer(id, name)
 	local attrs = {}
 	local p = { UserId = id, Name = name, DisplayName = name, Parent = Env.Game, ClassName = "Player" }
@@ -69,6 +72,7 @@ local function entries(n, rp, t, from)
 	end
 	return out
 end
+-- The size of each match group, for printing.
 local function sizes(groups)
 	local s = {}
 	for _, g in groups do
@@ -137,18 +141,30 @@ local R = Config.Ranked
 local s1 = Config.SeasonAt(R.FirstSeasonEnds - 1)
 check(s1.Number == 1 and s1.EndsAt == R.FirstSeasonEnds, "season 1 should end at FirstSeasonEnds")
 local s2 = Config.SeasonAt(R.FirstSeasonEnds)
-check(s2.Number == 2 and s2.EndsAt == R.FirstSeasonEnds + R.SeasonDays * 86400, "season 2 should start when season 1 ends")
+check(
+	s2.Number == 2 and s2.EndsAt == R.FirstSeasonEnds + R.SeasonDays * 86400,
+	"season 2 should start when season 1 ends"
+)
 local prev = s2
 for day = 1, 5 * 365 do
 	local sx = Config.SeasonAt(R.FirstSeasonEnds + day * 86400)
-	check(sx.Number == prev.Number or (sx.Number == prev.Number + 1 and sx.StartsAt == prev.EndsAt), "seasons must follow each other with no gap")
+	check(
+		sx.Number == prev.Number or (sx.Number == prev.Number + 1 and sx.StartsAt == prev.EndsAt),
+		"seasons must follow each other with no gap"
+	)
 	check(sx.EndsAt > R.FirstSeasonEnds + day * 86400, "the current season must not have ended")
 	prev = sx
 end
-print(string.format("seasons: 5 years after season 1 it is %s (a new one every %d days, automatically)", prev.Name, R.SeasonDays))
+print(
+	string.format(
+		"seasons: 5 years after season 1 it is %s (a new one every %d days, automatically)",
+		prev.Name,
+		R.SeasonDays
+	)
+)
 
 ---------------------------------------------------------------------------
--- 2. local ranked lobby (Studio): waits for a real rival, never adds AI
+-- 2. local ranked lobby (Studio): waits for a real rival, never adds computer drivers
 ---------------------------------------------------------------------------
 check(not MM.Enabled(), "the shared queue must be off outside a live server")
 check(not MM.IsMatchServer(), "not a match server")
@@ -164,6 +180,7 @@ for _, p in { A, B, C, D } do
 	check(DataService.WaitFor(p, 5), "profile did not load for " .. p.Name)
 end
 
+-- A fake RemoteEvent that records everything sent with FireClient.
 local function ev()
 	local e = { Sent = {} }
 	function e:FireClient(p, payload)
@@ -172,9 +189,19 @@ local function ev()
 	e.OnServerEvent = Env.Signal()
 	return e
 end
-local events = { Lobby = ev(), Start = ev(), Gate = ev(), Standings = ev(), Results = ev(), Leave = ev(), StateIn = ev(), StatesOut = ev() }
+local events = {
+	Lobby = ev(),
+	Start = ev(),
+	Gate = ev(),
+	Standings = ev(),
+	Results = ev(),
+	Leave = ev(),
+	StateIn = ev(),
+	StatesOut = ev(),
+}
 local T = RM._test
 T.setEvents(events)
+-- The last lobby update the server sent to `p`.
 local function lastLobbyFor(p)
 	for i = #events.Lobby.Sent, 1, -1 do
 		if events.Lobby.Sent[i].p == p then
@@ -183,6 +210,7 @@ local function lastLobbyFor(p)
 	end
 	return nil
 end
+-- How many races are running.
 local function countSessions()
 	local n = 0
 	for _ in T.sessions do
@@ -217,7 +245,10 @@ res = RM.RankedQueue(B)
 check(res.ok, "second player could not queue: " .. tostring(res.err))
 info = lastLobbyFor(A)
 check(info and info.Count == 2 and not info.Waiting, "the waiting lobby should pick up the second player")
-check(info.EndsAt - clock <= Q.VoteSeconds + 0.01 and info.EndsAt - clock >= Q.VoteSeconds - 0.01, "the vote should last VoteSeconds")
+check(
+	info.EndsAt - clock <= Q.VoteSeconds + 0.01 and info.EndsAt - clock >= Q.VoteSeconds - 0.01,
+	"the vote should last VoteSeconds"
+)
 check(RM.VoteMap(B, info.Candidates[2]).ok, "vote failed")
 clock = info.EndsAt + 0.1
 Env.SetServerTime(clock)
@@ -287,7 +318,10 @@ for _, l in T.lobbies do
 	end
 end
 check(ml and ml.Expected == 2, "match lobby not created")
-check(#ml.Candidates == 2 and ml.Candidates[1] == c1 and ml.Candidates[2] == c2, "bad circuits must be dropped from the vote")
+check(
+	#ml.Candidates == 2 and ml.Candidates[1] == c1 and ml.Candidates[2] == c2,
+	"bad circuits must be dropped from the vote"
+)
 local rpE0 = DataService.Get(E).rp
 clock += Q.MatchWait + 1
 Env.SetServerTime(clock)

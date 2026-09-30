@@ -1,6 +1,7 @@
 --!nonstrict
--- Time Trial: solo hot laps. Every lap is checked on the server (it must pass every
--- timing gate in order at a possible speed) before it can reach the leaderboard.
+-- Time Trial: solo hot laps against the clock and your ghost. The client drives and
+-- records its path; the server replays that path through validate() before a time can
+-- reach the leaderboard, so a hacked client can't post an impossible lap.
 
 local HttpService = game:GetService("HttpService")
 
@@ -19,6 +20,7 @@ local TT = {}
 
 local sessions = {}
 
+-- Opens a session on a circuit. Laps are only accepted with this session's token.
 function TT.Start(p: Player, trackId: any)
 	local t = Track.Get(trackId)
 	if not t then
@@ -36,6 +38,13 @@ local MAX_SPEED = Config.Car.TopSpeed * 1.3 + 10
 -- lap much faster than that can't have been driven
 local MIN_LAP_FACTOR = 0.8
 
+-- Checks a submitted lap against its recorded path (6 numbers per frame: position and
+-- rotation). Returns false and a short reason for the first check that fails:
+--   clock / too fast   the lap can't be quicker than the time since the session started
+--                      or than the circuit's physical limit
+--   rate / framecount  the path was sampled at the agreed rate for the whole lap
+--   nan / speed        every frame is a real position no further than top speed allows
+--   gates / finish     it passed every timing gate in order and ended on the line
 local function validate(t, lapMs: number, frames, rate: number, elapsed: number): (boolean, string?)
 	if elapsed + 1.5 < lapMs / 1000 then
 		return false, "clock"
@@ -93,6 +102,8 @@ local function validate(t, lapMs: number, frames, rate: number, elapsed: number)
 	return true, nil
 end
 
+-- A finished lap from the client. If it passes validate(), it updates the player's best,
+-- medal, leaderboard entry and ghost, and pays the Time Trial coins.
 function TT.SubmitLap(p: Player, token: any, lapMs: any, frames: any, rate: any)
 	local s = sessions[p]
 	if not s or s.token ~= token then
@@ -172,9 +183,18 @@ function TT.SubmitLap(p: Player, token: any, lapMs: any, frames: any, rate: any)
 		})
 	end
 	DataService.Changed(p)
-	return { ok = true, lapMs = lapMs, pb = isPB, prevBest = prev, medal = medal, newMedal = medal > oldMedal, coins = coins }
+	return {
+		ok = true,
+		lapMs = lapMs,
+		pb = isPB,
+		prevBest = prev,
+		medal = medal,
+		newMedal = medal > oldMedal,
+		coins = coins,
+	}
 end
 
+-- Forgets the player's session when they leave the mode.
 function TT.Cleanup(p: Player)
 	sessions[p] = nil
 end

@@ -5,13 +5,16 @@ local fs = require("@lune/fs")
 
 local Dump = {}
 
+-- A UDim2 as JSON numbers.
 local function udim2(u)
 	return { u.X.Scale, u.X.Offset, u.Y.Scale, u.Y.Offset }
 end
+-- A Color3 as 0-255 numbers.
 local function col(c)
 	return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
 end
 
+-- One GuiObject (and its children) as JSON.
 local function node(inst)
 	local n = { k = inst.ClassName, name = inst.Name, kids = {} }
 	if inst:IsA("GuiObject") then
@@ -80,6 +83,7 @@ local function node(inst)
 	return n
 end
 
+-- Writes a ScreenGui tree to a JSON file.
 function Dump.Save(inst, path)
 	fs.writeFile(path, serde.encode("json", node(inst)))
 end

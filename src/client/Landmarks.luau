@@ -13,11 +13,11 @@
 -- mover; WorldLife animates every mover with one BulkMoveTo per frame.
 -- Themes list landmarks by name (Themes.luau); `life` entries add sky / water traffic.
 
-
 local Arch = require(script.Parent.Architecture)
 
 local Landmarks = {}
 
+-- Shorthand for the colour tables.
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
@@ -28,10 +28,19 @@ local M = Enum.Material
 -- the build context of the landmark being built (set by Landmarks.Build)
 local X = nil
 
-local function P(size: Vector3, cf: CFrame, color: Color3, mat: Enum.Material?, shape: Enum.PartType?, class: string?): BasePart
+-- A part in the landmark being built (through the circuit builder's part maker).
+local function P(
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	mat: Enum.Material?,
+	shape: Enum.PartType?,
+	class: string?
+): BasePart
 	return X.P(X.F, size, cf, color, mat or M.SmoothPlastic, nil, false, shape, class)
 end
 
+-- A block.
 local function box(size: Vector3, cf: CFrame, color: Color3, mat: Enum.Material?): BasePart
 	return P(size, cf, color, mat)
 end
@@ -60,6 +69,7 @@ local function hcyl(len: number, d: number, cf: CFrame, color: Color3, mat: Enum
 	return P(Vector3.new(len, d, d), cf, color, mat, Enum.PartType.Cylinder)
 end
 
+-- A wedge.
 local function wedge(size: Vector3, cf: CFrame, color: Color3, mat: Enum.Material?): BasePart
 	return P(size, cf, color, mat, nil, "WedgePart")
 end
@@ -74,15 +84,31 @@ local function beam(a: Vector3, b: Vector3, thick: number, color: Color3, mat: E
 end
 
 -- stepped cone (stacked cylinders), bottom diameter d0 -> top d1
-local function cone(h: number, d0: number, d1: number, steps: number, cf: CFrame, color: Color3, mat: Enum.Material?, topColor: Color3?)
+local function cone(
+	h: number,
+	d0: number,
+	d1: number,
+	steps: number,
+	cf: CFrame,
+	color: Color3,
+	mat: Enum.Material?,
+	topColor: Color3?
+)
 	local sh = h / steps
 	for k = 0, steps - 1 do
 		local d = d0 + (d1 - d0) * (k + 0.5) / steps
 		local c = if topColor and k >= steps * 0.72 then topColor else color
-		vcyl(sh + 0.2, d, cf * CFrame.new(0, sh * (k + 0.5), 0), c, if topColor and k >= steps * 0.72 then M.Snow else mat)
+		vcyl(
+			sh + 0.2,
+			d,
+			cf * CFrame.new(0, sh * (k + 0.5), 0),
+			c,
+			if topColor and k >= steps * 0.72 then M.Snow else mat
+		)
 	end
 end
 
+-- A point light on `part`, while the circuit's light budget lasts (lights are costly).
 local function light(part: BasePart, color: Color3, range: number, brightness: number?)
 	if X.Lights <= 0 then
 		return
@@ -96,6 +122,7 @@ local function light(part: BasePart, color: Color3, range: number, brightness: n
 	l.Parent = part
 end
 
+-- A smoke plume from `part` (volcanoes, waterfall mist, chimneys).
 local function smoke(part: BasePart, color: Color3, size0: number, size1: number, rate: number, speed: number)
 	local pe = Instance.new("ParticleEmitter")
 	pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -110,6 +137,7 @@ local function smoke(part: BasePart, color: Color3, size0: number, size1: number
 	return pe
 end
 
+-- Bright particles from `part` (lava sparks, embers, waterfall spray, fountain jets).
 local function sparkle(part: BasePart, color: Color3, rate: number, speed: number, size: number, life: number?)
 	local pe = Instance.new("ParticleEmitter")
 	pe.Color = ColorSequence.new(color)
@@ -125,14 +153,17 @@ local function sparkle(part: BasePart, color: Color3, rate: number, speed: numbe
 	return pe
 end
 
+-- Text on one face of a part.
 local function sign(part: BasePart, face: Enum.NormalId, text: string, color: Color3, bg: Color3?)
 	X.Text(part, face, text, color, bg)
 end
 
+-- Random entry from a list, using the circuit's seeded random.
 local function pick(list)
 	return list[X.Rng:NextInteger(1, #list)]
 end
 
+-- Random number between a and b, using the circuit's seeded random.
 local function rnd(a: number, b: number): number
 	return X.Rng:NextNumber(a, b)
 end
@@ -142,9 +173,19 @@ local function mover(parts: { BasePart }, baseCF: CFrame, update: (number) -> CF
 	X.Mover(parts, baseCF, update)
 end
 
-local SHIRTS = { rgb(220, 40, 40), rgb(40, 90, 200), rgb(250, 250, 250), rgb(30, 30, 34), rgb(255, 200, 30), rgb(40, 160, 80), rgb(255, 130, 30), rgb(150, 60, 200) }
+local SHIRTS = {
+	rgb(220, 40, 40),
+	rgb(40, 90, 200),
+	rgb(250, 250, 250),
+	rgb(30, 30, 34),
+	rgb(255, 200, 30),
+	rgb(40, 160, 80),
+	rgb(255, 130, 30),
+	rgb(150, 60, 200),
+}
 local SKIN = { rgb(255, 219, 172), rgb(241, 194, 125), rgb(224, 172, 105), rgb(198, 134, 66), rgb(141, 85, 36) }
 
+-- A simple standing figure (legs, shirt, head) in the home fans' colours.
 local function person(cf: CFrame, shirt: Color3?): { BasePart }
 	return {
 		box(Vector3.new(1.1, 2.1, 0.6), cf * CFrame.new(0, 1.05, 0), rgb(50, 55, 80), M.Fabric),
@@ -166,17 +207,36 @@ local function animal(cf: CFrame, s: number, body: Color3, opts): { BasePart }
 	local bh = (opts.height or 2.2) * s
 	add(box(Vector3.new(bw, bh, len), cf * CFrame.new(0, legH + bh / 2, 0), body))
 	for _, o in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
-		add(box(Vector3.new(0.55 * s, legH + 0.2, 0.55 * s), cf * CFrame.new(o[1] * (bw / 2 - 0.35 * s), legH / 2, o[2] * (len / 2 - 0.5 * s)), opts.legColor or body:Lerp(Color3.new(0, 0, 0), 0.25)))
+		add(
+			box(
+				Vector3.new(0.55 * s, legH + 0.2, 0.55 * s),
+				cf * CFrame.new(o[1] * (bw / 2 - 0.35 * s), legH / 2, o[2] * (len / 2 - 0.5 * s)),
+				opts.legColor or body:Lerp(Color3.new(0, 0, 0), 0.25)
+			)
+		)
 	end
 	local neckY = legH + bh * (opts.neckUp or 0.9)
 	local headZ = -len / 2 - (opts.neck or 0.8) * s
 	if opts.neck and opts.neck > 1.5 then
-		add(beam((cf * CFrame.new(0, legH + bh * 0.8, -len / 2 + 0.4 * s)).Position, (cf * CFrame.new(0, neckY + opts.neck * s * 0.7, headZ + 0.4 * s)).Position, 0.8 * s, body))
+		add(
+			beam(
+				(cf * CFrame.new(0, legH + bh * 0.8, -len / 2 + 0.4 * s)).Position,
+				(cf * CFrame.new(0, neckY + opts.neck * s * 0.7, headZ + 0.4 * s)).Position,
+				0.8 * s,
+				body
+			)
+		)
 		neckY += opts.neck * s * 0.7
 	end
 	add(box(Vector3.new(bw * 0.6, bh * 0.6, 1.8 * s), cf * CFrame.new(0, neckY, headZ), opts.head or body))
 	if opts.horns then
-		add(box(Vector3.new(bw * (opts.hornSpan or 1.6), 0.3 * s, 0.3 * s), cf * CFrame.new(0, neckY + bh * 0.35, headZ + 0.3 * s), opts.horns))
+		add(
+			box(
+				Vector3.new(bw * (opts.hornSpan or 1.6), 0.3 * s, 0.3 * s),
+				cf * CFrame.new(0, neckY + bh * 0.35, headZ + 0.3 * s),
+				opts.horns
+			)
+		)
 	end
 	if opts.hump then
 		add(ball(bh * 0.9, cf * CFrame.new(0, legH + bh, 0), body))
@@ -185,11 +245,25 @@ local function animal(cf: CFrame, s: number, body: Color3, opts): { BasePart }
 end
 
 -- parts orbiting in a circle (radius r around `centre`), facing along the path
-local function circler(parts: { BasePart }, baseCF: CFrame, centre: Vector3, r: number, speed: number, phase: number, bob: number?)
+local function circler(
+	parts: { BasePart },
+	baseCF: CFrame,
+	centre: Vector3,
+	r: number,
+	speed: number,
+	phase: number,
+	bob: number?
+)
 	mover(parts, baseCF, function(now)
 		local a = phase + now * speed / r
-		local p = centre + Vector3.new(math.cos(a) * r, (bob or 0) * math.abs(math.sin(now * 5 + phase)), math.sin(a) * r)
-		local ahead = centre + Vector3.new(math.cos(a + 0.05 * math.sign(speed)) * r, p.Y - centre.Y, math.sin(a + 0.05 * math.sign(speed)) * r)
+		local p = centre
+			+ Vector3.new(math.cos(a) * r, (bob or 0) * math.abs(math.sin(now * 5 + phase)), math.sin(a) * r)
+		local ahead = centre
+			+ Vector3.new(
+				math.cos(a + 0.05 * math.sign(speed)) * r,
+				p.Y - centre.Y,
+				math.sin(a + 0.05 * math.sign(speed)) * r
+			)
 		return CFrame.lookAt(p, ahead)
 	end)
 end
@@ -200,12 +274,14 @@ end
 local Defs = {}
 Landmarks.Defs = Defs
 
+-- Registers a landmark: its name, footprint radius, placement rule and builder.
 local function def(name: string, radius: number, place: string, build)
 	Defs[name] = { R = radius, Place = place, Build = build }
 end
 
 -- nice names for the circuit intro screen
 Landmarks.Names = {}
+-- The name shown for a landmark on the circuit intro.
 local function named(name: string, label: string)
 	Landmarks.Names[name] = label
 end
@@ -237,14 +313,23 @@ function Life.boats(ctx)
 				box(Vector3.new(4, 2, 14), base * CFrame.new(0, 1, 0), hull),
 				wedge(Vector3.new(4, 2, 3), base * CFrame.new(0, 1, -8.5) * CFrame.Angles(0, PI, 0), hull),
 				box(Vector3.new(0.4, 18, 0.4), base * CFrame.new(0, 11, -1), rgb(220, 220, 225), M.Metal),
-				wedge(Vector3.new(0.2, 15, 8), base * CFrame.new(0, 11, 3) * CFrame.Angles(0, PI, 0), rgb(255, 255, 255), M.Fabric),
+				wedge(
+					Vector3.new(0.2, 15, 8),
+					base * CFrame.new(0, 11, 3) * CFrame.Angles(0, PI, 0),
+					rgb(255, 255, 255),
+					M.Fabric
+				),
 			}
 		else
 			parts = {
 				box(Vector3.new(7, 3, 22), base * CFrame.new(0, 1.5, 0), rgb(248, 248, 250)),
 				box(Vector3.new(6, 3, 10), base * CFrame.new(0, 4.5, 2), rgb(236, 236, 240)),
 				box(Vector3.new(6.2, 1.2, 10.2), base * CFrame.new(0, 5, 2), rgb(40, 60, 90), M.Glass),
-				wedge(Vector3.new(7, 3, 5), base * CFrame.new(0, 1.5, -13.5) * CFrame.Angles(0, PI, 0), rgb(248, 248, 250)),
+				wedge(
+					Vector3.new(7, 3, 5),
+					base * CFrame.new(0, 1.5, -13.5) * CFrame.Angles(0, PI, 0),
+					rgb(248, 248, 250)
+				),
 			}
 		end
 		circler(parts, base, centre, r, rnd(8, 16) * (if k % 2 == 0 then 1 else -1), rnd(0, 6))
@@ -270,9 +355,14 @@ function Life.planes(ctx)
 	circler(parts, base, Vector3.new(ctx.Cx, 520, ctx.Cz), ctx.Span * 0.9 + 900, 110, rnd(0, 6))
 end
 
+-- `count` flocks of birds circling over the circuit at about `height` studs.
 local function flock(ctx, colors: { Color3 }, count: number, height: number)
 	for g = 1, count do
-		local centre = Vector3.new(ctx.Cx + rnd(-ctx.Span * 0.6, ctx.Span * 0.6), height + rnd(0, 40), ctx.Cz + rnd(-ctx.Span * 0.6, ctx.Span * 0.6))
+		local centre = Vector3.new(
+			ctx.Cx + rnd(-ctx.Span * 0.6, ctx.Span * 0.6),
+			height + rnd(0, 40),
+			ctx.Cz + rnd(-ctx.Span * 0.6, ctx.Span * 0.6)
+		)
 		local base = CFrame.new(0, -600 - g * 10, 0)
 		local parts = {}
 		for b = 0, 6 do
@@ -285,10 +375,12 @@ local function flock(ctx, colors: { Color3 }, count: number, height: number)
 	end
 end
 
+-- Plain birds.
 function Life.birds(ctx)
 	flock(ctx, { rgb(40, 40, 46), rgb(60, 58, 60) }, ({ 1, 2, 3, 4 })[X.Q], 90)
 end
 
+-- Brightly coloured birds for the tropical circuits.
 function Life.parrots(ctx)
 	flock(ctx, { rgb(230, 40, 40), rgb(40, 180, 70), rgb(255, 200, 30), rgb(40, 120, 230) }, ({ 1, 2, 3, 4 })[X.Q], 70)
 end
@@ -305,7 +397,11 @@ function Life.balloons(ctx)
 			vcyl(6, 10, base * CFrame.new(0, 11, 0), c1, M.Fabric),
 			box(Vector3.new(4, 3.5, 4), base * CFrame.new(0, 1.75, 0), rgb(150, 105, 60), M.WoodPlanks),
 		}
-		local centre = Vector3.new(ctx.Cx + rnd(-ctx.Span * 0.7, ctx.Span * 0.7), rnd(120, 260), ctx.Cz + rnd(-ctx.Span * 0.7, ctx.Span * 0.7))
+		local centre = Vector3.new(
+			ctx.Cx + rnd(-ctx.Span * 0.7, ctx.Span * 0.7),
+			rnd(120, 260),
+			ctx.Cz + rnd(-ctx.Span * 0.7, ctx.Span * 0.7)
+		)
 		local phase, r = rnd(0, 6), rnd(60, 180)
 		mover(parts, base, function(now)
 			local a = phase + now * 0.02
@@ -351,7 +447,8 @@ function Life.jets(ctx)
 	mover(parts, base, function(now)
 		local a = now * 90 / r
 		local p = centre + Vector3.new(math.cos(a) * r, math.sin(a * 2) * 40, math.sin(a) * r)
-		local ahead = centre + Vector3.new(math.cos(a + 0.03) * r, math.sin((a + 0.03) * 2) * 40, math.sin(a + 0.03) * r)
+		local ahead = centre
+			+ Vector3.new(math.cos(a + 0.03) * r, math.sin((a + 0.03) * 2) * 40, math.sin(a + 0.03) * r)
 		return CFrame.lookAt(p, ahead) * CFrame.Angles(0, 0, math.rad(-35))
 	end)
 end
@@ -363,8 +460,15 @@ named("lake", "Sparkling lake")
 def("lake", 175, "infield", function(cf, ctx)
 	local r = 160
 	local pos = cf.Position
-	hcyl(1, r * 2, CFrame.new(pos + Vector3.new(0, 0.25, 0)) * CFrame.Angles(0, 0, PI / 2), X.Th.Water, M.Glass).Reflectance = 0.3
-	hcyl(0.6, r * 2 + 16, CFrame.new(pos + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, PI / 2), rgb(220, 200, 150), M.Sand)
+	hcyl(1, r * 2, CFrame.new(pos + Vector3.new(0, 0.25, 0)) * CFrame.Angles(0, 0, PI / 2), X.Th.Water, M.Glass).Reflectance =
+		0.3
+	hcyl(
+		0.6,
+		r * 2 + 16,
+		CFrame.new(pos + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, PI / 2),
+		rgb(220, 200, 150),
+		M.Sand
+	)
 	-- jetty with a boathouse
 	local j = CFrame.new(pos) * CFrame.Angles(0, rnd(0, 6), 0) * CFrame.new(0, 0, -r + 20)
 	box(Vector3.new(8, 1, 50), j * CFrame.new(0, 1.2, 10), rgb(140, 100, 60), M.WoodPlanks)
@@ -382,7 +486,12 @@ def("ferris", 80, "near", function(cf)
 	local hub = cf * CFrame.new(0, r + 10, 0) * CFrame.Angles(0, PI / 2, 0)
 	for side = -1, 1, 2 do
 		for leg = -1, 1, 2 do
-			box(Vector3.new(3, r + 16, 3), hub * CFrame.new(side * 5, 0, 0) * CFrame.Angles(leg * 0.32, 0, 0) * CFrame.new(0, -(r + 12) / 2, 0), rgb(230, 230, 235), M.Metal)
+			box(
+				Vector3.new(3, r + 16, 3),
+				hub * CFrame.new(side * 5, 0, 0) * CFrame.Angles(leg * 0.32, 0, 0) * CFrame.new(0, -(r + 12) / 2, 0),
+				rgb(230, 230, 235),
+				M.Metal
+			)
 		end
 	end
 	box(Vector3.new(24, 3, 30), CFrame.new(pos + Vector3.new(0, 1.5, 0)), rgb(60, 62, 70), M.Concrete)
@@ -392,9 +501,25 @@ def("ferris", 80, "near", function(cf)
 	for k = 0, n - 1 do
 		local a = k / n * PI * 2
 		local chord = 2 * r * math.sin(PI / n) + 0.5
-		table.insert(rim, box(Vector3.new(1.5, 1.5, chord), hub * CFrame.Angles(a, 0, 0) * CFrame.new(0, r, 0), rimColor, if X.Th.Night then M.Neon else M.Metal))
+		table.insert(
+			rim,
+			box(
+				Vector3.new(1.5, 1.5, chord),
+				hub * CFrame.Angles(a, 0, 0) * CFrame.new(0, r, 0),
+				rimColor,
+				if X.Th.Night then M.Neon else M.Metal
+			)
+		)
 		if k % 3 == 0 then
-			table.insert(rim, box(Vector3.new(0.6, r, 0.6), hub * CFrame.Angles(a, 0, 0) * CFrame.new(0, r / 2, 0), rgb(200, 200, 210), M.Metal))
+			table.insert(
+				rim,
+				box(
+					Vector3.new(0.6, r, 0.6),
+					hub * CFrame.Angles(a, 0, 0) * CFrame.new(0, r / 2, 0),
+					rgb(200, 200, 210),
+					M.Metal
+				)
+			)
 		end
 	end
 	table.insert(rim, hcyl(6, 8, hub, rgb(90, 92, 100), M.Metal))
@@ -404,7 +529,11 @@ def("ferris", 80, "near", function(cf)
 	-- cabins hang from the rim and stay upright
 	for k = 0, n - 1, 3 do
 		local a0 = k / n * PI * 2
-		local cab = box(Vector3.new(6, 5, 5), CFrame.new((hub * CFrame.Angles(a0, 0, 0) * CFrame.new(0, r, 0)).Position - Vector3.new(0, 3, 0)), Color3.fromHSV(k / n, 0.7, 1))
+		local cab = box(
+			Vector3.new(6, 5, 5),
+			CFrame.new((hub * CFrame.Angles(a0, 0, 0) * CFrame.new(0, r, 0)).Position - Vector3.new(0, 3, 0)),
+			Color3.fromHSV(k / n, 0.7, 1)
+		)
 		local cabBase = cab.CFrame
 		mover({ cab }, cabBase, function(now)
 			local p = (hub * CFrame.Angles(a0 + now * 0.08, 0, 0) * CFrame.new(0, r, 0)).Position
@@ -422,17 +551,35 @@ def("pagoda_big", 45, "near", function(cf)
 		local w = 38 - k * 5.5
 		local h = 13 - k * 1.2
 		box(Vector3.new(w, h, w), cf * CFrame.new(0, y + h / 2, 0), red, M.WoodPlanks)
-		box(Vector3.new(w + 0.3, h * 0.35, w + 0.3), cf * CFrame.new(0, y + h * 0.55, 0), rgb(245, 225, 170), M.WoodPlanks)
+		box(
+			Vector3.new(w + 0.3, h * 0.35, w + 0.3),
+			cf * CFrame.new(0, y + h * 0.55, 0),
+			rgb(245, 225, 170),
+			M.WoodPlanks
+		)
 		y += h
 		-- flared roof: a slab with upturned wedge eaves on all four sides
 		box(Vector3.new(w + 14, 1.4, w + 14), cf * CFrame.new(0, y + 0.7, 0), roof, M.Slate)
 		for q = 0, 3 do
-			wedge(Vector3.new(w + 14, 2, 3), cf * CFrame.Angles(0, q * PI / 2, 0) * CFrame.new(0, y + 2.2, -(w + 14) / 2 + 1.5) * CFrame.Angles(0, PI, 0), roof, M.Slate)
+			wedge(
+				Vector3.new(w + 14, 2, 3),
+				cf
+					* CFrame.Angles(0, q * PI / 2, 0)
+					* CFrame.new(0, y + 2.2, -(w + 14) / 2 + 1.5)
+					* CFrame.Angles(0, PI, 0),
+				roof,
+				M.Slate
+			)
 		end
 		y += 1.4
 		if X.Th.Night or k == 0 then
 			for q = 0, 3 do
-				local l = ball(1.8, cf * CFrame.Angles(0, q * PI / 2 + PI / 4, 0) * CFrame.new(0, y - 3, -(w + 12) * 0.7), rgb(255, 70, 40), M.Neon)
+				local l = ball(
+					1.8,
+					cf * CFrame.Angles(0, q * PI / 2 + PI / 4, 0) * CFrame.new(0, y - 3, -(w + 12) * 0.7),
+					rgb(255, 70, 40),
+					M.Neon
+				)
 				if q == 0 then
 					light(l, rgb(255, 120, 60), 30, 1)
 				end
@@ -458,7 +605,12 @@ def("temple", 90, "near", function(cf)
 	wedge(Vector3.new(124, 12, 32), cf * CFrame.new(0, 46.5, -16), c, M.Marble)
 	wedge(Vector3.new(124, 12, 32), cf * CFrame.new(0, 46.5, 16) * CFrame.Angles(0, PI, 0), c, M.Marble)
 	for k = 0, 3 do
-		box(Vector3.new(128 - k * 4, 1.4, 68 - k * 4), cf * CFrame.new(0, 0.7 - k * 0.2, 0), c:Lerp(rgb(200, 190, 170), k * 0.2), M.Marble)
+		box(
+			Vector3.new(128 - k * 4, 1.4, 68 - k * 4),
+			cf * CFrame.new(0, 0.7 - k * 0.2, 0),
+			c:Lerp(rgb(200, 190, 170), k * 0.2),
+			M.Marble
+		)
 	end
 end)
 
@@ -481,7 +633,13 @@ def("casino", 70, "near", function(cf)
 	local jet = vcyl(10, 1.4, cf * CFrame.new(0, 6, -50), rgb(210, 235, 255), M.Glass)
 	jet.Transparency = 0.4
 	for k = 0, 5 do
-		Arch.Car(X.F, cf * CFrame.new(-30 + k * 12, 0, -72) * CFrame.Angles(0, PI / 2, 0), pick({ rgb(200, 20, 30), rgb(250, 250, 250), rgb(20, 20, 24), rgb(255, 200, 0) }), X.Th.Night, X.P)
+		Arch.Car(
+			X.F,
+			cf * CFrame.new(-30 + k * 12, 0, -72) * CFrame.Angles(0, PI / 2, 0),
+			pick({ rgb(200, 20, 30), rgb(250, 250, 250), rgb(20, 20, 24), rgb(255, 200, 0) }),
+			X.Th.Night,
+			X.P
+		)
 	end
 end)
 
@@ -495,7 +653,12 @@ def("stadium", 165, "near", function(cf)
 		for row = 0, 4 do
 			local rr = r + row * 8
 			local scf = CFrame.new(pos) * CFrame.Angles(0, a, 0) * CFrame.new(0, 3 + row * 5, -rr)
-			box(Vector3.new(2 * rr * math.sin(PI / nseg) + 1, 5, 8), scf, if row % 2 == 0 then rgb(200, 200, 210) else Color3.fromHSV((k * 7 % nseg) / nseg, 0.5, 0.9), M.Concrete)
+			box(
+				Vector3.new(2 * rr * math.sin(PI / nseg) + 1, 5, 8),
+				scf,
+				if row % 2 == 0 then rgb(200, 200, 210) else Color3.fromHSV((k * 7 % nseg) / nseg, 0.5, 0.9),
+				M.Concrete
+			)
 		end
 		if k % 4 == 0 then
 			local mcf = CFrame.new(pos) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -(r + 44))
@@ -507,7 +670,13 @@ def("stadium", 165, "near", function(cf)
 		end
 	end
 	-- pitch in the middle
-	hcyl(0.5, r * 1.6, CFrame.new(pos + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, PI / 2), rgb(70, 160, 70), M.Grass)
+	hcyl(
+		0.5,
+		r * 1.6,
+		CFrame.new(pos + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, PI / 2),
+		rgb(70, 160, 70),
+		M.Grass
+	)
 end)
 
 named("hotel", "Glowing marina hotel")
@@ -516,7 +685,12 @@ def("hotel", 100, "near", function(cf)
 		box(Vector3.new(40, 60, 120), cf * CFrame.new(side * 50, 30, 0), rgb(235, 235, 240), M.Glass)
 	end
 	for k = 0, 11 do
-		local strip = box(Vector3.new(142, 1.5, 3), cf * CFrame.new(0, 64, -55 + k * 10) * CFrame.Angles(math.rad(12), 0, 0), Color3.fromHSV((k / 12 + 0.55) % 1, 0.7, 1), M.Neon)
+		local strip = box(
+			Vector3.new(142, 1.5, 3),
+			cf * CFrame.new(0, 64, -55 + k * 10) * CFrame.Angles(math.rad(12), 0, 0),
+			Color3.fromHSV((k / 12 + 0.55) % 1, 0.7, 1),
+			M.Neon
+		)
 		if k % 4 == 0 then
 			light(strip, strip.Color, 50, 1.5)
 		end
@@ -540,7 +714,12 @@ def("castle", 110, "near", function(cf)
 	for k = 0, 5 do
 		local s = cf * CFrame.new(-30 + (k % 3) * 30, 0, -20 + (k // 3) * 40)
 		box(Vector3.new(10, 5, 8), s * CFrame.new(0, 2.5, 0), rgb(150, 110, 70), M.WoodPlanks)
-		wedge(Vector3.new(11, 2.5, 9), s * CFrame.new(0, 6.2, 0), pick({ rgb(200, 40, 40), rgb(40, 110, 180), rgb(230, 170, 40) }), M.Fabric)
+		wedge(
+			Vector3.new(11, 2.5, 9),
+			s * CFrame.new(0, 6.2, 0),
+			pick({ rgb(200, 40, 40), rgb(40, 110, 180), rgb(230, 170, 40) }),
+			M.Fabric
+		)
 	end
 end)
 
@@ -548,7 +727,12 @@ named("pyramid_big", "Sun pyramid")
 def("pyramid_big", 80, "near", function(cf)
 	for k = 0, 5 do
 		local w = (30 - k * 5) * 4
-		box(Vector3.new(w, 14, w), cf * CFrame.new(0, 7 + k * 14, 0), rgb(190, 170, 130):Lerp(rgb(160, 140, 105), k / 6), M.Limestone)
+		box(
+			Vector3.new(w, 14, w),
+			cf * CFrame.new(0, 7 + k * 14, 0),
+			rgb(190, 170, 130):Lerp(rgb(160, 140, 105), k / 6),
+			M.Limestone
+		)
 	end
 	-- central staircase
 	for k = 0, 20 do
@@ -601,9 +785,16 @@ def("volcano", 240, "near", function(cf)
 	local pos = cf.Position
 	for k = 0, 6 do
 		local w = 420 - k * 55
-		hcyl(40, w, CFrame.new(pos + Vector3.new(0, 20 + k * 38, 0)) * CFrame.Angles(0, 0, PI / 2), rgb(60 + k * 4, 50, 46), M.Basalt)
+		hcyl(
+			40,
+			w,
+			CFrame.new(pos + Vector3.new(0, 20 + k * 38, 0)) * CFrame.Angles(0, 0, PI / 2),
+			rgb(60 + k * 4, 50, 46),
+			M.Basalt
+		)
 	end
-	local lava = hcyl(6, 70, CFrame.new(pos + Vector3.new(0, 268, 0)) * CFrame.Angles(0, 0, PI / 2), rgb(255, 90, 20), M.Neon)
+	local lava =
+		hcyl(6, 70, CFrame.new(pos + Vector3.new(0, 268, 0)) * CFrame.Angles(0, 0, PI / 2), rgb(255, 90, 20), M.Neon)
 	light(lava, rgb(255, 120, 40), 60, 5)
 	local s = smoke(lava, rgb(80, 70, 70), 30, 80, 4, 25)
 	s.EmissionDirection = Enum.NormalId.Right
@@ -612,7 +803,12 @@ def("volcano", 240, "near", function(cf)
 	sp.SpreadAngle = Vector2.new(30, 30)
 	for k = 0, 3 do
 		local a = k * PI / 2 + 0.4
-		box(Vector3.new(12, 1, 180), CFrame.new(pos) * CFrame.Angles(0, a, 0) * CFrame.new(0, 60, -170) * CFrame.Angles(math.rad(-38), 0, 0), rgb(255, 100, 20), M.Neon)
+		box(
+			Vector3.new(12, 1, 180),
+			CFrame.new(pos) * CFrame.Angles(0, a, 0) * CFrame.new(0, 60, -170) * CFrame.Angles(math.rad(-38), 0, 0),
+			rgb(255, 100, 20),
+			M.Neon
+		)
 	end
 end)
 
@@ -621,11 +817,19 @@ def("aurora", 0, "global", function(cf, ctx)
 	local pos = Vector3.new(ctx.Cx, 0, ctx.Cz)
 	local sheets = {}
 	for k = 0, 4 do
-		local p = box(Vector3.new(900, 60, 2), CFrame.new(pos + Vector3.new(0, 420 + k * 30, 600 + k * 40)) * CFrame.Angles(math.rad(-20), math.rad(k * 8 - 16), 0), Color3.fromHSV(0.35 + k * 0.08, 0.8, 1), M.Neon)
+		local p = box(
+			Vector3.new(900, 60, 2),
+			CFrame.new(pos + Vector3.new(0, 420 + k * 30, 600 + k * 40))
+				* CFrame.Angles(math.rad(-20), math.rad(k * 8 - 16), 0),
+			Color3.fromHSV(0.35 + k * 0.08, 0.8, 1),
+			M.Neon
+		)
 		p.Transparency = 0.6
 		local base = p.CFrame
 		mover({ p }, base, function(now)
-			return base * CFrame.new(math.sin(now * 0.07 + k) * 60, math.sin(now * 0.11 + k * 2) * 12, 0) * CFrame.Angles(0, math.sin(now * 0.05 + k) * 0.08, 0)
+			return base
+				* CFrame.new(math.sin(now * 0.07 + k) * 60, math.sin(now * 0.11 + k * 2) * 12, 0)
+				* CFrame.Angles(0, math.sin(now * 0.05 + k) * 0.08, 0)
 		end)
 		table.insert(sheets, p)
 	end
@@ -637,23 +841,51 @@ end)
 -- lattice towers (Vegas replica, Tokyo red tower); assigned further down
 local latticeTower: (CFrame, number, Color3, Color3?) -> ()
 
-local GLASS = { rgb(80, 120, 160), rgb(110, 150, 180), rgb(70, 95, 120), rgb(120, 160, 175), rgb(90, 110, 150), rgb(60, 130, 140) }
+local GLASS = {
+	rgb(80, 120, 160),
+	rgb(110, 150, 180),
+	rgb(70, 95, 120),
+	rgb(120, 160, 175),
+	rgb(90, 110, 150),
+	rgb(60, 130, 140),
+}
 
+-- A palm tree for landmark scenes (beaches, islands, oases).
 local function palm(cf: CFrame, s: number)
 	local h = 18 * s
 	for k = 0, 3 do
-		box(Vector3.new(1.6 * s, h / 4 + 0.4, 1.6 * s), cf * CFrame.new(k * 0.6 * s, h / 8 + k * h / 4, 0) * CFrame.Angles(0, 0, math.rad(-6)), rgb(150, 110, 70), M.Wood)
+		box(
+			Vector3.new(1.6 * s, h / 4 + 0.4, 1.6 * s),
+			cf * CFrame.new(k * 0.6 * s, h / 8 + k * h / 4, 0) * CFrame.Angles(0, 0, math.rad(-6)),
+			rgb(150, 110, 70),
+			M.Wood
+		)
 	end
 	for k = 0, 5 do
 		local a = k / 6 * PI * 2
-		box(Vector3.new(1.4 * s, 0.4 * s, 9 * s), cf * CFrame.new(2.4 * s, h + 0.5, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, -1 * s, -4 * s) * CFrame.Angles(math.rad(-20), 0, 0), rgb(60, 160, 60), M.LeafyGrass)
+		box(
+			Vector3.new(1.4 * s, 0.4 * s, 9 * s),
+			cf
+				* CFrame.new(2.4 * s, h + 0.5, 0)
+				* CFrame.Angles(0, a, 0)
+				* CFrame.new(0, -1 * s, -4 * s)
+				* CFrame.Angles(math.rad(-20), 0, 0),
+			rgb(60, 160, 60),
+			M.LeafyGrass
+		)
 	end
 end
 
+-- A leafy tree for landmark scenes.
 local function tree(cf: CFrame, s: number, leaf: Color3)
 	box(Vector3.new(1.8, 8, 1.8) * s, cf * CFrame.new(0, 4 * s, 0), rgb(100, 70, 45), M.Wood)
 	ellipsoid(Vector3.new(13, 9, 13) * s, cf * CFrame.new(0, 11 * s, 0), leaf, M.LeafyGrass)
-	ellipsoid(Vector3.new(8, 7, 8) * s, cf * CFrame.new(3 * s, 14 * s, -2 * s), leaf:Lerp(Color3.new(1, 1, 1), 0.12), M.LeafyGrass)
+	ellipsoid(
+		Vector3.new(8, 7, 8) * s,
+		cf * CFrame.new(3 * s, 14 * s, -2 * s),
+		leaf:Lerp(Color3.new(1, 1, 1), 0.12),
+		M.LeafyGrass
+	)
 end
 
 -- a tower block with floor bands and a crown (used by skylines)
@@ -663,11 +895,21 @@ local function tower(tcf: CFrame, w: number, d: number, h: number, glass: Color3
 	local n = math.floor(h / 16)
 	for f = 1, n, every do
 		local lit = X.Th.Night and X.Rng:NextNumber() < 0.6
-		box(Vector3.new(w + 0.4, 1.3, d + 0.4), tcf * CFrame.new(0, f * 16, 0), if lit then rgb(255, 226, 170) else glass:Lerp(Color3.new(1, 1, 1), 0.4), if lit then M.Neon else M.Metal)
+		box(
+			Vector3.new(w + 0.4, 1.3, d + 0.4),
+			tcf * CFrame.new(0, f * 16, 0),
+			if lit then rgb(255, 226, 170) else glass:Lerp(Color3.new(1, 1, 1), 0.4),
+			if lit then M.Neon else M.Metal
+		)
 	end
 	local style = X.Rng:NextInteger(1, 4)
 	if style == 1 then
-		box(Vector3.new(w * 0.6, 14, d * 0.6), tcf * CFrame.new(0, h + 7, 0), glass:Lerp(Color3.new(1, 1, 1), 0.2), M.Glass)
+		box(
+			Vector3.new(w * 0.6, 14, d * 0.6),
+			tcf * CFrame.new(0, h + 7, 0),
+			glass:Lerp(Color3.new(1, 1, 1), 0.2),
+			M.Glass
+		)
 		vcyl(34, 1.2, tcf * CFrame.new(0, h + 31, 0), rgb(220, 220, 225), M.Metal)
 		if X.Th.Night then
 			box(Vector3.new(1.4, 1.4, 1.4), tcf * CFrame.new(0, h + 48, 0), rgb(255, 40, 40), M.Neon)
@@ -736,7 +978,8 @@ def("kangaroos", 60, "near", function(cf)
 			local a = phase + now * speed / r
 			local hop = math.abs(math.sin(now * 3.2 + phase)) * 3
 			local p = centre + Vector3.new(math.cos(a) * r, hop, math.sin(a) * r)
-			local ahead = centre + Vector3.new(math.cos(a + 0.05 * math.sign(speed)) * r, hop, math.sin(a + 0.05 * math.sign(speed)) * r)
+			local ahead = centre
+				+ Vector3.new(math.cos(a + 0.05 * math.sign(speed)) * r, hop, math.sin(a + 0.05 * math.sign(speed)) * r)
 			return CFrame.lookAt(p, ahead)
 		end)
 	end
@@ -763,7 +1006,12 @@ def("bandstand", 45, "near", function(cf)
 	end
 	for k = 0, 7 do
 		local pcf = cf * CFrame.Angles(0, k * 0.8, 0) * CFrame.new(0, 0, -rnd(22, 38))
-		box(Vector3.new(7, 0.2, 5), pcf * CFrame.new(0, 0.1, 0), pick({ rgb(220, 60, 60), rgb(60, 120, 220), rgb(250, 220, 80), rgb(250, 250, 250) }), M.Fabric)
+		box(
+			Vector3.new(7, 0.2, 5),
+			pcf * CFrame.new(0, 0.1, 0),
+			pick({ rgb(220, 60, 60), rgb(60, 120, 220), rgb(250, 220, 80), rgb(250, 250, 250) }),
+			M.Fabric
+		)
 		person(pcf * CFrame.new(-1.5, 0, 0) * CFrame.Angles(0, PI, 0))
 	end
 end)
@@ -778,7 +1026,13 @@ def("pearl_tower", 50, "near", function(cf)
 	box(Vector3.new(80, 8, 80), cf * CFrame.new(0, 4, 0), rgb(200, 200, 205), M.Concrete)
 	for k = 0, 2 do
 		local a = k * PI * 2 / 3
-		beam((cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 6, -34)).Position, (cf * CFrame.new(0, 96, 0)).Position, 6, rgb(225, 225, 230), M.Concrete)
+		beam(
+			(cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 6, -34)).Position,
+			(cf * CFrame.new(0, 96, 0)).Position,
+			6,
+			rgb(225, 225, 230),
+			M.Concrete
+		)
 		vcyl(210, 4, cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 105, -8), rgb(215, 215, 222), M.Concrete)
 	end
 	vcyl(270, 10, cf * CFrame.new(0, 135, 0), rgb(225, 225, 230), M.Concrete)
@@ -804,13 +1058,23 @@ def("dragon_gate", 55, "near", function(cf)
 		box(Vector3.new(r[3], 3, 4), cf * CFrame.new(r[1], r[2], 0), gold, M.WoodPlanks)
 		box(Vector3.new(r[3] + 6, 1.2, 9), cf * CFrame.new(r[1], r[2] + 2.2, 0), tile, M.Slate)
 		wedge(Vector3.new(r[3] + 6, 2.4, 4.5), cf * CFrame.new(r[1], r[2] + 4, -2.25), tile, M.Slate)
-		wedge(Vector3.new(r[3] + 6, 2.4, 4.5), cf * CFrame.new(r[1], r[2] + 4, 2.25) * CFrame.Angles(0, PI, 0), tile, M.Slate)
+		wedge(
+			Vector3.new(r[3] + 6, 2.4, 4.5),
+			cf * CFrame.new(r[1], r[2] + 4, 2.25) * CFrame.Angles(0, PI, 0),
+			tile,
+			M.Slate
+		)
 	end
 	local plaque = box(Vector3.new(10, 5, 0.6), cf * CFrame.new(0, 27, -2.4), rgb(30, 30, 34))
 	sign(plaque, Enum.NormalId.Front, "龍", gold)
 	-- a dancing dragon weaving in front of the gate
 	for k = 0, 13 do
-		local seg = ball(if k == 0 then 5 else 4 - k * 0.12, cf * CFrame.new(-26 + k * 4, 6, -16), if k % 2 == 0 then red else gold, M.Fabric)
+		local seg = ball(
+			if k == 0 then 5 else 4 - k * 0.12,
+			cf * CFrame.new(-26 + k * 4, 6, -16),
+			if k % 2 == 0 then red else gold,
+			M.Fabric
+		)
 		local parts = { seg }
 		if k == 0 then
 			table.insert(parts, box(Vector3.new(3.4, 3, 5), cf * CFrame.new(-26, 6.5, -18.5), red))
@@ -860,7 +1124,12 @@ def("torii_path", 110, "near", function(cf)
 			for side = -1, 1, 2 do
 				local l = g * CFrame.new(side * 11, 0, 0)
 				box(Vector3.new(1.2, 3, 1.2), l * CFrame.new(0, 1.5, 0), rgb(160, 160, 155), M.Slate)
-				local lamp = box(Vector3.new(2.4, 2, 2.4), l * CFrame.new(0, 4, 0), if X.Th.Night then rgb(255, 210, 140) else rgb(170, 170, 165), if X.Th.Night then M.Neon else M.Slate)
+				local lamp = box(
+					Vector3.new(2.4, 2, 2.4),
+					l * CFrame.new(0, 4, 0),
+					if X.Th.Night then rgb(255, 210, 140) else rgb(170, 170, 165),
+					if X.Th.Night then M.Neon else M.Slate
+				)
 				box(Vector3.new(3.4, 0.8, 3.4), l * CFrame.new(0, 5.4, 0), rgb(150, 150, 145), M.Slate)
 				local _ = lamp
 			end
@@ -876,23 +1145,52 @@ def("zen_garden", 60, "near", function(cf)
 		box(Vector3.new(0.5, 0.1, 64), cf * CFrame.new(k * 3.4 - 20, 0.45, 0), rgb(200, 196, 186), M.Pebble)
 	end
 	for _, r in { { -30, -12, 7 }, { -18, 16, 5 }, { -8, -20, 4 } } do
-		ellipsoid(Vector3.new(r[3] * 1.5, r[3], r[3] * 1.2), cf * CFrame.new(r[1], r[3] * 0.35, r[2]), rgb(110, 110, 105), M.Rock)
+		ellipsoid(
+			Vector3.new(r[3] * 1.5, r[3], r[3] * 1.2),
+			cf * CFrame.new(r[1], r[3] * 0.35, r[2]),
+			rgb(110, 110, 105),
+			M.Rock
+		)
 		vcyl(0.4, r[3] * 3, cf * CFrame.new(r[1], 0.4, r[2]), rgb(90, 140, 70), M.Grass)
 	end
 	vcyl(0.8, 44, cf * CFrame.new(22, 0.3, 0), rgb(60, 130, 150), M.Glass)
 	for k = 0, 5 do
 		local a = k / 6 * PI * 2
-		ellipsoid(Vector3.new(4, 1.6, 3), cf * CFrame.new(22 + math.cos(a) * 22, 0.8, math.sin(a) * 22), rgb(120, 120, 115), M.Rock)
+		ellipsoid(
+			Vector3.new(4, 1.6, 3),
+			cf * CFrame.new(22 + math.cos(a) * 22, 0.8, math.sin(a) * 22),
+			rgb(120, 120, 115),
+			M.Rock
+		)
 	end
 	-- red arched bridge
 	for k = -2, 2 do
-		box(Vector3.new(6, 0.8, 5), cf * CFrame.new(22, 3.6 - math.abs(k) * 1.2, k * 4.6) * CFrame.Angles(math.rad(k * 14), 0, 0), rgb(200, 40, 40), M.WoodPlanks)
+		box(
+			Vector3.new(6, 0.8, 5),
+			cf * CFrame.new(22, 3.6 - math.abs(k) * 1.2, k * 4.6) * CFrame.Angles(math.rad(k * 14), 0, 0),
+			rgb(200, 40, 40),
+			M.WoodPlanks
+		)
 	end
 	-- koi
 	for k = 1, 6 do
 		local base = CFrame.new(0, -450 - k * 5, 0)
-		local fish = { ellipsoid(Vector3.new(1, 0.6, 2.8), base, pick({ rgb(255, 120, 30), rgb(250, 250, 250), rgb(255, 80, 40) }), M.SmoothPlastic) }
-		circler(fish, base, (cf * CFrame.new(22, 0.6, 0)).Position, rnd(6, 16), rnd(3, 6) * (if k % 2 == 0 then 1 else -1), rnd(0, 6))
+		local fish = {
+			ellipsoid(
+				Vector3.new(1, 0.6, 2.8),
+				base,
+				pick({ rgb(255, 120, 30), rgb(250, 250, 250), rgb(255, 80, 40) }),
+				M.SmoothPlastic
+			),
+		}
+		circler(
+			fish,
+			base,
+			(cf * CFrame.new(22, 0.6, 0)).Position,
+			rnd(6, 16),
+			rnd(3, 6) * (if k % 2 == 0 then 1 else -1),
+			rnd(0, 6)
+		)
 	end
 	tree(cf * CFrame.new(38, 0, -24), 1.1, rgb(255, 175, 205))
 	tree(cf * CFrame.new(-40, 0, 26), 1, rgb(210, 70, 40))
@@ -909,11 +1207,21 @@ def("sail_tower", 60, "near", function(cf)
 	box(Vector3.new(26, 120, 26), cf * CFrame.new(0, 60, 0), rgb(236, 230, 218), M.Concrete)
 	for f = 1, 11 do
 		local lit = X.Th.Night and f % 2 == 0
-		box(Vector3.new(26.6, 3, 26.6), cf * CFrame.new(0, f * 10, 0), if lit then rgb(255, 226, 170) else rgb(70, 100, 130), if lit then M.Neon else M.Glass)
+		box(
+			Vector3.new(26.6, 3, 26.6),
+			cf * CFrame.new(0, f * 10, 0),
+			if lit then rgb(255, 226, 170) else rgb(70, 100, 130),
+			if lit then M.Neon else M.Glass
+		)
 	end
 	for k = 0, 9 do
 		local a = (k - 4.5) * 0.16
-		box(Vector3.new(4, 1, 70), cf * CFrame.new(0, 124, 0) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(10), 0, 0), rgb(248, 248, 250), M.Fabric)
+		box(
+			Vector3.new(4, 1, 70),
+			cf * CFrame.new(0, 124, 0) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(10), 0, 0),
+			rgb(248, 248, 250),
+			M.Fabric
+		)
 	end
 	local top = box(Vector3.new(30, 2, 30), cf * CFrame.new(0, 121, 0), X.Th.Accent, M.Neon)
 	light(top, rgb(255, 240, 220), 70, 2)
@@ -925,7 +1233,10 @@ def("oasis", 60, "near", function(cf)
 	vcyl(0.5, 60, cf * CFrame.new(0, 0.15, 0), rgb(120, 160, 80), M.Grass)
 	for k = 0, 9 do
 		local a = k / 10 * PI * 2 + rnd(-0.2, 0.2)
-		palm(cf * CFrame.new(math.cos(a) * rnd(28, 36), 0, math.sin(a) * rnd(28, 36)) * CFrame.Angles(0, rnd(0, 6), 0), rnd(0.9, 1.3))
+		palm(
+			cf * CFrame.new(math.cos(a) * rnd(28, 36), 0, math.sin(a) * rnd(28, 36)) * CFrame.Angles(0, rnd(0, 6), 0),
+			rnd(0.9, 1.3)
+		)
 	end
 	for k = 0, 2 do
 		local t = cf * CFrame.Angles(0, k * 2.1 + 0.5, 0) * CFrame.new(0, 0, -48)
@@ -944,8 +1255,21 @@ def("camels", 60, "near", function(cf)
 	local centre = cf.Position
 	for k = 1, 5 do
 		local base = CFrame.new(0, -420 - k * 20, 0)
-		local parts = animal(base, 1.25, rgb(200, 160, 105), { hump = true, neck = 2.6, legs = 4.6, len = 6, height = 2.6, width = 2.4 })
-		table.insert(parts, box(Vector3.new(2.8, 0.6, 3), base * CFrame.new(0, 10.8, 1.2), pick({ rgb(200, 40, 40), rgb(40, 90, 180), rgb(230, 170, 40) }), M.Fabric))
+		local parts = animal(
+			base,
+			1.25,
+			rgb(200, 160, 105),
+			{ hump = true, neck = 2.6, legs = 4.6, len = 6, height = 2.6, width = 2.4 }
+		)
+		table.insert(
+			parts,
+			box(
+				Vector3.new(2.8, 0.6, 3),
+				base * CFrame.new(0, 10.8, 1.2),
+				pick({ rgb(200, 40, 40), rgb(40, 90, 180), rgb(230, 170, 40) }),
+				M.Fabric
+			)
+		)
 		mover(parts, base, function(now)
 			local a = now * 0.12 + k * 0.32
 			local p = centre + Vector3.new(math.cos(a) * 40, 0, math.sin(a) * 40)
@@ -965,7 +1289,8 @@ def("fountain_jet", 40, "sea", function(cf)
 	local top
 	for k = 0, 9 do
 		local d = 3 + k * 0.9
-		local seg = vcyl(30, d, cf * CFrame.new(0, 15 + k * 30, 0), rgb(235, 245, 255), if X.Th.Night then M.Neon else M.Glass)
+		local seg =
+			vcyl(30, d, cf * CFrame.new(0, 15 + k * 30, 0), rgb(235, 245, 255), if X.Th.Night then M.Neon else M.Glass)
 		seg.Transparency = 0.25 + k * 0.05
 		top = seg
 	end
@@ -987,9 +1312,21 @@ def("dhows", 60, "sea", function(cf)
 			wedge(Vector3.new(6, 4, 6), base * CFrame.new(0, 2, -13) * CFrame.Angles(0, PI, 0), wood, M.WoodPlanks),
 			wedge(Vector3.new(6, 3, 3), base * CFrame.new(0, 3.5, 11.5), wood, M.WoodPlanks),
 			box(Vector3.new(0.5, 20, 0.5), base * CFrame.new(0, 13, -2), rgb(90, 60, 35), M.Wood),
-			wedge(Vector3.new(0.2, 16, 14), base * CFrame.new(0, 13, 3) * CFrame.Angles(0, PI, 0), rgb(245, 238, 220), M.Fabric),
+			wedge(
+				Vector3.new(0.2, 16, 14),
+				base * CFrame.new(0, 13, 3) * CFrame.Angles(0, PI, 0),
+				rgb(245, 238, 220),
+				M.Fabric
+			),
 		}
-		circler(parts, base, cf.Position + Vector3.new(rnd(-120, 120), 0.6, rnd(-60, 120)), rnd(60, 130), rnd(5, 9) * (if k % 2 == 0 then 1 else -1), rnd(0, 6))
+		circler(
+			parts,
+			base,
+			cf.Position + Vector3.new(rnd(-120, 120), 0.6, rnd(-60, 120)),
+			rnd(60, 130),
+			rnd(5, 9) * (if k % 2 == 0 then 1 else -1),
+			rnd(0, 6)
+		)
 	end
 end)
 
@@ -997,7 +1334,8 @@ named("flagpole", "Giant flagpole")
 def("flagpole", 50, "near", function(cf)
 	vcyl(2, 40, cf * CFrame.new(0, 1, 0), rgb(220, 215, 205), M.Marble)
 	vcyl(200, 3, cf * CFrame.new(0, 100, 0), rgb(225, 225, 230), M.Metal)
-	local flag = box(Vector3.new(0.4, 40, 64), cf * CFrame.new(0, 178, 32), X.Th.Accent:Lerp(rgb(0, 110, 60), 0.6), M.Fabric)
+	local flag =
+		box(Vector3.new(0.4, 40, 64), cf * CFrame.new(0, 178, 32), X.Th.Accent:Lerp(rgb(0, 110, 60), 0.6), M.Fabric)
 	local band = box(Vector3.new(0.5, 4, 40), cf * CFrame.new(0, 172, 34), rgb(250, 250, 250), M.Fabric)
 	local pivot = cf * CFrame.new(0, 178, 0)
 	local fb, bb = pivot:ToObjectSpace(flag.CFrame), pivot:ToObjectSpace(band.CFrame)
@@ -1007,7 +1345,12 @@ def("flagpole", 50, "near", function(cf)
 	local _ = fb and bb
 	if X.Th.Night then
 		for k = 0, 3 do
-			local l = box(Vector3.new(2, 2, 2), cf * CFrame.Angles(0, k * PI / 2, 0) * CFrame.new(0, 2.5, -18), rgb(255, 250, 230), M.Neon)
+			local l = box(
+				Vector3.new(2, 2, 2),
+				cf * CFrame.Angles(0, k * PI / 2, 0) * CFrame.new(0, 2.5, -18),
+				rgb(255, 250, 230),
+				M.Neon
+			)
 			if k == 0 then
 				light(l, rgb(255, 250, 230), 60, 2)
 			end
@@ -1020,7 +1363,14 @@ end)
 ---------------------------------------------------------------------------
 named("lifeguards", "Lifeguard towers & beach")
 def("lifeguards", 220, "shore", function(cf)
-	local pastel = { rgb(255, 140, 170), rgb(90, 210, 220), rgb(255, 220, 90), rgb(160, 230, 140), rgb(200, 150, 255), rgb(255, 170, 90) }
+	local pastel = {
+		rgb(255, 140, 170),
+		rgb(90, 210, 220),
+		rgb(255, 220, 90),
+		rgb(160, 230, 140),
+		rgb(200, 150, 255),
+		rgb(255, 170, 90),
+	}
 	for k = -3, 3 do
 		local h = cf * CFrame.new(k * 60, 0, 10) * CFrame.Angles(0, PI, 0)
 		for _, o in { { -3, -3 }, { 3, -3 }, { -3, 3 }, { 3, 3 } } do
@@ -1030,7 +1380,12 @@ def("lifeguards", 220, "shore", function(cf)
 		box(Vector3.new(9, 6, 8), h * CFrame.new(0, 11, 0), col)
 		box(Vector3.new(9.2, 2, 8.2), h * CFrame.new(0, 11, 0), rgb(250, 250, 250))
 		wedge(Vector3.new(10, 2.5, 9), h * CFrame.new(0, 15.3, 0), col:Lerp(Color3.new(0, 0, 0), 0.2))
-		box(Vector3.new(3, 0.4, 10), h * CFrame.new(0, 4, -8) * CFrame.Angles(math.rad(30), 0, 0), rgb(240, 240, 240), M.WoodPlanks)
+		box(
+			Vector3.new(3, 0.4, 10),
+			h * CFrame.new(0, 4, -8) * CFrame.Angles(math.rad(30), 0, 0),
+			rgb(240, 240, 240),
+			M.WoodPlanks
+		)
 		for _ = 1, 3 do
 			local u = h * CFrame.new(rnd(-25, 25), 0, rnd(-18, 18))
 			box(Vector3.new(0.3, 7, 0.3), u * CFrame.new(0, 3.5, 0), rgb(230, 230, 230))
@@ -1048,7 +1403,14 @@ end)
 
 named("deco_row", "Art-deco hotel row")
 def("deco_row", 160, "near", function(cf)
-	local pastel = { rgb(255, 180, 190), rgb(150, 225, 225), rgb(255, 235, 160), rgb(210, 180, 255), rgb(255, 205, 160), rgb(250, 250, 245) }
+	local pastel = {
+		rgb(255, 180, 190),
+		rgb(150, 225, 225),
+		rgb(255, 235, 160),
+		rgb(210, 180, 255),
+		rgb(255, 205, 160),
+		rgb(250, 250, 245),
+	}
 	for k = -2, 3 do
 		local h = cf * CFrame.new(k * 48 - 24, 0, 0)
 		local c = pastel[(k + 2) % #pastel + 1]
@@ -1060,7 +1422,12 @@ def("deco_row", 160, "near", function(cf)
 		end
 		vcyl(ht, 10, h * CFrame.new(19, ht / 2, -8), c:Lerp(Color3.new(1, 1, 1), 0.3), M.Plaster)
 		local fin = box(Vector3.new(3, 16, 1.4), h * CFrame.new(0, ht + 8, -12), c, M.Plaster)
-		local neon = box(Vector3.new(3.4, ht * 0.8, 1), h * CFrame.new(12, ht * 0.5, -13.2), Color3.fromHSV(rnd(0, 1), 0.7, 1), if X.Th.Night then M.Neon else M.SmoothPlastic)
+		local neon = box(
+			Vector3.new(3.4, ht * 0.8, 1),
+			h * CFrame.new(12, ht * 0.5, -13.2),
+			Color3.fromHSV(rnd(0, 1), 0.7, 1),
+			if X.Th.Night then M.Neon else M.SmoothPlastic
+		)
 		box(Vector3.new(24, 6, 1), h * CFrame.new(0, ht + 3, -12.6), c:Lerp(Color3.new(1, 1, 1), 0.5), M.Plaster)
 		local _ = fin and neon
 		box(Vector3.new(36, 0.8, 10), h * CFrame.new(0, 4.4, -18), c:Lerp(Color3.new(0, 0, 0), 0.1), M.Fabric)
@@ -1094,7 +1461,13 @@ def("biosphere", 60, "near", function(cf)
 		local rr = math.sqrt(math.max(0, r * r - y * y))
 		for k = 0, segs - 1 do
 			local a0, a1 = k / segs * PI * 2, (k + 1) / segs * PI * 2
-			beam((c * CFrame.new(math.cos(a0) * rr, y, math.sin(a0) * rr)).Position, (c * CFrame.new(math.cos(a1) * rr, y, math.sin(a1) * rr)).Position, 0.9, rgb(225, 228, 235), M.Metal)
+			beam(
+				(c * CFrame.new(math.cos(a0) * rr, y, math.sin(a0) * rr)).Position,
+				(c * CFrame.new(math.cos(a1) * rr, y, math.sin(a1) * rr)).Position,
+				0.9,
+				rgb(225, 228, 235),
+				M.Metal
+			)
 		end
 	end
 end)
@@ -1110,14 +1483,25 @@ def("inclined_tower", 110, "near", function(cf)
 		local seg = (nxt.Position - p.Position).Magnitude
 		local look = CFrame.lookAt(p.Position, nxt.Position)
 		box(Vector3.new(14, 18, seg + 1), look * CFrame.new(0, 9, -seg / 2), rgb(225, 225, 228), M.Concrete)
-		wedge(Vector3.new(10, 8, seg + 1), look * CFrame.new(0, 22, -seg / 2) * CFrame.Angles(0, PI / 2, 0), rgb(235, 235, 238), M.Concrete)
+		wedge(
+			Vector3.new(10, 8, seg + 1),
+			look * CFrame.new(0, 22, -seg / 2) * CFrame.Angles(0, PI / 2, 0),
+			rgb(235, 235, 238),
+			M.Concrete
+		)
 	end
 	local foot = cf * CFrame.new(70, 0, 0)
 	local t = foot * CFrame.Angles(0, 0, math.rad(45)) * CFrame.new(0, 90, 0)
 	box(Vector3.new(16, 190, 20), t, rgb(230, 230, 232), M.Concrete)
 	box(Vector3.new(26, 20, 26), t * CFrame.new(0, 100, 0), rgb(70, 100, 130), M.Glass)
 	for k = 1, 4 do
-		beam((t * CFrame.new(0, -95 + k * 40, 0)).Position, (cf * CFrame.new(-10 + k * 6, 22, 0)).Position, 0.4, rgb(60, 60, 64), M.Metal)
+		beam(
+			(t * CFrame.new(0, -95 + k * 40, 0)).Position,
+			(cf * CFrame.new(-10 + k * 6, 22, 0)).Position,
+			0.4,
+			rgb(60, 60, 64),
+			M.Metal
+		)
 	end
 end)
 
@@ -1128,7 +1512,12 @@ named("rock_palace", "Palace on the rock")
 def("rock_palace", 110, "near", function(cf)
 	local rock = rgb(150, 138, 118)
 	for k = 0, 6 do
-		ellipsoid(Vector3.new(rnd(90, 150), rnd(40, 70), rnd(70, 120)), cf * CFrame.new(rnd(-40, 40), rnd(5, 20), rnd(-30, 30)) * CFrame.Angles(0, rnd(0, 3), 0), rock:Lerp(rgb(110, 100, 90), rnd(0, 0.5)), M.Rock)
+		ellipsoid(
+			Vector3.new(rnd(90, 150), rnd(40, 70), rnd(70, 120)),
+			cf * CFrame.new(rnd(-40, 40), rnd(5, 20), rnd(-30, 30)) * CFrame.Angles(0, rnd(0, 3), 0),
+			rock:Lerp(rgb(110, 100, 90), rnd(0, 0.5)),
+			M.Rock
+		)
 	end
 	box(Vector3.new(160, 50, 110), cf * CFrame.new(0, 25, 0), rock, M.Rock)
 	local top = cf * CFrame.new(0, 50, 0)
@@ -1141,7 +1530,12 @@ def("rock_palace", 110, "near", function(cf)
 		box(Vector3.new(14, 32, 14), top * CFrame.new(side * 44, 16, 0), cream, M.Plaster)
 		box(Vector3.new(16, 2, 16), top * CFrame.new(side * 44, 33, 0), rgb(200, 90, 70), M.Slate)
 		box(Vector3.new(0.4, 10, 0.4), top * CFrame.new(side * 44, 39, 0), rgb(220, 220, 220), M.Metal)
-		box(Vector3.new(0.2, 3, 5), top * CFrame.new(side * 44, 42.5, 2.6), if side < 0 then rgb(220, 30, 40) else rgb(250, 250, 250), M.Fabric)
+		box(
+			Vector3.new(0.2, 3, 5),
+			top * CFrame.new(side * 44, 42.5, 2.6),
+			if side < 0 then rgb(220, 30, 40) else rgb(250, 250, 250),
+			M.Fabric
+		)
 	end
 	for k = -3, 3 do
 		box(Vector3.new(3, 5, 0.4), top * CFrame.new(k * 9, 11, -17.2), rgb(80, 110, 140), M.Glass)
@@ -1193,7 +1587,12 @@ def("tunnel", 0, "track", function(_, ctx)
 			light(strip, rgb(255, 238, 205), 40, 1.6)
 		end
 		for side = -1, 1, 2 do
-			box(Vector3.new(0.3, 0.8, seg - 0.4), fcf * CFrame.new(side * (half - 1.6), 6, 0), rgb(255, 200, 40), M.Neon)
+			box(
+				Vector3.new(0.3, 0.8, seg - 0.4),
+				fcf * CFrame.new(side * (half - 1.6), 6, 0),
+				rgb(255, 200, 40),
+				M.Neon
+			)
 		end
 		ctx.Occ.add(mid.X, mid.Z, half + 6)
 	end
@@ -1218,7 +1617,12 @@ def("spire_cathedral", 70, "near", function(cf)
 	local stone = rgb(205, 180, 140)
 	box(Vector3.new(90, 44, 40), cf * CFrame.new(0, 22, 0), stone, M.Sandstone)
 	wedge(Vector3.new(90, 16, 20), cf * CFrame.new(0, 52, -10), stone:Lerp(rgb(150, 130, 100), 0.3), M.Sandstone)
-	wedge(Vector3.new(90, 16, 20), cf * CFrame.new(0, 52, 10) * CFrame.Angles(0, PI, 0), stone:Lerp(rgb(150, 130, 100), 0.3), M.Sandstone)
+	wedge(
+		Vector3.new(90, 16, 20),
+		cf * CFrame.new(0, 52, 10) * CFrame.Angles(0, PI, 0),
+		stone:Lerp(rgb(150, 130, 100), 0.3),
+		M.Sandstone
+	)
 	local tips = { rgb(230, 60, 50), rgb(250, 200, 40), rgb(60, 160, 90), rgb(60, 120, 220) }
 	for k = 0, 3 do
 		local x = -30 + k * 20
@@ -1250,7 +1654,12 @@ def("bullring", 70, "near", function(cf)
 		box(Vector3.new(seg, 20, 3), w * CFrame.new(0, 10, -6), rgb(240, 225, 195), M.Plaster)
 		box(Vector3.new(4, 9, 3.2), w * CFrame.new(0, 7, -6), rgb(180, 60, 40), M.Brick)
 		for row = 0, 3 do
-			box(Vector3.new(seg - 1, 2, 4), w * CFrame.new(0, 3 + row * 3.6, -1 + row * 1.2) * CFrame.new(0, 0, 0), if row % 2 == 0 then rgb(200, 40, 40) else rgb(250, 200, 50), M.Concrete)
+			box(
+				Vector3.new(seg - 1, 2, 4),
+				w * CFrame.new(0, 3 + row * 3.6, -1 + row * 1.2) * CFrame.new(0, 0, 0),
+				if row % 2 == 0 then rgb(200, 40, 40) else rgb(250, 200, 50),
+				M.Concrete
+			)
 		end
 	end
 	vcyl(0.4, r * 1.8, cf * CFrame.new(0, 0.2, 0), rgb(225, 190, 120), M.Sand)
@@ -1290,13 +1699,38 @@ def("bull_statue", 45, "near", function(cf)
 	local b = cf * CFrame.new(0, 6, 0) * CFrame.Angles(0, PI / 2, 0)
 	ellipsoid(Vector3.new(10, 11, 22) * s, b * CFrame.new(0, 14 * s, 0), bronze, M.Metal)
 	ellipsoid(Vector3.new(11, 12, 10) * s, b * CFrame.new(0, 16 * s, -6 * s), bronze, M.Metal)
-	box(Vector3.new(6, 6, 8) * s, b * CFrame.new(0, 12 * s, -15 * s) * CFrame.Angles(math.rad(30), 0, 0), bronze, M.Metal)
+	box(
+		Vector3.new(6, 6, 8) * s,
+		b * CFrame.new(0, 12 * s, -15 * s) * CFrame.Angles(math.rad(30), 0, 0),
+		bronze,
+		M.Metal
+	)
 	for side = -1, 1, 2 do
-		box(Vector3.new(7, 1.2, 1.2) * s, b * CFrame.new(side * 5 * s, 16 * s, -14 * s) * CFrame.Angles(0, 0, side * math.rad(25)), rgb(230, 220, 200), M.Marble)
-		box(Vector3.new(2.4, 10, 2.4) * s, b * CFrame.new(side * 3 * s, 5 * s, -7 * s) * CFrame.Angles(math.rad(-20), 0, 0), bronze, M.Metal)
-		box(Vector3.new(2.4, 10, 2.4) * s, b * CFrame.new(side * 3 * s, 5 * s, 7 * s) * CFrame.Angles(math.rad(25), 0, 0), bronze, M.Metal)
+		box(
+			Vector3.new(7, 1.2, 1.2) * s,
+			b * CFrame.new(side * 5 * s, 16 * s, -14 * s) * CFrame.Angles(0, 0, side * math.rad(25)),
+			rgb(230, 220, 200),
+			M.Marble
+		)
+		box(
+			Vector3.new(2.4, 10, 2.4) * s,
+			b * CFrame.new(side * 3 * s, 5 * s, -7 * s) * CFrame.Angles(math.rad(-20), 0, 0),
+			bronze,
+			M.Metal
+		)
+		box(
+			Vector3.new(2.4, 10, 2.4) * s,
+			b * CFrame.new(side * 3 * s, 5 * s, 7 * s) * CFrame.Angles(math.rad(25), 0, 0),
+			bronze,
+			M.Metal
+		)
 	end
-	box(Vector3.new(0.8, 0.8, 9) * s, b * CFrame.new(0, 17 * s, 13 * s) * CFrame.Angles(math.rad(40), 0, 0), bronze, M.Metal)
+	box(
+		Vector3.new(0.8, 0.8, 9) * s,
+		b * CFrame.new(0, 17 * s, 13 * s) * CFrame.Angles(math.rad(40), 0, 0),
+		bronze,
+		M.Metal
+	)
 end)
 
 named("cable_car", "Mountain cable car")
@@ -1318,7 +1752,12 @@ def("cable_car", 170, "near", function(cf)
 	for k = 1, 3 do
 		local p = a:Lerp(b, k / 4)
 		box(Vector3.new(3, p.Y, 3), CFrame.new(p.X, p.Y / 2, p.Z), rgb(120, 125, 130), M.Metal)
-		box(Vector3.new(3, 1.2, 12), CFrame.lookAt(p, p + cf.LookVector) * CFrame.new(0, 1, 0), rgb(120, 125, 130), M.Metal)
+		box(
+			Vector3.new(3, 1.2, 12),
+			CFrame.lookAt(p, p + cf.LookVector) * CFrame.new(0, 1, 0),
+			rgb(120, 125, 130),
+			M.Metal
+		)
 	end
 	for k = 1, 4 do
 		local base = CFrame.new(0, -520 - k * 20, 0)
@@ -1411,7 +1850,10 @@ def("airfield", 220, "near", function(cf)
 	vcyl(12, 0.4, ws * CFrame.new(0, 6, 0), rgb(220, 220, 220), M.Metal)
 	box(Vector3.new(1.6, 1.6, 6), ws * CFrame.new(0, 11, 3), rgb(255, 120, 20), M.Fabric)
 	for k = 0, 3 do
-		propPlane(cf * CFrame.new(-60 + k * 40, 0, -62) * CFrame.Angles(0, PI, 0), pick({ rgb(200, 200, 205), rgb(220, 40, 40), rgb(40, 80, 150), rgb(240, 200, 40) }))
+		propPlane(
+			cf * CFrame.new(-60 + k * 40, 0, -62) * CFrame.Angles(0, PI, 0),
+			pick({ rgb(200, 200, 205), rgb(220, 40, 40), rgb(40, 80, 150), rgb(240, 200, 40) })
+		)
 	end
 end)
 
@@ -1474,7 +1916,12 @@ def("abbey", 70, "near", function(cf)
 	wedge(Vector3.new(40, 12, 4), cf * CFrame.new(0, 36, -50), s, M.Cobblestone)
 	box(Vector3.new(16, 42, 16), cf * CFrame.new(-28, 21, 44), s, M.Cobblestone)
 	for _ = 1, 10 do
-		box(Vector3.new(rnd(2, 5), rnd(1, 3), rnd(2, 5)), cf * CFrame.new(rnd(-30, 30), 0.8, rnd(-50, 50)) * CFrame.Angles(rnd(0, 1), rnd(0, 3), rnd(0, 1)), s, M.Cobblestone)
+		box(
+			Vector3.new(rnd(2, 5), rnd(1, 3), rnd(2, 5)),
+			cf * CFrame.new(rnd(-30, 30), 0.8, rnd(-50, 50)) * CFrame.Angles(rnd(0, 1), rnd(0, 3), rnd(0, 1)),
+			s,
+			M.Cobblestone
+		)
 	end
 	box(Vector3.new(34, 0.3, 100), cf * CFrame.new(0, 0.15, 0), rgb(90, 150, 70), M.Grass)
 end)
@@ -1496,7 +1943,15 @@ def("river", 200, "near", function(cf)
 	-- stone bridge over the middle
 	local mid = CFrame.lookAt(pts[12], pts[13])
 	for k = -3, 3 do
-		box(Vector3.new(44, 1.6, 8), mid * CFrame.Angles(0, PI / 2, 0) * CFrame.new(k * 6.2, 4 - math.abs(k) * 1, 0) * CFrame.Angles(0, 0, math.rad(k * 5)), rgb(150, 140, 125), M.Cobblestone)
+		box(
+			Vector3.new(44, 1.6, 8),
+			mid
+				* CFrame.Angles(0, PI / 2, 0)
+				* CFrame.new(k * 6.2, 4 - math.abs(k) * 1, 0)
+				* CFrame.Angles(0, 0, math.rad(k * 5)),
+			rgb(150, 140, 125),
+			M.Cobblestone
+		)
 	end
 	-- watermill
 	local mill = CFrame.new(pts[6]) * CFrame.new(24, 0, 0)
@@ -1512,7 +1967,15 @@ named("deer", "Grazing deer")
 def("deer", 45, "near", function(cf)
 	for k = 1, 6 do
 		local dcf = cf * CFrame.new(rnd(-30, 30), 0, rnd(-30, 30)) * CFrame.Angles(0, rnd(0, 6.28), 0)
-		local parts = animal(dcf, 0.9, rgb(150, 100, 60), { legs = 3.6, len = 4.4, height = 2, width = 1.6, neck = 2, horns = if k % 2 == 0 then rgb(200, 180, 150) else nil, hornSpan = 2 })
+		local parts = animal(dcf, 0.9, rgb(150, 100, 60), {
+			legs = 3.6,
+			len = 4.4,
+			height = 2,
+			width = 1.6,
+			neck = 2,
+			horns = if k % 2 == 0 then rgb(200, 180, 150) else nil,
+			hornSpan = 2,
+		})
 		local _ = parts
 	end
 end)
@@ -1531,7 +1994,13 @@ def("lodge", 40, "near", function(cf)
 	local chim = box(Vector3.new(4, 12, 4), cf * CFrame.new(12, 26, 4), rgb(120, 115, 110), M.Cobblestone)
 	smoke(chim, rgb(200, 200, 205), 3, 12, 2, 5)
 	for k = 0, 5 do
-		hcyl(8, 1.8, cf * CFrame.new(-24, 0.9 + (k % 3) * 1.7, -8 + (k // 3) * 2) * CFrame.Angles(0, PI / 2, 0), log, M.Wood)
+		hcyl(
+			8,
+			1.8,
+			cf * CFrame.new(-24, 0.9 + (k % 3) * 1.7, -8 + (k // 3) * 2) * CFrame.Angles(0, PI / 2, 0),
+			log,
+			M.Wood
+		)
 	end
 end)
 
@@ -1633,13 +2102,23 @@ def("canal", 160, "near", function(cf)
 	end
 	for k = -2, 2 do
 		local hb = cf * CFrame.new(k * 55 + 20, 0, if k % 2 == 0 then -7 else 7)
-		box(Vector3.new(34, 3, 8), hb * CFrame.new(0, 1.5, 0), pick({ rgb(40, 90, 60), rgb(40, 60, 110), rgb(120, 40, 40) }), M.WoodPlanks)
+		box(
+			Vector3.new(34, 3, 8),
+			hb * CFrame.new(0, 1.5, 0),
+			pick({ rgb(40, 90, 60), rgb(40, 60, 110), rgb(120, 40, 40) }),
+			M.WoodPlanks
+		)
 		box(Vector3.new(24, 5, 7), hb * CFrame.new(-3, 5, 0), rgb(240, 236, 226), M.WoodPlanks)
 		box(Vector3.new(2, 2, 2), hb * CFrame.new(10, 4, 0), rgb(220, 60, 90), M.LeafyGrass)
 	end
 	for _, x in { -100, 100 } do
 		for k = -2, 2 do
-			box(Vector3.new(8, 1.2, 8), cf * CFrame.new(x, 3.2 - math.abs(k) * 0.9, k * 7.8) * CFrame.Angles(math.rad(-k * 8), 0, 0), rgb(150, 80, 60), M.Brick)
+			box(
+				Vector3.new(8, 1.2, 8),
+				cf * CFrame.new(x, 3.2 - math.abs(k) * 0.9, k * 7.8) * CFrame.Angles(math.rad(-k * 8), 0, 0),
+				rgb(150, 80, 60),
+				M.Brick
+			)
 		end
 	end
 end)
@@ -1660,9 +2139,19 @@ def("bike_park", 40, "near", function(cf)
 		local s = cf * CFrame.new(-24 + k * 16, 0, 12)
 		box(Vector3.new(12, 3, 6), s * CFrame.new(0, 1.5, 0), rgb(120, 80, 50), M.WoodPlanks)
 		for m = -2, 2 do
-			box(Vector3.new(2, 1.4, 5), s * CFrame.new(m * 2.3, 3.6, 0), Color3.fromHSV(rnd(0, 1), 0.8, 1), M.LeafyGrass)
+			box(
+				Vector3.new(2, 1.4, 5),
+				s * CFrame.new(m * 2.3, 3.6, 0),
+				Color3.fromHSV(rnd(0, 1), 0.8, 1),
+				M.LeafyGrass
+			)
 		end
-		wedge(Vector3.new(13, 3, 7), s * CFrame.new(0, 8, 0), pick({ rgb(255, 120, 0), rgb(250, 250, 250), rgb(40, 90, 180) }), M.Fabric)
+		wedge(
+			Vector3.new(13, 3, 7),
+			s * CFrame.new(0, 8, 0),
+			pick({ rgb(255, 120, 0), rgb(250, 250, 250), rgb(40, 90, 180) }),
+			M.Fabric
+		)
 		for side = -1, 1, 2 do
 			box(Vector3.new(0.3, 6.5, 0.3), s * CFrame.new(side * 6, 3.25, -3), rgb(80, 80, 80), M.Metal)
 		end
@@ -1684,7 +2173,12 @@ def("old_banking", 150, "near", function(cf)
 		local nxt = -PI / 2 + (k + 1) / (n - 1) * PI
 		local seg = 2 * r * math.sin((nxt - a) / 2) + 2
 		local b = cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -r)
-		box(Vector3.new(seg, 1.6, 26), b * CFrame.new(0, 9, 0) * CFrame.Angles(math.rad(38), 0, 0), rgb(175, 172, 165), M.Concrete)
+		box(
+			Vector3.new(seg, 1.6, 26),
+			b * CFrame.new(0, 9, 0) * CFrame.Angles(math.rad(38), 0, 0),
+			rgb(175, 172, 165),
+			M.Concrete
+		)
 		box(Vector3.new(seg, 16, 3), b * CFrame.new(0, 8, -12), rgb(160, 156, 150), M.Concrete)
 		box(Vector3.new(seg, 1.4, 0.6), b * CFrame.new(0, 17.5, -11), rgb(205, 210, 215), M.Metal)
 		if k % 3 == 0 then
@@ -1706,13 +2200,26 @@ def("duomo", 80, "near", function(cf)
 	ellipsoid(Vector3.new(42, 50, 42), cf * CFrame.new(28, 54, 0), red, M.Brick)
 	for k = 0, 7 do
 		local a = k / 8 * PI * 2
-		box(Vector3.new(1.2, 22, 1.2), cf * CFrame.new(28 + math.cos(a) * 17, 64, math.sin(a) * 17) * CFrame.Angles(0, -a, 0) * CFrame.Angles(0, 0, 0), white, M.Marble)
+		box(
+			Vector3.new(1.2, 22, 1.2),
+			cf
+				* CFrame.new(28 + math.cos(a) * 17, 64, math.sin(a) * 17)
+				* CFrame.Angles(0, -a, 0)
+				* CFrame.Angles(0, 0, 0),
+			white,
+			M.Marble
+		)
 	end
 	vcyl(10, 8, cf * CFrame.new(28, 84, 0), white, M.Marble)
 	ball(4, cf * CFrame.new(28, 91, 0), rgb(230, 190, 70), M.Metal)
 	box(Vector3.new(14, 90, 14), cf * CFrame.new(-44, 45, 16), white, M.Marble)
 	for k = 0, 5 do
-		box(Vector3.new(14.4, 3, 14.4), cf * CFrame.new(-44, 10 + k * 14, 16), if k % 2 == 0 then green else red, M.Marble)
+		box(
+			Vector3.new(14.4, 3, 14.4),
+			cf * CFrame.new(-44, 10 + k * 14, 16),
+			if k % 2 == 0 then green else red,
+			M.Marble
+		)
 	end
 	box(Vector3.new(16, 3, 16), cf * CFrame.new(-44, 91.5, 16), white, M.Marble)
 	vcyl(0.3, 1, cf, white)
@@ -1733,7 +2240,12 @@ def("leaning_towers", 100, "near", function(cf)
 		for k = -7, 7 do
 			box(Vector3.new(34.6, 1.4, 34.6), t * CFrame.new(0, k * 10, 0), rgb(200, 205, 210), M.Metal)
 		end
-		box(Vector3.new(36, 6, 36), t * CFrame.new(0, 83, 0), rgb(230, 40, 40), if X.Th.Night then M.Neon else M.SmoothPlastic)
+		box(
+			Vector3.new(36, 6, 36),
+			t * CFrame.new(0, 83, 0),
+			rgb(230, 40, 40),
+			if X.Th.Night then M.Neon else M.SmoothPlastic
+		)
 	end
 	box(Vector3.new(160, 1, 60), cf * CFrame.new(0, 0.5, 0), rgb(180, 180, 182), M.Pavement)
 	vcyl(40, 10, cf * CFrame.new(0, 20, 0), rgb(230, 190, 60), M.Metal)
@@ -1754,7 +2266,12 @@ def("triumph_arch", 45, "near", function(cf)
 	vcyl(1, 90, cf * CFrame.new(0, 0.5, 0), rgb(90, 150, 70), M.Grass)
 	for k = 0, 11 do
 		local a = k / 12 * PI * 2
-		box(Vector3.new(2, 1.2, 2), cf * CFrame.new(math.cos(a) * 40, 1.2, math.sin(a) * 40), Color3.fromHSV(k / 12, 0.7, 1), M.LeafyGrass)
+		box(
+			Vector3.new(2, 1.2, 2),
+			cf * CFrame.new(math.cos(a) * 40, 1.2, math.sin(a) * 40),
+			Color3.fromHSV(k / 12, 0.7, 1),
+			M.LeafyGrass
+		)
 	end
 end)
 
@@ -1785,15 +2302,30 @@ def("flame_towers", 110, "near", function(cf)
 		for f = 0, 7 do
 			local w = 44 - f * 4.5
 			local seg = h / 8
-			box(Vector3.new(w, seg + 0.2, w * 0.8), tcf * CFrame.new(0, seg * (f + 0.5), f * 1.5), rgb(70, 110, 150), M.Glass)
+			box(
+				Vector3.new(w, seg + 0.2, w * 0.8),
+				tcf * CFrame.new(0, seg * (f + 0.5), f * 1.5),
+				rgb(70, 110, 150),
+				M.Glass
+			)
 		end
-		local flame = wedge(Vector3.new(14, 40, 20), tcf * CFrame.new(0, h + 16, 12), rgb(255, 120, 30), if X.Th.Night then M.Neon else M.Glass)
+		local flame = wedge(
+			Vector3.new(14, 40, 20),
+			tcf * CFrame.new(0, h + 16, 12),
+			rgb(255, 120, 30),
+			if X.Th.Night then M.Neon else M.Glass
+		)
 		if X.Th.Night then
 			light(flame, rgb(255, 140, 50), 60, 2)
 		end
 		if X.Th.Night then
 			for f = 0, 5 do
-				box(Vector3.new(38 - f * 4, 1.2, 1), tcf * CFrame.new(0, 20 + f * 26, -16 + f * 1.4), Color3.fromHSV(0.05 + f * 0.02, 0.9, 1), M.Neon)
+				box(
+					Vector3.new(38 - f * 4, 1.2, 1),
+					tcf * CFrame.new(0, 20 + f * 26, -16 + f * 1.4),
+					Color3.fromHSV(0.05 + f * 0.02, 0.9, 1),
+					M.Neon
+				)
 			end
 		end
 	end
@@ -1807,10 +2339,20 @@ def("sands_hotel", 130, "near", function(cf)
 	for k = -1, 1 do
 		local t = cf * CFrame.new(k * 56, 0, 0)
 		box(Vector3.new(34, 180, 22), t * CFrame.new(0, 90, -6), rgb(200, 215, 225), M.Glass)
-		box(Vector3.new(34, 180, 16), t * CFrame.new(0, 90, 14) * CFrame.Angles(math.rad(-4), 0, 0), rgb(180, 200, 215), M.Glass)
+		box(
+			Vector3.new(34, 180, 16),
+			t * CFrame.new(0, 90, 14) * CFrame.Angles(math.rad(-4), 0, 0),
+			rgb(180, 200, 215),
+			M.Glass
+		)
 		for f = 1, 17 do
 			local lit = X.Th.Night and (f + k) % 2 == 0
-			box(Vector3.new(34.6, 1.2, 38), t * CFrame.new(0, f * 10, 4), if lit then rgb(255, 226, 170) else rgb(230, 235, 240), if lit then M.Neon else M.Metal)
+			box(
+				Vector3.new(34.6, 1.2, 38),
+				t * CFrame.new(0, f * 10, 4),
+				if lit then rgb(255, 226, 170) else rgb(230, 235, 240),
+				if lit then M.Neon else M.Metal
+			)
 		end
 	end
 	local deck = box(Vector3.new(230, 7, 34), cf * CFrame.new(20, 184, 2), rgb(235, 238, 242), M.SmoothPlastic)
@@ -1828,7 +2370,16 @@ end)
 
 named("supertrees", "Glowing supertrees")
 def("supertrees", 110, "near", function(cf)
-	local spots = { { 0, 0, 90 }, { 40, 20, 70 }, { -40, 16, 76 }, { 20, -40, 60 }, { -28, -36, 56 }, { 60, -14, 50 }, { -64, -8, 52 }, { 6, 52, 58 } }
+	local spots = {
+		{ 0, 0, 90 },
+		{ 40, 20, 70 },
+		{ -40, 16, 76 },
+		{ 20, -40, 60 },
+		{ -28, -36, 56 },
+		{ 60, -14, 50 },
+		{ -64, -8, 52 },
+		{ 6, 52, 58 },
+	}
 	local tops = {}
 	for k, s in spots do
 		local h = s[3]
@@ -1836,12 +2387,31 @@ def("supertrees", 110, "near", function(cf)
 		local steps = 8
 		for f = 0, steps - 1 do
 			local d = 6 + (f / steps) ^ 2 * 14
-			vcyl(h / steps + 0.2, d, t * CFrame.new(0, h / steps * (f + 0.5), 0), rgb(120, 70, 110):Lerp(rgb(60, 110, 70), (f % 2) * 0.4), M.Metal)
+			vcyl(
+				h / steps + 0.2,
+				d,
+				t * CFrame.new(0, h / steps * (f + 0.5), 0),
+				rgb(120, 70, 110):Lerp(rgb(60, 110, 70), (f % 2) * 0.4),
+				M.Metal
+			)
 		end
-		local canopy = vcyl(4, 34, t * CFrame.new(0, h + 2, 0), if X.Th.Night then Color3.fromHSV((k * 0.13) % 1, 0.7, 1) else rgb(130, 90, 140), if X.Th.Night then M.Neon else M.Metal)
+		local canopy = vcyl(
+			4,
+			34,
+			t * CFrame.new(0, h + 2, 0),
+			if X.Th.Night then Color3.fromHSV((k * 0.13) % 1, 0.7, 1) else rgb(130, 90, 140),
+			if X.Th.Night then M.Neon else M.Metal
+		)
 		for m = 0, 7 do
 			local a = m / 8 * PI * 2
-			box(Vector3.new(1, 12, 1), t * CFrame.new(math.cos(a) * 14, h - 5, math.sin(a) * 14) * CFrame.Angles(math.sin(a) * 0.5, 0, -math.cos(a) * 0.5), rgb(60, 130, 70), M.LeafyGrass)
+			box(
+				Vector3.new(1, 12, 1),
+				t
+					* CFrame.new(math.cos(a) * 14, h - 5, math.sin(a) * 14)
+					* CFrame.Angles(math.sin(a) * 0.5, 0, -math.cos(a) * 0.5),
+				rgb(60, 130, 70),
+				M.LeafyGrass
+			)
 		end
 		tops[k] = (t * CFrame.new(0, h * 0.6, 0)).Position
 		if k <= 2 then
@@ -1883,7 +2453,13 @@ def("obs_tower", 45, "near", function(cf)
 	local n = if X.Q >= 3 then 18 else 12
 	for k = 0, n - 1 do
 		local a = k / n * PI * 2
-		beam((cf * CFrame.new(0, 222, 0)).Position, (cf * CFrame.new(math.cos(a) * 44, 120, math.sin(a) * 44)).Position, 1.2, rgb(220, 30, 40), if X.Th.Night then M.Neon else M.SmoothPlastic)
+		beam(
+			(cf * CFrame.new(0, 222, 0)).Position,
+			(cf * CFrame.new(math.cos(a) * 44, 120, math.sin(a) * 44)).Position,
+			1.2,
+			rgb(220, 30, 40),
+			if X.Th.Night then M.Neon else M.SmoothPlastic
+		)
 	end
 	box(Vector3.new(60, 6, 60), cf * CFrame.new(0, 3, 0), rgb(200, 200, 205), M.Concrete)
 end)
@@ -1907,7 +2483,13 @@ def("longhorns", 80, "near", function(cf)
 	-- windpump
 	local wp = cf * CFrame.new(-48, 0, -30)
 	for _, o in { { -2, -2 }, { 2, -2 }, { -2, 2 }, { 2, 2 } } do
-		beam((wp * CFrame.new(o[1] * 2, 0, o[2] * 2)).Position, (wp * CFrame.new(o[1] * 0.3, 30, o[2] * 0.3)).Position, 0.4, rgb(150, 150, 155), M.Metal)
+		beam(
+			(wp * CFrame.new(o[1] * 2, 0, o[2] * 2)).Position,
+			(wp * CFrame.new(o[1] * 0.3, 30, o[2] * 0.3)).Position,
+			0.4,
+			rgb(150, 150, 155),
+			M.Metal
+		)
 	end
 	local fan = hcyl(1, 10, wp * CFrame.new(0, 31, -1) * CFrame.Angles(0, PI / 2, 0), rgb(200, 200, 205), M.Metal)
 	local fb = fan.CFrame
@@ -1925,7 +2507,13 @@ def("rodeo", 70, "near", function(cf)
 		box(Vector3.new(0.8, 6, 0.8), p * CFrame.new(0, 3, 0), rgb(250, 250, 250), M.WoodPlanks)
 		local q = cf * CFrame.new(math.cos(a + PI / 12) * 44, 0, math.sin(a + PI / 12) * 44)
 		for _, y in { 2, 4, 5.6 } do
-			beam(p.Position + Vector3.new(0, y, 0), q.Position + Vector3.new(0, y, 0), 0.4, rgb(250, 250, 250), M.WoodPlanks)
+			beam(
+				p.Position + Vector3.new(0, y, 0),
+				q.Position + Vector3.new(0, y, 0),
+				0.4,
+				rgb(250, 250, 250),
+				M.WoodPlanks
+			)
 		end
 	end
 	for row = 0, 4 do
@@ -1933,16 +2521,26 @@ def("rodeo", 70, "near", function(cf)
 	end
 	for k = 0, 2 do
 		local a = k * 2 * PI / 3
-		vcyl(4, 3, cf * CFrame.new(math.cos(a) * 20, 2, math.sin(a) * 20), pick({ rgb(40, 90, 180), rgb(200, 40, 40), rgb(250, 250, 250) }), M.Metal)
+		vcyl(
+			4,
+			3,
+			cf * CFrame.new(math.cos(a) * 20, 2, math.sin(a) * 20),
+			pick({ rgb(40, 90, 180), rgb(200, 40, 40), rgb(250, 250, 250) }),
+			M.Metal
+		)
 	end
-	local horse = animal(cf * CFrame.new(-10, 0, 0), 1.2, rgb(110, 70, 40), { neck = 2.2, legs = 3.8, len = 5.6, width = 2 })
+	local horse =
+		animal(cf * CFrame.new(-10, 0, 0), 1.2, rgb(110, 70, 40), { neck = 2.2, legs = 3.8, len = 5.6, width = 2 })
 	local base = cf * CFrame.new(-10, 0, 0)
 	table.insert(horse, box(Vector3.new(1.4, 2, 0.8), base * CFrame.new(0, 8.2, 0.4), rgb(40, 90, 170)))
 	table.insert(horse, box(Vector3.new(2.6, 0.5, 2.6), base * CFrame.new(0, 10.4, 0.4), rgb(160, 110, 60)))
 	mover(horse, base, function(now)
 		local a = now * 0.5
 		local p = cf.Position + Vector3.new(math.cos(a) * 26, math.abs(math.sin(now * 5)) * 0.8, math.sin(a) * 26)
-		return CFrame.lookAt(p, cf.Position + Vector3.new(math.cos(a + 0.05) * 26, p.Y - cf.Position.Y, math.sin(a + 0.05) * 26))
+		return CFrame.lookAt(
+			p,
+			cf.Position + Vector3.new(math.cos(a + 0.05) * 26, p.Y - cf.Position.Y, math.sin(a + 0.05) * 26)
+		)
 	end)
 end)
 
@@ -1959,7 +2557,12 @@ def("sun_stone", 35, "near", function(cf)
 	end
 	for k = 0, 15 do
 		local a = k / 16 * PI * 2
-		box(Vector3.new(6.8, 3, 1.6), disc * CFrame.new(0, math.cos(a) * 22, math.sin(a) * 22) * CFrame.Angles(a, 0, 0), rgb(120, 110, 95), M.Basalt)
+		box(
+			Vector3.new(6.8, 3, 1.6),
+			disc * CFrame.new(0, math.cos(a) * 22, math.sin(a) * 22) * CFrame.Angles(a, 0, 0),
+			rgb(120, 110, 95),
+			M.Basalt
+		)
 	end
 	box(Vector3.new(7, 8, 7), disc, rgb(200, 170, 90), M.Basalt)
 end)
@@ -1980,7 +2583,12 @@ def("papel_picado", 60, "near", function(cf)
 		for m = 1, n - 1 do
 			local f = m / n
 			local p = a:Lerp(b, f) - Vector3.new(0, math.sin(f * PI) * 3, 0)
-			box(Vector3.new(0.1, 2.4, 2), CFrame.lookAt(p, p + (b - a)) * CFrame.Angles(0, PI / 2, 0) * CFrame.new(0, -1.2, 0), Color3.fromHSV((m * 0.17) % 1, 0.85, 1), M.Fabric)
+			box(
+				Vector3.new(0.1, 2.4, 2),
+				CFrame.lookAt(p, p + (b - a)) * CFrame.Angles(0, PI / 2, 0) * CFrame.new(0, -1.2, 0),
+				Color3.fromHSV((m * 0.17) % 1, 0.85, 1),
+				M.Fabric
+			)
 		end
 	end
 	for k = 0, 3 do
@@ -2027,7 +2635,10 @@ def("sugarloaf", 320, "far", function(cf)
 	box(Vector3.new(14, 8, 12), CFrame.new(a), rgb(220, 220, 225), M.Concrete)
 	box(Vector3.new(14, 8, 12), CFrame.new(b), rgb(220, 220, 225), M.Concrete)
 	local base = CFrame.new(0, -600, 0)
-	local car = { box(Vector3.new(7, 6, 10), base * CFrame.new(0, -5, 0), rgb(240, 240, 245)), box(Vector3.new(7.2, 2, 10.2), base * CFrame.new(0, -4, 0), rgb(60, 80, 100), M.Glass) }
+	local car = {
+		box(Vector3.new(7, 6, 10), base * CFrame.new(0, -5, 0), rgb(240, 240, 245)),
+		box(Vector3.new(7.2, 2, 10.2), base * CFrame.new(0, -4, 0), rgb(60, 80, 100), M.Glass),
+	}
 	mover(car, base, function(now)
 		local u = (now * 0.02) % 2
 		local f = if u < 1 then u else 2 - u
@@ -2038,7 +2649,16 @@ end)
 named("favela", "Colourful hillside town")
 def("favela", 140, "near", function(cf)
 	wedge(Vector3.new(240, 80, 150), cf * CFrame.new(0, 40, 20), X.Th.Ground:Lerp(rgb(120, 100, 70), 0.4), M.Ground)
-	local colors = { rgb(240, 90, 80), rgb(255, 200, 60), rgb(80, 180, 220), rgb(120, 200, 110), rgb(250, 250, 240), rgb(240, 140, 60), rgb(200, 120, 220), rgb(255, 160, 180) }
+	local colors = {
+		rgb(240, 90, 80),
+		rgb(255, 200, 60),
+		rgb(80, 180, 220),
+		rgb(120, 200, 110),
+		rgb(250, 250, 240),
+		rgb(240, 140, 60),
+		rgb(200, 120, 220),
+		rgb(255, 160, 180),
+	}
 	local rows = if X.Q >= 3 then 9 else 6
 	for row = 0, rows - 1 do
 		local f = (row + 0.5) / rows
@@ -2050,7 +2670,12 @@ def("favela", 140, "near", function(cf)
 				local hcf = cf * CFrame.new(u + rnd(-2, 2), y + h / 2 - 1, z)
 				local c = pick(colors)
 				box(Vector3.new(w, h, d), hcf, c, M.Plaster)
-				box(Vector3.new(2, 2.4, 0.3), hcf * CFrame.new(rnd(-2, 2), 0.5, -d / 2 - 0.1), if X.Th.Night then rgb(255, 220, 150) else rgb(60, 70, 80), if X.Th.Night then M.Neon else M.Glass)
+				box(
+					Vector3.new(2, 2.4, 0.3),
+					hcf * CFrame.new(rnd(-2, 2), 0.5, -d / 2 - 0.1),
+					if X.Th.Night then rgb(255, 220, 150) else rgb(60, 70, 80),
+					if X.Th.Night then M.Neon else M.Glass
+				)
 				if X.Rng:NextNumber() < 0.3 then
 					vcyl(2.4, 2.6, hcf * CFrame.new(rnd(-2, 2), h / 2 + 1.2, 0), rgb(50, 110, 180), M.Plastic)
 				end
@@ -2067,16 +2692,23 @@ def("welcome_sign", 30, "near", function(cf)
 	for side = -1, 1, 2 do
 		box(Vector3.new(1.4, 22, 1.4), cf * CFrame.new(side * 9, 11, 0), rgb(230, 230, 235), M.Metal)
 	end
-	local board = box(Vector3.new(26, 26, 1), cf * CFrame.new(0, 28, 0) * CFrame.Angles(0, 0, PI / 4), rgb(250, 250, 250))
+	local board =
+		box(Vector3.new(26, 26, 1), cf * CFrame.new(0, 28, 0) * CFrame.Angles(0, 0, PI / 4), rgb(250, 250, 250))
 	local s = box(Vector3.new(24, 12, 1.2), cf * CFrame.new(0, 28, 0), rgb(250, 250, 250))
 	sign(s, Enum.NormalId.Front, "WELCOME TO\nNEON STRIP", rgb(220, 30, 50))
 	sign(s, Enum.NormalId.Back, "DRIVE\nFAST", rgb(40, 90, 200))
 	for k = 0, 15 do
 		local a = k / 16 * PI * 2
-		local bulb = ball(1.2, board.CFrame * CFrame.new(math.cos(a) * 12.5 * 1, math.sin(a) * 12.5, -0.8), rgb(255, 230, 140), M.Neon)
+		local bulb = ball(
+			1.2,
+			board.CFrame * CFrame.new(math.cos(a) * 12.5 * 1, math.sin(a) * 12.5, -0.8),
+			rgb(255, 230, 140),
+			M.Neon
+		)
 		local _ = bulb
 	end
-	local star = box(Vector3.new(6, 6, 0.8), cf * CFrame.new(0, 44, 0) * CFrame.Angles(0, 0, PI / 4), rgb(220, 30, 50), M.Neon)
+	local star =
+		box(Vector3.new(6, 6, 0.8), cf * CFrame.new(0, 44, 0) * CFrame.Angles(0, 0, PI / 4), rgb(220, 30, 50), M.Neon)
 	light(star, rgb(255, 80, 80), 30, 1.5)
 end)
 
@@ -2089,7 +2721,13 @@ def("fountain_show", 130, "near", function(cf)
 		for row = -1, 1 do
 			if X.Q >= 3 or row == 0 then
 				local x = -105 + k * 210 / (cols - 1)
-				local jet = vcyl(40, 2.2, cf * CFrame.new(x, 20, row * 24), rgb(230, 245, 255), if X.Th.Night then M.Neon else M.Glass)
+				local jet = vcyl(
+					40,
+					2.2,
+					cf * CFrame.new(x, 20, row * 24),
+					rgb(230, 245, 255),
+					if X.Th.Night then M.Neon else M.Glass
+				)
 				jet.Transparency = 0.35
 				local base = jet.CFrame
 				mover({ jet }, base, function(now)
@@ -2100,7 +2738,14 @@ def("fountain_show", 130, "near", function(cf)
 		end
 	end
 	for k = 0, 7 do
-		Arch.Build("casino_hotel", X.F, cf * CFrame.new(-105 + k * 30, 0, 90) * CFrame.Angles(0, PI, 0), X.Rng, X.Th, X.P)
+		Arch.Build(
+			"casino_hotel",
+			X.F,
+			cf * CFrame.new(-105 + k * 30, 0, 90) * CFrame.Angles(0, PI, 0),
+			X.Rng,
+			X.Th,
+			X.P
+		)
 		if k >= 1 then
 			break
 		end
@@ -2129,8 +2774,14 @@ def("pearl_monument", 35, "near", function(cf)
 	vcyl(0.6, 32, cf * CFrame.new(0, 2.2, 0), rgb(50, 150, 200), M.Glass)
 	box(Vector3.new(8, 8, 8), cf * CFrame.new(0, 6, 0), rgb(230, 225, 215), M.Marble)
 	ellipsoid(Vector3.new(26, 6, 22), cf * CFrame.new(0, 11, 0), rgb(200, 190, 175), M.Marble)
-	ellipsoid(Vector3.new(26, 6, 22), cf * CFrame.new(0, 20, 7) * CFrame.Angles(math.rad(-55), 0, 0), rgb(210, 200, 185), M.Marble)
-	local pearl = ball(10, cf * CFrame.new(0, 17, -1), rgb(250, 248, 255), if X.Th.Night then M.Neon else M.SmoothPlastic)
+	ellipsoid(
+		Vector3.new(26, 6, 22),
+		cf * CFrame.new(0, 20, 7) * CFrame.Angles(math.rad(-55), 0, 0),
+		rgb(210, 200, 185),
+		M.Marble
+	)
+	local pearl =
+		ball(10, cf * CFrame.new(0, 17, -1), rgb(250, 248, 255), if X.Th.Night then M.Neon else M.SmoothPlastic)
 	pearl.Reflectance = 0.3
 	light(pearl, rgb(240, 240, 255), 40, 1.5)
 end)
@@ -2140,7 +2791,12 @@ def("tent_stadium", 130, "near", function(cf)
 	local n = 16
 	for k = 0, n - 1 do
 		local a = k / n * PI * 2
-		box(Vector3.new(2 * 100 * math.sin(PI / n) + 2, 24, 10), cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 12, -100), rgb(230, 225, 215), M.Concrete)
+		box(
+			Vector3.new(2 * 100 * math.sin(PI / n) + 2, 24, 10),
+			cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 12, -100),
+			rgb(230, 225, 215),
+			M.Concrete
+		)
 	end
 	for side = -1, 1, 2 do
 		for s = 0, 5 do
@@ -2148,7 +2804,12 @@ def("tent_stadium", 130, "near", function(cf)
 			if s == 5 then
 				col = rgb(160, 30, 40)
 			end
-			wedge(Vector3.new(34, 60, 110), cf * CFrame.new(-85 + s * 34, 50, side * 55) * CFrame.Angles(0, if side > 0 then PI else 0, 0), col, M.Fabric)
+			wedge(
+				Vector3.new(34, 60, 110),
+				cf * CFrame.new(-85 + s * 34, 50, side * 55) * CFrame.Angles(0, if side > 0 then PI else 0, 0),
+				col,
+				M.Fabric
+			)
 		end
 	end
 	if X.Th.Night then
@@ -2177,7 +2838,12 @@ def("theme_park", 150, "near", function(cf)
 	for k = 0, n - 1 do
 		beam(pts[k], pts[k + 1], 1.4, rgb(250, 200, 30), M.Metal)
 		if k % 3 == 0 then
-			box(Vector3.new(1.2, pts[k].Y, 1.2), CFrame.new(pts[k].X, pts[k].Y / 2, pts[k].Z), rgb(200, 200, 205), M.Metal)
+			box(
+				Vector3.new(1.2, pts[k].Y, 1.2),
+				CFrame.new(pts[k].X, pts[k].Y / 2, pts[k].Z),
+				rgb(200, 200, 205),
+				M.Metal
+			)
 		end
 	end
 	local base = CFrame.new(0, -700, 0)
@@ -2188,7 +2854,8 @@ def("theme_park", 150, "near", function(cf)
 	mover(train, base, function(now)
 		local a = (now * 0.35) % (PI * 2)
 		local p = cf * CFrame.new(math.cos(a) * R, 26 + math.sin(a * 3) * 18 + 2, math.sin(a) * R)
-		local q = cf * CFrame.new(math.cos(a - 0.05) * R, 26 + math.sin((a - 0.05) * 3) * 18 + 2, math.sin(a - 0.05) * R)
+		local q = cf
+			* CFrame.new(math.cos(a - 0.05) * R, 26 + math.sin((a - 0.05) * 3) * 18 + 2, math.sin(a - 0.05) * R)
 		return CFrame.lookAt(p.Position, q.Position)
 	end)
 end)
@@ -2245,11 +2912,22 @@ def("ski_lift", 150, "near", function(cf)
 	for k = 0, 5 do
 		local p = a:Lerp(b, k / 5)
 		local ground = 70 * ((p - a).Magnitude / (b - a).Magnitude)
-		box(Vector3.new(1.6, p.Y - ground + 4, 1.6), CFrame.new(p.X, (p.Y + ground) / 2, p.Z), rgb(140, 145, 150), M.Metal)
+		box(
+			Vector3.new(1.6, p.Y - ground + 4, 1.6),
+			CFrame.new(p.X, (p.Y + ground) / 2, p.Z),
+			rgb(140, 145, 150),
+			M.Metal
+		)
 		box(Vector3.new(10, 1, 1), CFrame.new(p) * cf.Rotation * CFrame.new(0, 2, 0), rgb(140, 145, 150), M.Metal)
 	end
 	for side = -1, 1, 2 do
-		beam(a + cf.RightVector * side * 4 + Vector3.new(0, 2, 0), b + cf.RightVector * side * 4 + Vector3.new(0, 2, 0), 0.25, rgb(40, 40, 44), M.Metal)
+		beam(
+			a + cf.RightVector * side * 4 + Vector3.new(0, 2, 0),
+			b + cf.RightVector * side * 4 + Vector3.new(0, 2, 0),
+			0.25,
+			rgb(40, 40, 44),
+			M.Metal
+		)
 	end
 	local chairs = if X.Q >= 3 then 10 else 6
 	for k = 0, chairs - 1 do
@@ -2258,7 +2936,12 @@ def("ski_lift", 150, "near", function(cf)
 			box(Vector3.new(4, 0.6, 2), base * CFrame.new(0, -5, 0), rgb(60, 70, 80), M.Metal),
 			box(Vector3.new(4, 2, 0.4), base * CFrame.new(0, -4, 1), rgb(60, 70, 80), M.Metal),
 			box(Vector3.new(0.3, 5, 0.3), base * CFrame.new(0, -2.5, 0), rgb(40, 40, 44), M.Metal),
-			box(Vector3.new(1.4, 2, 1), base * CFrame.new(-1, -3.8, 0), pick({ rgb(220, 40, 40), rgb(40, 110, 220), rgb(250, 200, 30) }), M.Fabric),
+			box(
+				Vector3.new(1.4, 2, 1),
+				base * CFrame.new(-1, -3.8, 0),
+				pick({ rgb(220, 40, 40), rgb(40, 110, 220), rgb(250, 200, 30) }),
+				M.Fabric
+			),
 		}
 		local up = k % 2 == 0
 		local phase = k / chairs
@@ -2299,8 +2982,20 @@ def("polar_bears", 55, "near", function(cf)
 	for k = 1, 4 do
 		local base = CFrame.new(0, -760 - k * 10, 0)
 		local s = if k == 4 then 0.8 else 1.3
-		local parts = animal(base, s, rgb(245, 244, 238), { legs = 2.2, len = 6, width = 3, height = 3, head = rgb(240, 238, 232) })
-		circler(parts, base, cf.Position + Vector3.new(0, 1.6, 0), rnd(14, 34), rnd(2, 4) * (if k % 2 == 0 then 1 else -1), rnd(0, 6))
+		local parts = animal(
+			base,
+			s,
+			rgb(245, 244, 238),
+			{ legs = 2.2, len = 6, width = 3, height = 3, head = rgb(240, 238, 232) }
+		)
+		circler(
+			parts,
+			base,
+			cf.Position + Vector3.new(0, 1.6, 0),
+			rnd(14, 34),
+			rnd(2, 4) * (if k % 2 == 0 then 1 else -1),
+			rnd(0, 6)
+		)
 	end
 end)
 
@@ -2338,7 +3033,12 @@ def("lava_river", 190, "near", function(cf)
 		local lava = box(Vector3.new(16, 0.8, len), c, rgb(255, 100, 20), M.Neon)
 		box(Vector3.new(30, 0.6, len), c * CFrame.new(0, -0.3, 0), rgb(40, 34, 32), M.Basalt)
 		for side = -1, 1, 2 do
-			ellipsoid(Vector3.new(rnd(6, 10), rnd(3, 6), rnd(6, 12)), c * CFrame.new(side * rnd(10, 14), 1, rnd(-4, 4)), rgb(50, 44, 42), M.Basalt)
+			ellipsoid(
+				Vector3.new(rnd(6, 10), rnd(3, 6), rnd(6, 12)),
+				c * CFrame.new(side * rnd(10, 14), 1, rnd(-4, 4)),
+				rgb(50, 44, 42),
+				M.Basalt
+			)
 		end
 		if k % 4 == 0 then
 			light(lava, rgb(255, 120, 40), 40, 2)
@@ -2363,7 +3063,12 @@ def("tiki_village", 70, "near", function(cf)
 	for k = 0, 2 do
 		local t = cf * CFrame.new(-12 + k * 12, 0, 12)
 		for m = 0, 3 do
-			box(Vector3.new(4, 4, 4), t * CFrame.new(0, 2 + m * 4, 0), Color3.fromHSV((k * 0.2 + m * 0.1) % 1, 0.6, 0.7), M.WoodPlanks)
+			box(
+				Vector3.new(4, 4, 4),
+				t * CFrame.new(0, 2 + m * 4, 0),
+				Color3.fromHSV((k * 0.2 + m * 0.1) % 1, 0.6, 0.7),
+				M.WoodPlanks
+			)
 			box(Vector3.new(3, 0.8, 0.4), t * CFrame.new(0, 3 + m * 4, -2.1), rgb(20, 20, 20))
 		end
 	end
@@ -2414,16 +3119,33 @@ def("white_village", 110, "near", function(cf)
 	for _ = 1, n do
 		local h = rnd(8, 16)
 		local w, d = rnd(10, 18), rnd(10, 16)
-		local hc = cf * CFrame.new(rnd(-90, 90), 0, rnd(-80, 80)) * CFrame.Angles(0, X.Rng:NextInteger(0, 3) * PI / 2, 0)
+		local hc = cf
+			* CFrame.new(rnd(-90, 90), 0, rnd(-80, 80))
+			* CFrame.Angles(0, X.Rng:NextInteger(0, 3) * PI / 2, 0)
 		box(Vector3.new(w, h, d), hc * CFrame.new(0, h / 2, 0), rgb(250, 250, 246), M.Plaster)
-		box(Vector3.new(w + 0.2, 1, d + 0.2), hc * CFrame.new(0, 0.5, 0), pick({ rgb(40, 90, 170), rgb(230, 180, 40) }), M.Plaster)
+		box(
+			Vector3.new(w + 0.2, 1, d + 0.2),
+			hc * CFrame.new(0, 0.5, 0),
+			pick({ rgb(40, 90, 170), rgb(230, 180, 40) }),
+			M.Plaster
+		)
 		if X.Rng:NextNumber() < 0.6 then
 			wedge(Vector3.new(w, 3, d / 2), hc * CFrame.new(0, h + 1.5, -d / 4), rgb(200, 100, 60), M.Slate)
-			wedge(Vector3.new(w, 3, d / 2), hc * CFrame.new(0, h + 1.5, d / 4) * CFrame.Angles(0, PI, 0), rgb(200, 100, 60), M.Slate)
+			wedge(
+				Vector3.new(w, 3, d / 2),
+				hc * CFrame.new(0, h + 1.5, d / 4) * CFrame.Angles(0, PI, 0),
+				rgb(200, 100, 60),
+				M.Slate
+			)
 		end
 		box(Vector3.new(2, 4, 2), hc * CFrame.new(w / 2 - 2, h + 2, 0), rgb(250, 250, 246), M.Plaster)
 		box(Vector3.new(3, 1, 3), hc * CFrame.new(w / 2 - 2, h + 4.5, 0), rgb(250, 250, 246), M.Plaster)
-		box(Vector3.new(2.4, 4, 0.3), hc * CFrame.new(0, 2, -d / 2 - 0.1), pick({ rgb(40, 90, 170), rgb(40, 130, 80), rgb(150, 60, 40) }), M.WoodPlanks)
+		box(
+			Vector3.new(2.4, 4, 0.3),
+			hc * CFrame.new(0, 2, -d / 2 - 0.1),
+			pick({ rgb(40, 90, 170), rgb(40, 130, 80), rgb(150, 60, 40) }),
+			M.WoodPlanks
+		)
 		box(Vector3.new(2, 2, 0.3), hc * CFrame.new(-w / 4, h - 4, -d / 2 - 0.1), rgb(40, 90, 170), M.WoodPlanks)
 	end
 	Arch.Build("church", X.F, cf * CFrame.new(0, 0, 0), X.Rng, X.Th, X.P)
@@ -2449,7 +3171,12 @@ def("chateau", 90, "near", function(cf)
 	box(Vector3.new(24, 0.4, 90), cf * CFrame.new(0, 0.2, -60), rgb(220, 205, 170), M.Pebble)
 	for k = -4, 4 do
 		for side = -1, 1, 2 do
-			ellipsoid(Vector3.new(4, 16, 4), cf * CFrame.new(side * 14, 8, -24 - k * 8 - 40), rgb(40, 90, 50), M.LeafyGrass)
+			ellipsoid(
+				Vector3.new(4, 16, 4),
+				cf * CFrame.new(side * 14, 8, -24 - k * 8 - 40),
+				rgb(40, 90, 50),
+				M.LeafyGrass
+			)
 		end
 	end
 	vcyl(1.6, 18, cf * CFrame.new(0, 0.8, -60), stone, M.Marble)
@@ -2465,16 +3192,32 @@ def("village_square", 70, "near", function(cf)
 		box(Vector3.new(22, 18, 12), hcf * CFrame.new(0, 9, 0), c, M.Plaster)
 		box(Vector3.new(23, 1.4, 13), hcf * CFrame.new(0, 18.7, 0), rgb(200, 100, 60), M.Slate)
 		for w = -1, 1 do
-			box(Vector3.new(3, 4, 0.3), hcf * CFrame.new(w * 7, 11, 6.1), pick({ rgb(60, 110, 150), rgb(80, 130, 90), rgb(160, 140, 120) }), M.WoodPlanks)
+			box(
+				Vector3.new(3, 4, 0.3),
+				hcf * CFrame.new(w * 7, 11, 6.1),
+				pick({ rgb(60, 110, 150), rgb(80, 130, 90), rgb(160, 140, 120) }),
+				M.WoodPlanks
+			)
 		end
-		box(Vector3.new(20, 0.5, 4), hcf * CFrame.new(0, 5, 8) * CFrame.Angles(math.rad(-12), 0, 0), pick({ rgb(200, 40, 40), rgb(40, 90, 170), rgb(40, 130, 80) }), M.Fabric)
+		box(
+			Vector3.new(20, 0.5, 4),
+			hcf * CFrame.new(0, 5, 8) * CFrame.Angles(math.rad(-12), 0, 0),
+			pick({ rgb(200, 40, 40), rgb(40, 90, 170), rgb(40, 130, 80) }),
+			M.Fabric
+		)
 	end
 	for k = 0, 5 do
 		local tcf = cf * CFrame.new(-18 + (k % 3) * 18, 0, -8 + (k // 3) * 16)
 		vcyl(3, 1, tcf * CFrame.new(0, 1.5, 0), rgb(60, 60, 64), M.Metal)
 		vcyl(0.3, 5, tcf * CFrame.new(0, 3.1, 0), rgb(250, 250, 250))
 		box(Vector3.new(0.3, 7, 0.3), tcf * CFrame.new(0, 3.5, 0), rgb(220, 220, 220), M.Metal)
-		hcyl(1, 9, tcf * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, PI / 2), pick({ rgb(200, 40, 40), rgb(250, 250, 250), rgb(40, 90, 170) }), M.Fabric)
+		hcyl(
+			1,
+			9,
+			tcf * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, PI / 2),
+			pick({ rgb(200, 40, 40), rgb(250, 250, 250), rgb(40, 90, 170) }),
+			M.Fabric
+		)
 		if X.Q >= 3 then
 			person(tcf * CFrame.new(-2.4, 0, 0) * CFrame.Angles(0, PI / 2, 0))
 		end
@@ -2502,15 +3245,35 @@ def("tree_of_life", 45, "near", function(cf)
 	box(Vector3.new(4, 16, 4), cf * CFrame.new(0, 10, 0) * CFrame.Angles(0, 0, 0.08), bark, M.Wood)
 	for k = 0, 5 do
 		local a = k / 6 * PI * 2
-		box(Vector3.new(1.6, 14, 1.6), cf * CFrame.new(0, 18, 0) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(50), 0, 0) * CFrame.new(0, 6, 0), bark, M.Wood)
-		ellipsoid(Vector3.new(16, 7, 16), cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 26, -10), rgb(90, 130, 60), M.LeafyGrass)
+		box(
+			Vector3.new(1.6, 14, 1.6),
+			cf * CFrame.new(0, 18, 0) * CFrame.Angles(0, a, 0) * CFrame.Angles(math.rad(50), 0, 0) * CFrame.new(0, 6, 0),
+			bark,
+			M.Wood
+		)
+		ellipsoid(
+			Vector3.new(16, 7, 16),
+			cf * CFrame.Angles(0, a, 0) * CFrame.new(0, 26, -10),
+			rgb(90, 130, 60),
+			M.LeafyGrass
+		)
 	end
 	ellipsoid(Vector3.new(22, 10, 22), cf * CFrame.new(0, 30, 0), rgb(100, 140, 65), M.LeafyGrass)
 	for k = 0, 7 do
 		local a = k / 8 * PI * 2
-		box(Vector3.new(0.4, 1.2, 0.4), cf * CFrame.new(math.cos(a) * 24, 3.8, math.sin(a) * 24), rgb(90, 80, 70), M.Metal)
+		box(
+			Vector3.new(0.4, 1.2, 0.4),
+			cf * CFrame.new(math.cos(a) * 24, 3.8, math.sin(a) * 24),
+			rgb(90, 80, 70),
+			M.Metal
+		)
 		if X.Th.Night and k % 2 == 0 then
-			local l = box(Vector3.new(1, 1, 1), cf * CFrame.new(math.cos(a) * 24, 4.6, math.sin(a) * 24), rgb(255, 230, 170), M.Neon)
+			local l = box(
+				Vector3.new(1, 1, 1),
+				cf * CFrame.new(math.cos(a) * 24, 4.6, math.sin(a) * 24),
+				rgb(255, 230, 170),
+				M.Neon
+			)
 			if k == 0 then
 				light(l, rgb(255, 225, 170), 40, 1.5)
 			end
@@ -2529,7 +3292,12 @@ def("rock_arches", 90, "near", function(cf)
 		local h = rnd(40, 60)
 		local span = rnd(30, 44)
 		for side = -1, 1, 2 do
-			box(Vector3.new(12, h, 14), a * CFrame.new(side * span / 2, h / 2, 0) * CFrame.Angles(0, 0, side * 0.08), pick(reds), M.Sandstone)
+			box(
+				Vector3.new(12, h, 14),
+				a * CFrame.new(side * span / 2, h / 2, 0) * CFrame.Angles(0, 0, side * 0.08),
+				pick(reds),
+				M.Sandstone
+			)
 		end
 		for m = -3, 3 do
 			local y = h + 4 - math.abs(m) ^ 1.6 * 1.1
@@ -2541,7 +3309,15 @@ def("rock_arches", 90, "near", function(cf)
 	box(Vector3.new(8, 26, 8), b * CFrame.new(0, 13, 0), pick(reds), M.Sandstone)
 	ellipsoid(Vector3.new(22, 16, 18), b * CFrame.new(0, 33, 0), pick(reds), M.Sandstone)
 	for _ = 1, 6 do
-		cone(rnd(14, 30), rnd(7, 11), rnd(2, 4), 4, cf * CFrame.new(rnd(-80, 80), 0, rnd(-60, 70)), pick(reds), M.Sandstone)
+		cone(
+			rnd(14, 30),
+			rnd(7, 11),
+			rnd(2, 4),
+			4,
+			cf * CFrame.new(rnd(-80, 80), 0, rnd(-60, 70)),
+			pick(reds),
+			M.Sandstone
+		)
 	end
 end)
 
@@ -2574,7 +3350,12 @@ def("western_town", 90, "near", function(cf)
 		end
 	end
 	Arch.Build("water_tower", X.F, cf * CFrame.new(70, 0, 0), X.Rng, X.Th, X.P)
-	local horse = animal(cf * CFrame.new(-30, 0, -2) * CFrame.Angles(0, PI / 2, 0), 1.1, rgb(120, 80, 50), { neck = 2.2, legs = 3.8, len = 5.6, width = 2 })
+	local horse = animal(
+		cf * CFrame.new(-30, 0, -2) * CFrame.Angles(0, PI / 2, 0),
+		1.1,
+		rgb(120, 80, 50),
+		{ neck = 2.2, legs = 3.8, len = 5.6, width = 2 }
+	)
 	local _ = horse
 	for k = 0, 3 do
 		ellipsoid(Vector3.new(3, 3, 3), cf * CFrame.new(-60 + k * 38, 1.5, rnd(-4, 4)), rgb(170, 140, 80), M.Grass)
@@ -2602,7 +3383,12 @@ def("stave_church", 40, "near", function(cf)
 	end
 	cone(16, 4, 0.6, 4, cf * CFrame.new(0, y, 0), tar, M.WoodPlanks)
 	for side = -1, 1, 2 do
-		box(Vector3.new(1, 3, 3), cf * CFrame.new(side * 13, 20, -19) * CFrame.Angles(math.rad(-30), 0, 0), rgb(140, 100, 60), M.WoodPlanks)
+		box(
+			Vector3.new(1, 3, 3),
+			cf * CFrame.new(side * 13, 20, -19) * CFrame.Angles(math.rad(-30), 0, 0),
+			rgb(140, 100, 60),
+			M.WoodPlanks
+		)
 	end
 	for k = 0, 5 do
 		box(Vector3.new(1, 3, 2.4), cf * CFrame.new(-18 + k * 7, 1.5, -30), rgb(130, 130, 125), M.Slate)
@@ -2641,7 +3427,12 @@ def("waterfall", 90, "near", function(cf)
 	local rock = rgb(95, 100, 105)
 	box(Vector3.new(160, 120, 50), cf * CFrame.new(0, 60, 30), rock, M.Rock)
 	for _ = 1, 6 do
-		ellipsoid(Vector3.new(rnd(40, 70), rnd(40, 80), rnd(30, 50)), cf * CFrame.new(rnd(-70, 70), rnd(30, 110), rnd(10, 40)), rock:Lerp(rgb(70, 90, 70), rnd(0, 0.5)), M.Rock)
+		ellipsoid(
+			Vector3.new(rnd(40, 70), rnd(40, 80), rnd(30, 50)),
+			cf * CFrame.new(rnd(-70, 70), rnd(30, 110), rnd(10, 40)),
+			rock:Lerp(rgb(70, 90, 70), rnd(0, 0.5)),
+			M.Rock
+		)
 	end
 	box(Vector3.new(170, 6, 60), cf * CFrame.new(0, 122, 30), rgb(80, 120, 70), M.Grass)
 	for k = 0, 5 do
@@ -2690,7 +3481,14 @@ named("souk", "Spice souk")
 def("souk", 60, "near", function(cf)
 	box(Vector3.new(90, 0.3, 40), cf * CFrame.new(0, 0.15, 0), rgb(200, 160, 110), M.Cobblestone)
 	local awn = { rgb(200, 40, 40), rgb(30, 110, 170), rgb(240, 180, 30), rgb(40, 140, 80), rgb(180, 60, 150) }
-	local goods = { rgb(220, 120, 30), rgb(200, 40, 30), rgb(240, 200, 40), rgb(120, 70, 40), rgb(60, 140, 60), rgb(250, 240, 220) }
+	local goods = {
+		rgb(220, 120, 30),
+		rgb(200, 40, 30),
+		rgb(240, 200, 40),
+		rgb(120, 70, 40),
+		rgb(60, 140, 60),
+		rgb(250, 240, 220),
+	}
 	for side = -1, 1, 2 do
 		for k = -3, 3 do
 			local s = cf * CFrame.new(k * 12, 0, side * 12) * CFrame.Angles(0, if side > 0 then PI else 0, 0)
@@ -2701,15 +3499,31 @@ def("souk", 60, "near", function(cf)
 			for _, x in { -5, 5 } do
 				box(Vector3.new(0.4, 8, 0.4), s * CFrame.new(x, 4, -3), rgb(110, 75, 45), M.Wood)
 			end
-			box(Vector3.new(11, 0.3, 8), s * CFrame.new(0, 8.2, -1) * CFrame.Angles(math.rad(-10), 0, 0), pick(awn), M.Fabric)
+			box(
+				Vector3.new(11, 0.3, 8),
+				s * CFrame.new(0, 8.2, -1) * CFrame.Angles(math.rad(-10), 0, 0),
+				pick(awn),
+				M.Fabric
+			)
 			if X.Q >= 3 then
 				person(s * CFrame.new(0, 0, 3) * CFrame.Angles(0, PI, 0))
 			end
 		end
 	end
 	for k = 0, 2 do
-		local l = box(Vector3.new(1.6, 2.2, 1.6), cf * CFrame.new(-24 + k * 24, 12, 0), rgb(240, 170, 60), if X.Th.Night then M.Neon else M.Metal)
-		beam((cf * CFrame.new(-24 + k * 24, 13, 0)).Position, (cf * CFrame.new(-24 + k * 24, 16, 0)).Position, 0.1, rgb(40, 40, 40), M.Metal)
+		local l = box(
+			Vector3.new(1.6, 2.2, 1.6),
+			cf * CFrame.new(-24 + k * 24, 12, 0),
+			rgb(240, 170, 60),
+			if X.Th.Night then M.Neon else M.Metal
+		)
+		beam(
+			(cf * CFrame.new(-24 + k * 24, 13, 0)).Position,
+			(cf * CFrame.new(-24 + k * 24, 16, 0)).Position,
+			0.1,
+			rgb(40, 40, 40),
+			M.Metal
+		)
 		local _ = l
 	end
 end)
@@ -2782,11 +3596,22 @@ def("rainbow_bridge", 60, "sea", function(cf)
 			pts[k] = (b * CFrame.new(side * 10, sag, z)).Position
 		end
 		for k = 0, 15 do
-			local cable = beam(pts[k], pts[k + 1], 1.2, if night then Color3.fromHSV(k / 16, 0.6, 1) else rgb(230, 232, 236), if night then M.Neon else M.Metal)
+			local cable = beam(
+				pts[k],
+				pts[k + 1],
+				1.2,
+				if night then Color3.fromHSV(k / 16, 0.6, 1) else rgb(230, 232, 236),
+				if night then M.Neon else M.Metal
+			)
 			local _ = cable
 			if k % 2 == 0 then
 				local p = pts[k]
-				box(Vector3.new(0.3, p.Y - deckY, 0.3), CFrame.new(p.X, (p.Y + deckY) / 2, p.Z), rgb(200, 200, 205), M.Metal)
+				box(
+					Vector3.new(0.3, p.Y - deckY, 0.3),
+					CFrame.new(p.X, (p.Y + deckY) / 2, p.Z),
+					rgb(200, 200, 205),
+					M.Metal
+				)
 			end
 		end
 	end
@@ -2805,12 +3630,24 @@ def("neon_alley", 60, "near", function(cf)
 		for k = -4, 4 do
 			local b = cf * CFrame.new(side * 16, 0, k * 12) * CFrame.Angles(0, side * PI / 2, 0)
 			local h = rnd(24, 44)
-			box(Vector3.new(11.5, h, 14), b * CFrame.new(0, h / 2, 0), pick({ rgb(70, 72, 82), rgb(90, 86, 84), rgb(110, 100, 96), rgb(60, 64, 74) }), M.Concrete)
+			box(
+				Vector3.new(11.5, h, 14),
+				b * CFrame.new(0, h / 2, 0),
+				pick({ rgb(70, 72, 82), rgb(90, 86, 84), rgb(110, 100, 96), rgb(60, 64, 74) }),
+				M.Concrete
+			)
 			for m = 0, 2 do
 				local col = Color3.fromHSV(rnd(0, 1), 0.8, 1)
-				local sgn = box(Vector3.new(0.6, rnd(6, 12), 2.4), b * CFrame.new(-6, 8 + m * 10, rnd(-4, 4)), col, M.Neon)
+				local sgn =
+					box(Vector3.new(0.6, rnd(6, 12), 2.4), b * CFrame.new(-6, 8 + m * 10, rnd(-4, 4)), col, M.Neon)
 				if m == 0 then
-					sign(sgn, Enum.NormalId.Left, words[X.Rng:NextInteger(1, #words)], rgb(255, 255, 255), col:Lerp(Color3.new(0, 0, 0), 0.5))
+					sign(
+						sgn,
+						Enum.NormalId.Left,
+						words[X.Rng:NextInteger(1, #words)],
+						rgb(255, 255, 255),
+						col:Lerp(Color3.new(0, 0, 0), 0.5)
+					)
 				end
 			end
 			box(Vector3.new(0.6, 3, 11), b * CFrame.new(-6.4, 3.5, 0), rgb(255, 230, 190), M.Neon)
@@ -2848,7 +3685,12 @@ def("highland_castle", 90, "near", function(cf)
 	box(Vector3.new(4, 12, 60), top * CFrame.new(44, 6, 0), stone, M.Cobblestone)
 	vcyl(26, 14, top * CFrame.new(44, 13, -30), stone, M.Cobblestone)
 	for k = 0, 5 do
-		box(Vector3.new(1.4, 3, 0.4), top * CFrame.new(-20 + k * 5, 30, -13.2), if X.Th.Night then rgb(255, 210, 140) else rgb(40, 40, 44), if X.Th.Night then M.Neon else M.SmoothPlastic)
+		box(
+			Vector3.new(1.4, 3, 0.4),
+			top * CFrame.new(-20 + k * 5, 30, -13.2),
+			if X.Th.Night then rgb(255, 210, 140) else rgb(40, 40, 44),
+			if X.Th.Night then M.Neon else M.SmoothPlastic
+		)
 	end
 	box(Vector3.new(0.4, 12, 0.4), top * CFrame.new(-8, 64, 0), rgb(200, 200, 200), M.Metal)
 	box(Vector3.new(0.2, 4, 7), top * CFrame.new(-8, 68, 3.6), rgb(30, 60, 160), M.Fabric)
@@ -2884,7 +3726,15 @@ def("standing_stones", 40, "near", function(cf)
 	for k = 0, 11 do
 		local a = k / 12 * PI * 2
 		local h = rnd(8, 14)
-		box(Vector3.new(3.4, h, 2.2), cf * CFrame.Angles(0, a, 0) * CFrame.new(0, h / 2 - 0.5, -24) * CFrame.Angles(rnd(-0.08, 0.08), 0, rnd(-0.08, 0.08)), rgb(120, 118, 112):Lerp(rgb(90, 100, 90), rnd(0, 0.5)), M.Slate)
+		box(
+			Vector3.new(3.4, h, 2.2),
+			cf
+				* CFrame.Angles(0, a, 0)
+				* CFrame.new(0, h / 2 - 0.5, -24)
+				* CFrame.Angles(rnd(-0.08, 0.08), 0, rnd(-0.08, 0.08)),
+			rgb(120, 118, 112):Lerp(rgb(90, 100, 90), rnd(0, 0.5)),
+			M.Slate
+		)
 	end
 	box(Vector3.new(6, 2, 3), cf * CFrame.new(0, 1, 0), rgb(110, 108, 104), M.Slate)
 end)
@@ -2899,7 +3749,12 @@ def("highland_cows", 55, "near", function(cf)
 	for _ = 1, 7 do
 		local ccf = cf * CFrame.new(rnd(-28, 28), 0, rnd(-20, 20)) * CFrame.Angles(0, rnd(0, 6.28), 0)
 		local shag = pick({ rgb(190, 100, 45), rgb(170, 85, 40), rgb(210, 130, 60), rgb(80, 60, 50) })
-		animal(ccf, 1.15, shag, { horns = rgb(235, 225, 200), hornSpan = 2.6, legs = 1.8, len = 5, width = 2.8, height = 2.8 })
+		animal(
+			ccf,
+			1.15,
+			shag,
+			{ horns = rgb(235, 225, 200), hornSpan = 2.6, legs = 1.8, len = 5, width = 2.8, height = 2.8 }
+		)
 		box(Vector3.new(2.2, 1.2, 1), ccf * CFrame.new(0, 4.4, -3.6), shag:Lerp(Color3.new(1, 1, 1), 0.1), M.Fabric)
 	end
 end)
@@ -2947,7 +3802,10 @@ function Landmarks.Build(ctx, list: { string }): ({ string }, { any })
 					end
 					table.insert(built, Landmarks.Names[name] or name)
 					if d.Place ~= "global" and d.Place ~= "track" then
-						table.insert(spots, { Name = Landmarks.Names[name] or name, Pos = pos, R = d.R, Place = d.Place })
+						table.insert(
+							spots,
+							{ Name = Landmarks.Names[name] or name, Pos = pos, R = d.R, Place = d.Place }
+						)
 					end
 				end
 			end

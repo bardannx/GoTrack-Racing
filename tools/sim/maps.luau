@@ -39,6 +39,7 @@ if #ids == 0 then
 	end
 end
 
+-- Rounds to 2 decimals for the report.
 local function r1(x)
 	return math.floor(x * 100 + 0.5) / 100
 end
@@ -107,7 +108,21 @@ for _, id in ids do
 				meshParts += 1
 			end
 		end
-		print(string.format("%-12s parts %6d  meshes %5d  lights %3d  fx %3d  signs %3d  buildings %4s  fill %4s  landmarks %s  %.1fs", id, total, meshParts, lights, emitters, guis, tostring(stats.Buildings or "?"), tostring(stats.Filled or "?"), tostring(stats.Landmarks or "?"), os.clock() - t0))
+		print(
+			string.format(
+				"%-12s parts %6d  meshes %5d  lights %3d  fx %3d  signs %3d  buildings %4s  fill %4s  landmarks %s  %.1fs",
+				id,
+				total,
+				meshParts,
+				lights,
+				emitters,
+				guis,
+				tostring(stats.Buildings or "?"),
+				tostring(stats.Filled or "?"),
+				tostring(stats.Landmarks or "?"),
+				os.clock() - t0
+			)
+		)
 		if dump then
 			local L = Env.Lighting
 			local sky = {
@@ -125,7 +140,13 @@ for _, id in ids do
 			for i = 1, tr.N, 4 do
 				table.insert(centre, { r1(tr.X[i]), r1(tr.Y[i]), r1(tr.Z[i]) })
 			end
-			fs.writeFile("tools/sim/out/" .. id .. ".json", serde.encode("json", { id = id, sky = sky, track = centre, width = tr.Width, parts = parts, view = res.ViewAngle }))
+			fs.writeFile(
+				"tools/sim/out/" .. id .. ".json",
+				serde.encode(
+					"json",
+					{ id = id, sky = sky, track = centre, width = tr.Width, parts = parts, view = res.ViewAngle }
+				)
+			)
 		end
 		CircuitBuilder.Clear()
 	end

@@ -14,6 +14,7 @@ EngineAudio.__index = EngineAudio
 
 local GEARS = 8
 
+-- A looping sound on the car: flat for your own car, 3D for everyone else's.
 local function loop(parent: Instance, name: string, id: string?, isLocal: boolean): Sound?
 	if not id or id == "" then
 		return nil
@@ -48,6 +49,7 @@ function EngineAudio.GearFor(speed: number): (number, number)
 	return gear, rpm
 end
 
+-- Sounds for one car. Tyre squeal and wind are only added to your own car.
 function EngineAudio.new(parent: BasePart, isLocal: boolean)
 	local S = Config.Sounds
 	local self = setmetatable({
@@ -115,6 +117,7 @@ function EngineAudio:Mute()
 	end
 end
 
+-- Stops and removes the car's sounds.
 function EngineAudio:Destroy()
 	for _, s in { self.Engine, self.High, self.Squeal, self.Wind } do
 		if s then

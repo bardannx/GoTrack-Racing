@@ -42,15 +42,20 @@ RunService.RenderStepped:Connect(function(dt)
 				ping = Players.LocalPlayer:GetNetworkPing() * 1000
 			end)
 			label.Text = string.format("%d FPS  •  %d ms", math.floor(fps + 0.5), math.floor(ping + 0.5))
-			label.TextColor3 = if fps >= 50 then Color3.fromRGB(120, 255, 160) elseif fps >= 30 then Color3.fromRGB(255, 210, 80) else Color3.fromRGB(255, 90, 90)
+			label.TextColor3 = if fps >= 50
+				then Color3.fromRGB(120, 255, 160)
+				elseif fps >= 30 then Color3.fromRGB(255, 210, 80)
+				else Color3.fromRGB(255, 90, 90)
 		end
 	end
 end)
 
+-- Frames per second over the last half second.
 function Perf.Fps(): number
 	return fps
 end
 
+-- Slow moving average of the frame rate.
 function Perf.AvgFps(): number
 	return avg
 end
@@ -58,6 +63,8 @@ end
 -- Call once a race has been running for a while: lowers effects right away and the
 -- scenery quality for the next race if the device can't keep up.
 local lowered = false
+-- Drops graphics one level (once per session) if the average frame rate falls below
+-- 27. Returns true if it did.
 function Perf.CheckAutoLower()
 	if lowered or avg >= 27 then
 		return false

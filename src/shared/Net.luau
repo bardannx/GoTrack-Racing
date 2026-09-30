@@ -1,5 +1,9 @@
 --!nonstrict
--- Remote names shared by client and server.
+-- The network contract between client and server: every remote's name, plus the compact
+-- binary format cars use to stream their position.
+--
+-- Remotes are declared once here. The server creates them all in ReplicatedStorage.Remotes
+-- at startup; clients wait for them by name. To add one, add its name to the right list.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -48,6 +52,7 @@ Net.Unreliable = {
 
 local folder: Folder? = nil
 
+-- The Remotes folder. On the server the first call creates every remote in the lists above.
 function Net.GetFolder(): Folder
 	if folder then
 		return folder
@@ -82,14 +87,17 @@ function Net.GetFolder(): Folder
 	return folder :: any
 end
 
+-- Request/response calls (the server replies).
 function Net.Function(name: string): RemoteFunction
 	return Net.GetFolder():WaitForChild(name) :: RemoteFunction
 end
 
+-- Reliable one-way messages.
 function Net.Event(name: string): RemoteEvent
 	return Net.GetFolder():WaitForChild(name) :: RemoteEvent
 end
 
+-- Unreliable one-way messages: fast, may drop, fine for data that is resent constantly.
 function Net.UEvent(name: string): UnreliableRemoteEvent
 	return Net.GetFolder():WaitForChild(name) :: any
 end
@@ -103,11 +111,27 @@ Net.Flags = { FrontWing = 1, RearWing = 2, Smoke = 4, Ghost = 8, Brake = 16, Aer
 local ANG = 32767 / math.pi
 local VEL = 20
 
+-- Rounds and clamps to the signed 16-bit range.
 local function i16(x: number): number
 	return math.clamp(math.floor(x + 0.5), -32767, 32767)
 end
 
-function Net.WriteState(b: buffer, offset: number, t: number, x: number, y: number, z: number, yaw: number, pitch: number, roll: number, vx: number, vy: number, vz: number, flags: number)
+-- Packs one car state into `b` at `offset` (see the layout above).
+function Net.WriteState(
+	b: buffer,
+	offset: number,
+	t: number,
+	x: number,
+	y: number,
+	z: number,
+	yaw: number,
+	pitch: number,
+	roll: number,
+	vx: number,
+	vy: number,
+	vz: number,
+	flags: number
+)
 	buffer.writef32(b, offset, t)
 	buffer.writef32(b, offset + 4, x)
 	buffer.writef32(b, offset + 8, y)
@@ -122,6 +146,7 @@ function Net.WriteState(b: buffer, offset: number, t: number, x: number, y: numb
 end
 
 -- returns t, x, y, z, yaw, pitch, roll, vx, vy, vz, flags
+-- Unpacks a car state written by WriteState, in the same order as its arguments.
 function Net.ReadState(b: buffer, offset: number)
 	return buffer.readf32(b, offset),
 		buffer.readf32(b, offset + 4),

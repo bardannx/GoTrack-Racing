@@ -4,6 +4,7 @@ Everything is authored as polygon soups (lists of Nx3 numpy arrays) in "car metr
 x = lateral (right +), y = up (ground 0), z = longitudinal (rear +, front axle 0).
 Objects are collected in an Out() and later converted to studs + exported by Blender.
 """
+
 import math
 import numpy as np
 import mapbox_earcut as earcut
@@ -14,21 +15,6 @@ TAU = math.pi * 2
 # ---------------------------------------------------------------------------
 # interpolation of keyframed parameters
 # ---------------------------------------------------------------------------
-def smooth_interp(keys, z, kind="pchip"):
-    """keys: list of (z, value). Monotone cubic (pchip) or linear."""
-    zs = np.array([k[0] for k in keys], dtype=float)
-    vs = np.array([k[1] for k in keys], dtype=float)
-    if z <= zs[0]:
-        return vs[0]
-    if z >= zs[-1]:
-        return vs[-1]
-    if kind == "linear" or len(zs) < 3:
-        return float(np.interp(z, zs, vs))
-    from scipy.interpolate import PchipInterpolator
-
-    return float(PchipInterpolator(zs, vs)(z))
-
-
 class Track:
     """Keyframed parameter set: Track({'cy': [(z,v),...], ...}, linear={'dip'})"""
 
@@ -45,13 +31,16 @@ class Track:
                 p = PchipInterpolator(zs, vs, extrapolate=False)
                 lo, hi = vs[0], vs[-1]
                 z0, z1 = zs[0], zs[-1]
-                self.f[name] = (lambda p, lo, hi, z0, z1: lambda z: float(lo if z <= z0 else hi if z >= z1 else p(z)))(p, lo, hi, z0, z1)
+                self.f[name] = (lambda p, lo, hi, z0, z1: lambda z: float(lo if z <= z0 else hi if z >= z1 else p(z)))(
+                    p, lo, hi, z0, z1
+                )
 
     def __call__(self, z):
         return {k: f(z) for k, f in self.f.items()}
 
 
 def smoothstep(e0, e1, x):
+    """Smooth 0 -> 1 ramp between e0 and e1 (eases in and out)."""
     t = min(1.0, max(0.0, (x - e0) / (e1 - e0))) if e1 != e0 else (1.0 if x >= e1 else 0.0)
     return t * t * (3 - 2 * t)
 
@@ -117,6 +106,7 @@ def signed_volume(polys):
 
 
 def orient_closed(polys):
+    """Flips a closed shape's faces if they point inwards."""
     if signed_volume(polys) < 0:
         return [p[::-1] for p in polys]
     return polys
@@ -150,6 +140,7 @@ def loft(rings, cap0=True, cap1=True, cap0_zone=None, cap1_zone=None):
 
 
 def grid_normals(rings):
+    """Per-vertex normals of a grid of rings (a lofted surface)."""
     R = np.array(rings, float)  # M,N,3
     M, N, _ = R.shape
     nrm = np.zeros_like(R)
@@ -165,6 +156,7 @@ def grid_normals(rings):
 
 
 def offset_rings(rings, d):
+    """Rings pushed out along their normals by d (a shell just above a surface)."""
     n = grid_normals(rings)
     R = np.array(rings, float)
     cent = R.mean(axis=1, keepdims=True)
@@ -205,6 +197,7 @@ def tube(path, radius, N=10, cap=True, flat=1.0):
 
 
 def bezier(pts, n=16):
+    """n+1 points along a Bezier curve through the control points."""
     P = [np.asarray(p, float) for p in pts]
     out = []
     for i in range(n + 1):
@@ -247,6 +240,7 @@ def plate(poly2d, plane, offset, thick, round_steps=0):
 
 
 def rounded_rect(x0, y0, x1, y1, r, steps=4):
+    """Outline of a rectangle with rounded corners of radius r."""
     pts = []
     corners = [(x1 - r, y1 - r, 0), (x0 + r, y1 - r, 90), (x0 + r, y0 + r, 180), (x1 - r, y0 + r, 270)]
     for cx, cy, a0 in corners:
@@ -259,8 +253,6 @@ def rounded_rect(x0, y0, x1, y1, r, steps=4):
 def revolve(profile, N=48, axis="x", center=(0, 0, 0), a0=0.0, a1=TAU, closed=True, orient=True, flip=False):
     """profile: list of (axial, radius). Revolves around the given axis. Returns polys."""
     cx, cy, cz = center
-    rings = []
-    steps = N if closed else N
     for k in range(len(profile)):
         pass
     # build grid: one ring per profile point (around the axis)
@@ -291,6 +283,7 @@ def revolve(profile, N=48, axis="x", center=(0, 0, 0), a0=0.0, a1=TAU, closed=Tr
 
 
 def ellipsoid(center, radii, N=24, M=14):
+    """A closed ellipsoid mesh."""
     cx, cy, cz = center
     rx, ry, rz = radii
     rings = []
@@ -299,7 +292,13 @@ def ellipsoid(center, radii, N=24, M=14):
         ring = []
         for j in range(N):
             th = TAU * j / N
-            ring.append((cx + rx * math.sin(phi) * math.cos(th), cy + ry * math.cos(phi), cz + rz * math.sin(phi) * math.sin(th)))
+            ring.append(
+                (
+                    cx + rx * math.sin(phi) * math.cos(th),
+                    cy + ry * math.cos(phi),
+                    cz + rz * math.sin(phi) * math.sin(th),
+                )
+            )
         rings.append(np.array(ring))
     polys, caps = loft(rings, False, False)
     top = np.array([cx, cy + ry, cz])
@@ -313,6 +312,7 @@ def ellipsoid(center, radii, N=24, M=14):
 
 
 def box(c, s):
+    """A closed box: centre c, size s."""
     cx, cy, cz = c
     hx, hy, hz = s[0] / 2, s[1] / 2, s[2] / 2
     v = [np.array([cx + dx * hx, cy + dy * hy, cz + dz * hz]) for dx in (-1, 1) for dy in (-1, 1) for dz in (-1, 1)]
@@ -332,6 +332,7 @@ def box(c, s):
 
 
 def mirror_x(polys):
+    """Mirrors polygons across x = 0 (right side -> left side), keeping them facing out."""
     out = []
     for p in polys:
         q = np.array(p, float).copy()
@@ -341,6 +342,7 @@ def mirror_x(polys):
 
 
 def transform(polys, fn):
+    """Applies fn to every vertex."""
     return [np.array([fn(v) for v in p]) for p in polys]
 
 
@@ -353,26 +355,32 @@ def H(a, b):
 
 
 def hs_x_ge(v):
+    """Half-space x >= v."""
     return H((1, 0, 0), -v)
 
 
 def hs_x_le(v):
+    """Half-space x <= v."""
     return H((-1, 0, 0), v)
 
 
 def hs_y_ge(v):
+    """Half-space y >= v."""
     return H((0, 1, 0), -v)
 
 
 def hs_y_le(v):
+    """Half-space y <= v."""
     return H((0, -1, 0), v)
 
 
 def hs_z_ge(v):
+    """Half-space z >= v."""
     return H((0, 0, 1), -v)
 
 
 def hs_z_le(v):
+    """Half-space z <= v."""
     return H((0, 0, -1), v)
 
 
@@ -408,6 +416,7 @@ def poly_region(axes, poly, extra=()):
 
 
 def _clip(poly, h):
+    """Clips one convex polygon to a half-space."""
     a, b = h
     P = poly
     d = P @ a + b
@@ -461,6 +470,7 @@ def split(polys, region):
 
 
 def keep(polys, region):
+    """The parts of polys inside the region."""
     return split(polys, region)[0]
 
 

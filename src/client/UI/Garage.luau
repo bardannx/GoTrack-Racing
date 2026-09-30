@@ -32,17 +32,34 @@ local GROUPS = {
 }
 
 local ICONS = {
-	Body = "🏎️", Pattern = "🎨", Primary = "🖌️", Secondary = "🖌️", Accent = "🖌️",
-	Rims = "⚙️", RimColor = "🖌️", Tyre = "🛞", Helmet = "⛑️", Visor = "🥽", Title = "🏷️", Number = "🔢",
-	TyreSmoke = "💨", Underglow = "💡", Trail = "🌈", Flames = "🔥", Celebration = "🎆",
+	Body = "🏎️",
+	Pattern = "🎨",
+	Primary = "🖌️",
+	Secondary = "🖌️",
+	Accent = "🖌️",
+	Rims = "⚙️",
+	RimColor = "🖌️",
+	Tyre = "🛞",
+	Helmet = "⛑️",
+	Visor = "🥽",
+	Title = "🏷️",
+	Number = "🔢",
+	TyreSmoke = "💨",
+	Underglow = "💡",
+	Trail = "🌈",
+	Flames = "🔥",
+	Celebration = "🎆",
 }
 
 -- item filter above the grid
-local FILTERS = { { "all", "All" }, { "owned", "Owned" }, { "free", "Free" }, { "coins", "Coins" }, { "pass", "Passes" } }
+local FILTERS =
+	{ { "all", "All" }, { "owned", "Owned" }, { "free", "Free" }, { "coins", "Coins" }, { "pass", "Passes" } }
 local filterMode = "all"
 local filterButtons = {}
 local catCounts = {}
 
+-- Whether an item shows under the current filter (all, owned, free, coins, or pass and
+-- ranked rewards).
 local function passesFilter(item, usable: boolean): boolean
 	if filterMode == "owned" then
 		return usable
@@ -56,10 +73,12 @@ local function passesFilter(item, usable: boolean): boolean
 	return true
 end
 
+-- The game pass that unlocks an item, if any.
 local function passFor(item)
 	return if item.Pass then Monetization.PassByKey[item.Pass] else nil
 end
 
+-- Card accent colour by how an item is unlocked: ranked tier, pass, coins or free.
 local function rarityColor(item): Color3
 	if item.RankTier then
 		return Config.Ranked.Tiers[item.RankTier].Color
@@ -71,6 +90,7 @@ local function rarityColor(item): Color3
 	return C.Muted
 end
 
+-- The player's car with one item swapped in, for the live preview.
 local function previewAppearance(slot: string, item)
 	local car = table.clone(State.Profile.car)
 	car[slot] = item.Id
@@ -83,6 +103,7 @@ local function previewAppearance(slot: string, item)
 	return car
 end
 
+-- Asks the server to equip an item (it checks ownership again).
 local function equip(slot: string, item)
 	task.spawn(function()
 		local res = Util.Invoke("Equip", slot, item.Id)
@@ -96,6 +117,7 @@ end
 
 local refreshItems
 
+-- Selects an item: previews it on the car and sets the button (Equip, Buy, Get pass...).
 local function setAction(item)
 	selected = item
 	if not item then
@@ -130,10 +152,17 @@ local function setAction(item)
 		local pass = passFor(item)
 		actionInfo.Text = "Included in " .. (if pass then pass.Name else "a game pass")
 		Kit.SetButtonStyle(actionBtn, "purple")
-		local price = Kit.RobuxPrice(actionBtn, State.PassPrice(item.Pass), 18, C.White, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) })
+		local price = Kit.RobuxPrice(
+			actionBtn,
+			State.PassPrice(item.Pass),
+			18,
+			C.White,
+			{ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) }
+		)
 		price.Name = "Price"
 	else
-		actionInfo.Text = string.format("Costs %s coins  •  you have %s", Kit.Comma(item.Price), Kit.Comma(State.Profile.coins))
+		actionInfo.Text =
+			string.format("Costs %s coins  •  you have %s", Kit.Comma(item.Price), Kit.Comma(State.Profile.coins))
 		actionBtn.Text = "BUY  " .. Kit.Comma(item.Price)
 		Kit.SetButtonStyle(actionBtn, "primary")
 	end
@@ -143,6 +172,7 @@ local function setAction(item)
 	end
 end
 
+-- The action button: equip, buy with coins, open the pass prompt, or go to Ranked.
 local function onAction()
 	local item = selected
 	if not item then
@@ -165,12 +195,25 @@ local function onAction()
 		return
 	end
 	if State.Profile.coins < item.Price then
-		Kit.Modal("Not enough coins", string.format("%s costs %s coins and you have %s.\nWin races to earn more, or grab a coin pack!", item.Name, Kit.Comma(item.Price), Kit.Comma(State.Profile.coins)), {
-			{ "OK", "secondary" },
-			{ "Get coins", "primary", function()
-				menu.Open("shop", "coins")
-			end },
-		})
+		Kit.Modal(
+			"Not enough coins",
+			string.format(
+				"%s costs %s coins and you have %s.\nWin races to earn more, or grab a coin pack!",
+				item.Name,
+				Kit.Comma(item.Price),
+				Kit.Comma(State.Profile.coins)
+			),
+			{
+				{ "OK", "secondary" },
+				{
+					"Get coins",
+					"primary",
+					function()
+						menu.Open("shop", "coins")
+					end,
+				},
+			}
+		)
 		return
 	end
 	task.spawn(function()
@@ -214,14 +257,35 @@ local function carThumb(area, slot: string, item)
 	end
 end
 
+-- The picture on an item card: a car thumbnail, a colour swatch or an icon.
 local function swatch(card, item, category)
-	local area = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 62), Parent = card })
+	local area = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 62), Parent = card }
+	)
 	if category == "Body" or category == "Pattern" or category == "Rims" then
 		carThumb(area, currentSlot, item)
 		return
 	end
-	if item.Color and (category == "Paint" or category == "Helmet" or category == "Visor" or category == "Tyre" or category == "Underglow" or category == "Trail" or category == "TyreSmoke") then
-		local sw = Kit.new("Frame", { BackgroundColor3 = item.Color, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(52, 52), Parent = area })
+	if
+		item.Color
+		and (
+			category == "Paint"
+			or category == "Helmet"
+			or category == "Visor"
+			or category == "Tyre"
+			or category == "Underglow"
+			or category == "Trail"
+			or category == "TyreSmoke"
+		)
+	then
+		local sw = Kit.new("Frame", {
+			BackgroundColor3 = item.Color,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(52, 52),
+			Parent = area,
+		})
 		Kit.Round(sw)
 		Kit.Stroke(sw, Color3.new(1, 1, 1), 2, 0.55)
 		if item.Rainbow then
@@ -238,7 +302,14 @@ local function swatch(card, item, category)
 			Kit.Gradient(sw, item.Color:Lerp(Color3.new(1, 1, 1), 0.5), item.Color:Lerp(Color3.new(0, 0, 0), 0.3), 45)
 		end
 		if category == "Helmet" and item.Stripe then
-			local stripe = Kit.new("Frame", { BackgroundColor3 = item.Stripe, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, 0, 0, 8), Parent = sw })
+			local stripe = Kit.new("Frame", {
+				BackgroundColor3 = item.Stripe,
+				BorderSizePixel = 0,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.new(1, 0, 0, 8),
+				Parent = sw,
+			})
 			stripe.ZIndex = 2
 		end
 	else
@@ -273,23 +344,40 @@ refreshItems = function()
 		countLabel.Text = ""
 		local n = Cosmetics.NumberFor(profile.car, profile.userId)
 		local card = Kit.Card(itemsScroll, { Size = UDim2.fromOffset(280, 150), LayoutOrder = 1 })
-		Kit.Label(card, "#" .. n, 56, { Font = Kit.Fonts.Logo, Position = UDim2.fromOffset(0, 14), Size = UDim2.new(1, 0, 0, 66), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.Accent })
-		Kit.Button(card, if State.HasPass("ProRacer") then "CHANGE NUMBER" else "🔒 CUSTOM NUMBER", if State.HasPass("ProRacer") then "primary" else "purple", function()
-			if not State.HasPass("ProRacer") then
-				State.PromptPass("ProRacer")
-				return
-			end
-			Kit.Prompt("🔢 Race number", "1 - 99", tostring(n), function(text)
-				task.spawn(function()
-					local res = Util.Invoke("SetNumber", tonumber(text))
-					if res and res.ok then
-						Kit.Toast("Race number set to #" .. res.number, "success")
-					else
-						Kit.Toast((res and res.err) or "Couldn't set number", "error")
-					end
-				end)
-			end, 2)
-		end, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -14), Size = UDim2.new(1, -28, 0, 42), TextSize = 15 })
+		Kit.Label(card, "#" .. n, 56, {
+			Font = Kit.Fonts.Logo,
+			Position = UDim2.fromOffset(0, 14),
+			Size = UDim2.new(1, 0, 0, 66),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = C.Accent,
+		})
+		Kit.Button(
+			card,
+			if State.HasPass("ProRacer") then "CHANGE NUMBER" else "🔒 CUSTOM NUMBER",
+			if State.HasPass("ProRacer") then "primary" else "purple",
+			function()
+				if not State.HasPass("ProRacer") then
+					State.PromptPass("ProRacer")
+					return
+				end
+				Kit.Prompt("🔢 Race number", "1 - 99", tostring(n), function(text)
+					task.spawn(function()
+						local res = Util.Invoke("SetNumber", tonumber(text))
+						if res and res.ok then
+							Kit.Toast("Race number set to #" .. res.number, "success")
+						else
+							Kit.Toast((res and res.err) or "Couldn't set number", "error")
+						end
+					end)
+				end, 2)
+			end,
+			{
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -14),
+				Size = UDim2.new(1, -28, 0, 42),
+				TextSize = 15,
+			}
+		)
 		setAction(nil)
 		return
 	end
@@ -338,13 +426,36 @@ refreshItems = function()
 		shown += 1
 		local isEquipped = equipped == item.Id
 		local isSel = selected and selected.Id == item.Id
-		local card = Kit.new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = if isEquipped then Color3.fromRGB(64, 52, 20) else C.Panel2, LayoutOrder = i, Parent = itemsScroll })
+		local card = Kit.new("TextButton", {
+			Text = "",
+			AutoButtonColor = false,
+			BackgroundColor3 = if isEquipped then Color3.fromRGB(64, 52, 20) else C.Panel2,
+			LayoutOrder = i,
+			Parent = itemsScroll,
+		})
 		Kit.Corner(card, 12)
-		Kit.Stroke(card, if isEquipped then C.Accent elseif isSel then C.Accent2 else C.White, if isEquipped or isSel then 2.5 else 1, if isEquipped or isSel then 0 else 0.9)
-		local strip = Kit.new("Frame", { BackgroundColor3 = rarityColor(item), BorderSizePixel = 0, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -24, 0, 3), Parent = card })
+		Kit.Stroke(
+			card,
+			if isEquipped then C.Accent elseif isSel then C.Accent2 else C.White,
+			if isEquipped or isSel then 2.5 else 1,
+			if isEquipped or isSel then 0 else 0.9
+		)
+		local strip = Kit.new("Frame", {
+			BackgroundColor3 = rarityColor(item),
+			BorderSizePixel = 0,
+			Position = UDim2.fromOffset(12, 0),
+			Size = UDim2.new(1, -24, 0, 3),
+			Parent = card,
+		})
 		Kit.Corner(strip, 2)
 		swatch(card, item, category)
-		Kit.Label(card, item.Name, 13, { Font = Kit.Fonts.Bold, Position = UDim2.new(0, 4, 0, 74), Size = UDim2.new(1, -8, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd })
+		Kit.Label(card, item.Name, 13, {
+			Font = Kit.Fonts.Bold,
+			Position = UDim2.new(0, 4, 0, 74),
+			Size = UDim2.new(1, -8, 0, 18),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		})
 		local status, statusColor
 		if isEquipped then
 			status, statusColor = "EQUIPPED", C.Accent
@@ -352,20 +463,46 @@ refreshItems = function()
 			local free = item.Price <= 0 and not item.Pass and not item.RankTier
 			status, statusColor = if free then "FREE" else "OWNED", if free then C.SubText else C.Success
 		elseif item.RankTier then
-			status, statusColor = "🏆 " .. Config.Ranked.Tiers[item.RankTier].Name, Config.Ranked.Tiers[item.RankTier].Color
+			status, statusColor =
+				"🏆 " .. Config.Ranked.Tiers[item.RankTier].Name, Config.Ranked.Tiers[item.RankTier].Color
 		elseif item.Pass then
 			local pass = passFor(item)
-			status, statusColor = (if pass then pass.Icon .. " " .. pass.Name else "🔒 Pass"), if pass then pass.Color:Lerp(C.White, 0.35) else Color3.fromRGB(190, 150, 255)
+			status, statusColor =
+				(if pass then pass.Icon .. " " .. pass.Name else "🔒 Pass"),
+				if pass then pass.Color:Lerp(C.White, 0.35) else Color3.fromRGB(190, 150, 255)
 		else
 			status, statusColor = "🪙 " .. Kit.Comma(item.Price), C.Warn
 		end
-		Kit.Label(card, status, 11, { Font = Kit.Fonts.Title, Position = UDim2.new(0, 4, 1, -24), Size = UDim2.new(1, -8, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = statusColor, TextTruncate = Enum.TextTruncate.AtEnd })
+		Kit.Label(card, status, 11, {
+			Font = Kit.Fonts.Title,
+			Position = UDim2.new(0, 4, 1, -24),
+			Size = UDim2.new(1, -8, 0, 16),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = statusColor,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		})
 		if isEquipped then
-			local tick = Kit.new("Frame", { BackgroundColor3 = C.Accent, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 8), Size = UDim2.fromOffset(20, 20), Parent = card })
+			local tick = Kit.new("Frame", {
+				BackgroundColor3 = C.Accent,
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -6, 0, 8),
+				Size = UDim2.fromOffset(20, 20),
+				Parent = card,
+			})
 			Kit.Round(tick)
-			Kit.Label(tick, "✓", 12, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(30, 20, 4) })
+			Kit.Label(tick, "✓", 12, {
+				Font = Kit.Fonts.Title,
+				Size = UDim2.fromScale(1, 1),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextColor3 = Color3.fromRGB(30, 20, 4),
+			})
 		elseif not usable then
-			Kit.Label(card, "🔒", 14, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 6), Size = UDim2.fromOffset(20, 20), TextXAlignment = Enum.TextXAlignment.Center })
+			Kit.Label(card, "🔒", 14, {
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -6, 0, 6),
+				Size = UDim2.fromOffset(20, 20),
+				TextXAlignment = Enum.TextXAlignment.Center,
+			})
 		end
 		Kit.Clickable(card, function()
 			if usable and not isEquipped then
@@ -386,7 +523,12 @@ refreshItems = function()
 		end)
 	end
 	if shown == 0 then
-		Kit.Label(itemsScroll, "Nothing here with this filter - try All.", 13, { Font = Kit.Fonts.Bold, TextColor3 = C.SubText, TextWrapped = true })
+		Kit.Label(
+			itemsScroll,
+			"Nothing here with this filter - try All.",
+			13,
+			{ Font = Kit.Fonts.Bold, TextColor3 = C.SubText, TextWrapped = true }
+		)
 	end
 	if selected and Cosmetics.Slots[currentSlot] == selected.Category then
 		setAction(selected)
@@ -406,7 +548,9 @@ function Garage.RandomLook()
 		for _, slot in { "Primary", "Secondary", "Accent", "Pattern", "Helmet", "Visor", "Rims", "RimColor", "Tyre" } do
 			local pool = {}
 			for _, it in Cosmetics.ByCategory[Cosmetics.Slots[slot]] or {} do
-				if State.CanUse(it) and not (slot ~= "Primary" and used[it.Id] and Cosmetics.Slots[slot] == "Paint") then
+				if
+					State.CanUse(it) and not (slot ~= "Primary" and used[it.Id] and Cosmetics.Slots[slot] == "Paint")
+				then
 					table.insert(pool, it)
 				end
 			end
@@ -438,6 +582,7 @@ function Garage.FactoryLook()
 	end)
 end
 
+-- Builds the Garage page.
 function Garage.Build(parent: Instance, m)
 	menu = m
 	local f, body = m.PageFrame(parent, "Garage", "Every car has identical performance - this is all about style")
@@ -449,17 +594,46 @@ function Garage.Build(parent: Instance, m)
 	local order = 0
 	for _, group in GROUPS do
 		order += 1
-		local h = Kit.Label(catScroll, group[1], 11, { Font = Kit.Fonts.Title, Size = UDim2.new(1, 0, 0, 24), TextColor3 = C.Muted, LayoutOrder = order })
+		local h = Kit.Label(
+			catScroll,
+			group[1],
+			11,
+			{ Font = Kit.Fonts.Title, Size = UDim2.new(1, 0, 0, 24), TextColor3 = C.Muted, LayoutOrder = order }
+		)
 		h.TextYAlignment = Enum.TextYAlignment.Bottom
 		Kit.new("UIPadding", { PaddingLeft = UDim.new(0, 10), Parent = h })
 		for _, slot in group[2] do
 			order += 1
-			local b = Kit.new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1, BackgroundColor3 = C.Accent, Size = UDim2.new(1, 0, 0, 38), LayoutOrder = order, Parent = catScroll })
+			local b = Kit.new("TextButton", {
+				Text = "",
+				AutoButtonColor = false,
+				BackgroundTransparency = 1,
+				BackgroundColor3 = C.Accent,
+				Size = UDim2.new(1, 0, 0, 38),
+				LayoutOrder = order,
+				Parent = catScroll,
+			})
 			Kit.Corner(b, 10)
-			Kit.Label(b, ICONS[slot] or "✨", 17, { Position = UDim2.fromOffset(10, 0), Size = UDim2.fromOffset(24, 38), TextXAlignment = Enum.TextXAlignment.Center })
-			Kit.Label(b, if slot == "Number" then "Race number" else Cosmetics.SlotLabels[slot], 14, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(42, 0), Size = UDim2.new(1, -96, 1, 0) })
+			Kit.Label(b, ICONS[slot] or "✨", 17, {
+				Position = UDim2.fromOffset(10, 0),
+				Size = UDim2.fromOffset(24, 38),
+				TextXAlignment = Enum.TextXAlignment.Center,
+			})
+			Kit.Label(
+				b,
+				if slot == "Number" then "Race number" else Cosmetics.SlotLabels[slot],
+				14,
+				{ Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(42, 0), Size = UDim2.new(1, -96, 1, 0) }
+			)
 			if slot ~= "Number" then
-				local cnt = Kit.Label(b, "", 11, { Font = Kit.Fonts.Bold, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 0), Size = UDim2.fromOffset(46, 38), TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = C.Muted })
+				local cnt = Kit.Label(b, "", 11, {
+					Font = Kit.Fonts.Bold,
+					AnchorPoint = Vector2.new(1, 0),
+					Position = UDim2.new(1, -10, 0, 0),
+					Size = UDim2.fromOffset(46, 38),
+					TextXAlignment = Enum.TextXAlignment.Right,
+					TextColor3 = C.Muted,
+				})
 				cnt.RichText = false
 				catCounts[slot] = cnt
 			end
@@ -473,12 +647,26 @@ function Garage.Build(parent: Instance, m)
 		end
 	end
 	-- items (right)
-	local right = Kit.Panel(body, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 470, 1, 0) })
+	local right = Kit.Panel(
+		body,
+		{ AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 470, 1, 0) }
+	)
 	Kit.Padding(right, 16, 14)
 	titleLabel = Kit.Label(right, "Chassis", 22, { Font = Kit.Fonts.Title, Size = UDim2.new(1, -200, 0, 28) })
-	countLabel = Kit.Label(right, "", 12, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(0, 28), Size = UDim2.new(1, -200, 0, 16), TextColor3 = C.SubText })
+	countLabel = Kit.Label(right, "", 12, {
+		Font = Kit.Fonts.Bold,
+		Position = UDim2.fromOffset(0, 28),
+		Size = UDim2.new(1, -200, 0, 16),
+		TextColor3 = C.SubText,
+	})
 	-- quick looks: random owned combo, back to the chassis' factory colours
-	local quick = Kit.new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(196, 36), Parent = right })
+	local quick = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(196, 36),
+		Parent = right,
+	})
 	Kit.List(quick, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Right)
 	Kit.Button(quick, "🎲 Random", "secondary", function()
 		Garage.RandomLook()
@@ -487,10 +675,26 @@ function Garage.Build(parent: Instance, m)
 		Garage.FactoryLook()
 	end, { Size = UDim2.fromOffset(94, 34), TextSize = 13, LayoutOrder = 2 })
 	-- filter chips
-	local filters = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 50), Size = UDim2.new(1, 0, 0, 28), Parent = right })
+	local filters = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 50),
+		Size = UDim2.new(1, 0, 0, 28),
+		Parent = right,
+	})
 	Kit.List(filters, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center)
 	for i, fl in FILTERS do
-		local fb = Kit.new("TextButton", { Text = fl[2], Font = Kit.Fonts.Bold, TextSize = 12, TextColor3 = C.Text, AutoButtonColor = false, BackgroundColor3 = C.Panel2, Size = UDim2.fromOffset(0, 28), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = i, Parent = filters })
+		local fb = Kit.new("TextButton", {
+			Text = fl[2],
+			Font = Kit.Fonts.Bold,
+			TextSize = 12,
+			TextColor3 = C.Text,
+			AutoButtonColor = false,
+			BackgroundColor3 = C.Panel2,
+			Size = UDim2.fromOffset(0, 28),
+			AutomaticSize = Enum.AutomaticSize.X,
+			LayoutOrder = i,
+			Parent = filters,
+		})
 		Kit.Round(fb)
 		Kit.Padding(fb, 12, 0)
 		Kit.Clickable(fb, function()
@@ -499,17 +703,63 @@ function Garage.Build(parent: Instance, m)
 		end)
 		filterButtons[fl[1]] = fb
 	end
-	itemsScroll = Kit.ScrollGrid(right, UDim2.fromOffset(130, 132), 10, { Position = UDim2.fromOffset(0, 86), Size = UDim2.new(1, 0, 1, -86 - 84) })
+	itemsScroll = Kit.ScrollGrid(
+		right,
+		UDim2.fromOffset(130, 132),
+		10,
+		{ Position = UDim2.fromOffset(0, 86), Size = UDim2.new(1, 0, 1, -86 - 84) }
+	)
 	-- action bar
-	actionBar = Kit.Card(right, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 74), Visible = false }, Color3.fromRGB(14, 16, 27))
-	actionName = Kit.Label(actionBar, "", 17, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(14, 12), Size = UDim2.new(1, -200, 0, 22), TextTruncate = Enum.TextTruncate.AtEnd })
-	actionInfo = Kit.Label(actionBar, "", 12, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(14, 38), Size = UDim2.new(1, -200, 0, 18), TextColor3 = C.SubText, TextTruncate = Enum.TextTruncate.AtEnd })
-	actionBtn = Kit.Button(actionBar, "EQUIP", "success", onAction, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(170, 48), TextSize = 17 })
+	actionBar = Kit.Card(right, {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 74),
+		Visible = false,
+	}, Color3.fromRGB(14, 16, 27))
+	actionName = Kit.Label(actionBar, "", 17, {
+		Font = Kit.Fonts.Title,
+		Position = UDim2.fromOffset(14, 12),
+		Size = UDim2.new(1, -200, 0, 22),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	actionInfo = Kit.Label(actionBar, "", 12, {
+		Font = Kit.Fonts.Bold,
+		Position = UDim2.fromOffset(14, 38),
+		Size = UDim2.new(1, -200, 0, 18),
+		TextColor3 = C.SubText,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	actionBtn = Kit.Button(actionBar, "EQUIP", "success", onAction, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.fromOffset(170, 48),
+		TextSize = 17,
+	})
 	-- hint under the car
-	local hint = Kit.new("Frame", { BackgroundColor3 = Color3.fromRGB(12, 14, 24), BackgroundTransparency = 0.2, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, -117, 1, 0), Size = UDim2.fromOffset(0, 32), AutomaticSize = Enum.AutomaticSize.X, Parent = body })
+	local hint = Kit.new("Frame", {
+		BackgroundColor3 = Color3.fromRGB(12, 14, 24),
+		BackgroundTransparency = 0.2,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, -117, 1, 0),
+		Size = UDim2.fromOffset(0, 32),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Parent = body,
+	})
 	Kit.Round(hint)
 	Kit.Padding(hint, 14, 0)
-	Kit.Label(hint, if Kit.IsMobile() then "👆  Drag to rotate  •  Pinch to zoom" else "🖱️  Drag to rotate  •  Scroll to zoom", 12, { Font = Kit.Fonts.Bold, Size = UDim2.fromOffset(0, 32), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = C.SubText })
+	Kit.Label(
+		hint,
+		if Kit.IsMobile()
+			then "👆  Drag to rotate  •  Pinch to zoom"
+			else "🖱️  Drag to rotate  •  Scroll to zoom",
+		12,
+		{
+			Font = Kit.Fonts.Bold,
+			Size = UDim2.fromOffset(0, 32),
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextColor3 = C.SubText,
+		}
+	)
 	State.Changed:Connect(function()
 		if f.Visible then
 			refreshItems()
@@ -520,11 +770,13 @@ function Garage.Build(parent: Instance, m)
 	end)
 end
 
+-- Page opened: refresh the items.
 function Garage.OnShow()
 	selected = nil
 	refreshItems()
 end
 
+-- Page closed: put the real car back on the turntable.
 function Garage.OnHide()
 	selected = nil
 	menu.Scene.ClearPreview()

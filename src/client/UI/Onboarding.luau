@@ -1,5 +1,5 @@
 --!nonstrict
--- First-time player experience.
+-- The first-time player experience.
 --  * Welcome tour (once per account): what the game is, how to drive on this device
 --    (keyboard / touch / gamepad), how to read the racing line, and how coins and the
 --    Garage work - then "Start my first race" on the easiest circuit.
@@ -20,6 +20,7 @@ local Fx = require(script.Parent.Parent.Fx)
 local Onboarding = {}
 local C = Kit.Colors
 
+-- How the player is playing: touch, gamepad or keyboard.
 local function device(): string
 	if Kit.Touch() then
 		return "touch"
@@ -29,6 +30,7 @@ local function device(): string
 	return "keyboard"
 end
 
+-- The control tips for that device, as { icon, text } lines.
 local function controls(): { { string } }
 	local d = device()
 	if d == "touch" then
@@ -132,16 +134,35 @@ function Onboarding.Show(onDone: ((boolean) -> ())?)
 	open = true
 	local box, _, close = Kit.ModalFrame("👋 Let's get you racing", 660)
 	local page = 1
-	local content = Kit.new("Frame", { BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.new(1, 0, 0, 316), LayoutOrder = 1, ZIndex = 12, Parent = box })
-	local dots = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 12), LayoutOrder = 2, ZIndex = 12, Parent = box })
+	local content = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Size = UDim2.new(1, 0, 0, 316),
+		LayoutOrder = 1,
+		ZIndex = 12,
+		Parent = box,
+	})
+	local dots = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 12), LayoutOrder = 2, ZIndex = 12, Parent = box }
+	)
 	Kit.List(dots, Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
 	local dotFrames = {}
 	for i = 1, #SLIDES do
-		local d = Kit.new("Frame", { BackgroundColor3 = C.Panel3, Size = UDim2.fromOffset(10, 10), LayoutOrder = i, ZIndex = 13, Parent = dots })
+		local d = Kit.new("Frame", {
+			BackgroundColor3 = C.Panel3,
+			Size = UDim2.fromOffset(10, 10),
+			LayoutOrder = i,
+			ZIndex = 13,
+			Parent = dots,
+		})
 		Kit.Round(d)
 		dotFrames[i] = d
 	end
-	local btns = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 3, ZIndex = 12, Parent = box })
+	local btns = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 3, ZIndex = 12, Parent = box }
+	)
 	Kit.List(btns, Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Right)
 
 	local function finish(race: boolean)
@@ -159,7 +180,10 @@ function Onboarding.Show(onDone: ((boolean) -> ())?)
 				local id = easiestCircuit()
 				local res = Util.Invoke("QuickRace", id, false)
 				if res and res.ok then
-					Kit.Toast("🏁 Joining your first race on " .. Circuits.ById[id].Name .. " - good luck!", "success")
+					Kit.Toast(
+						"🏁 Joining your first race on " .. Circuits.ById[id].Name .. " - good luck!",
+						"success"
+					)
 				else
 					Kit.Toast((res and res.err) or "Couldn't join - try Quick Race", "error")
 				end
@@ -177,19 +201,60 @@ function Onboarding.Show(onDone: ((boolean) -> ())?)
 	render = function(dir: number)
 		Util.Clear(content)
 		local sl = SLIDES[page]
-		local holder = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(dir * 60, 0), Size = UDim2.fromScale(1, 1), ZIndex = 12, Parent = content })
+		local holder = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(dir * 60, 0),
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 12,
+			Parent = content,
+		})
 		Kit.Tween(holder, 0.3, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quart)
 		Kit.IconTile(holder, sl.Icon, 76, sl.Color, { Position = UDim2.fromOffset(0, 0), ZIndex = 13 })
-		Kit.Label(holder, sl.Title, 24, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(92, 2), Size = UDim2.new(1, -92, 0, 30), ZIndex = 13 })
-		Kit.Label(holder, sl.Body, 15, { Position = UDim2.fromOffset(92, 36), Size = UDim2.new(1, -92, 0, 60), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.SubText, ZIndex = 13 })
-		local list = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 102), Size = UDim2.new(1, 0, 1, -102), ZIndex = 12, Parent = holder })
+		Kit.Label(
+			holder,
+			sl.Title,
+			24,
+			{ Font = Kit.Fonts.Title, Position = UDim2.fromOffset(92, 2), Size = UDim2.new(1, -92, 0, 30), ZIndex = 13 }
+		)
+		Kit.Label(holder, sl.Body, 15, {
+			Position = UDim2.fromOffset(92, 36),
+			Size = UDim2.new(1, -92, 0, 60),
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			TextColor3 = C.SubText,
+			ZIndex = 13,
+		})
+		local list = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(0, 102),
+			Size = UDim2.new(1, 0, 1, -102),
+			ZIndex = 12,
+			Parent = holder,
+		})
 		Kit.List(list, Enum.FillDirection.Vertical, 6)
 		for i, pt in sl.Points() do
 			local r = Kit.Card(list, { Size = UDim2.new(1, 0, 0, 34), LayoutOrder = i, ZIndex = 12 }, C.Panel2)
-			local key = Kit.new("Frame", { BackgroundColor3 = sl.Color:Lerp(C.Panel3, 0.55), Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(52, 26), ZIndex = 13, Parent = r })
+			local key = Kit.new("Frame", {
+				BackgroundColor3 = sl.Color:Lerp(C.Panel3, 0.55),
+				Position = UDim2.fromOffset(6, 4),
+				Size = UDim2.fromOffset(52, 26),
+				ZIndex = 13,
+				Parent = r,
+			})
 			Kit.Corner(key, 7)
-			Kit.Label(key, pt[1], 14, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 14 })
-			local l = Kit.Label(r, pt[2], 14, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(68, 0), Size = UDim2.new(1, -76, 1, 0), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13 })
+			Kit.Label(key, pt[1], 14, {
+				Font = Kit.Fonts.Title,
+				Size = UDim2.fromScale(1, 1),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				ZIndex = 14,
+			})
+			local l = Kit.Label(r, pt[2], 14, {
+				Font = Kit.Fonts.Bold,
+				Position = UDim2.fromOffset(68, 0),
+				Size = UDim2.new(1, -76, 1, 0),
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				ZIndex = 13,
+			})
 			l.TextTransparency = 1
 			task.delay(0.05 * i, function()
 				if l.Parent then
@@ -198,7 +263,10 @@ function Onboarding.Show(onDone: ((boolean) -> ())?)
 			end)
 		end
 		for i, d in dotFrames do
-			Kit.Tween(d, 0.2, { BackgroundColor3 = if i == page then sl.Color else C.Panel3, Size = if i == page then UDim2.fromOffset(26, 10) else UDim2.fromOffset(10, 10) })
+			Kit.Tween(d, 0.2, {
+				BackgroundColor3 = if i == page then sl.Color else C.Panel3,
+				Size = if i == page then UDim2.fromOffset(26, 10) else UDim2.fromOffset(10, 10),
+			})
 		end
 		Util.Clear(btns, true)
 		if page == 1 then

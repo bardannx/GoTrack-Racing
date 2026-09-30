@@ -234,13 +234,16 @@ local function scan(dir)
 	end
 end
 scan(ROOT .. "/src")
+-- Whether a path is a source file (from the scan above).
 local function isFile(p)
 	return FILES[p] == true
 end
+-- Whether a path is a folder.
 local function isDir(p)
 	return DIRS[p] == true
 end
 
+-- The fake Instance for a path in the module tree (one per path, created on demand).
 local function node(path, name)
 	if nodes[path] then
 		return nodes[path]
@@ -250,10 +253,12 @@ local function node(path, name)
 	return n
 end
 
+-- The folder a path is in.
 local function parentPath(path)
 	return string.match(path, "^(.*)/[^/]+$")
 end
 
+-- Path of a child module (a .luau/.lua file or a folder) in `dir`, or nil.
 local function childPath(dir, name)
 	for _, ext in { ".luau", ".lua" } do
 		if isFile(dir .. "/" .. name .. ext) then
@@ -381,9 +386,11 @@ services = {
 		PromptProductPurchaseFinished = Signal(),
 	},
 	StarterGui = { SetCoreGuiEnabled = function() end, SetCore = function() end },
-	HttpService = { GenerateGUID = function()
-		return tostring(math.random(1, 1e9))
-	end },
+	HttpService = {
+		GenerateGUID = function()
+			return tostring(math.random(1, 1e9))
+		end,
+	},
 	-- no cross-server services outside Roblox: ranked falls back to the local lobby
 	MemoryStoreService = {
 		GetSortedMap = function()
@@ -437,12 +444,14 @@ local baseEnv
 
 local instSignals = setmetatable({}, { __mode = "k" })
 
+-- workspace:BulkMoveTo without the engine: just sets each CFrame.
 local function bulkMoveTo(parts, cfs)
 	for i, p in parts do
 		p.CFrame = cfs[i]
 	end
 end
 
+-- Runs a module file once with its own `script` and returns what it returns (cached).
 local function loadModule(n)
 	local path = rawget(n, "__path")
 	if cache[path] ~= nil then
@@ -457,7 +466,7 @@ local function loadModule(n)
 	-- instance events (MouseEnter, Activated, Changed...) don't exist in Lune: route every
 	-- `x.Event:Connect/Once/Wait` and property/attribute signals through harness signals
 	for _, m in { "Connect", "Once", "Wait" } do
-		src = string.gsub(src, "([%w_%.]+)%.(%u[%w_]*):" .. m .. "%(", "__Ev(%1, \"%2\"):" .. m .. "(")
+		src = string.gsub(src, "([%w_%.]+)%.(%u[%w_]*):" .. m .. "%(", '__Ev(%1, "%2"):' .. m .. "(")
 	end
 	src = string.gsub(src, "([%w_%.]+):GetPropertyChangedSignal%(", "__PropSig(%1, ")
 	src = string.gsub(src, "([%w_%.]+):PivotTo%(", "__PivotTo(%1, ")
@@ -539,12 +548,16 @@ baseEnv = {
 	Font = roblox.Font,
 	PhysicalProperties = roblox.PhysicalProperties,
 	Ray = roblox.Ray,
-	TweenInfo = { new = function(...)
-		return { ... }
-	end },
-	RaycastParams = { new = function()
-		return {}
-	end },
+	TweenInfo = {
+		new = function(...)
+			return { ... }
+		end,
+	},
+	RaycastParams = {
+		new = function()
+			return {}
+		end,
+	},
 	Random = Random,
 	task = task,
 	warn = function(...)
@@ -641,6 +654,7 @@ baseEnv = {
 -- Fake server: remotes are local mocks; Env.OnInvoke(name, ...) answers RemoteFunctions
 Env.Server = {}
 Env.Remotes = {}
+-- Answers a RemoteFunction call with the handler in Env.Server, if a check set one.
 function Env.OnInvoke(name, ...)
 	local h = Env.Server[name]
 	if h then
@@ -690,11 +704,13 @@ end
 
 Env.Overrides = {}
 
+-- Loads a module by its path from the repo root, e.g. Env.Require("src/shared/Track").
 function Env.Require(relPath)
 	local path = ROOT .. "/" .. relPath
 	return loadModule(node(path, string.match(path, "([^/]+)$")))
 end
 
+-- Sets what workspace:GetServerTimeNow() returns.
 function Env.SetServerTime(t)
 	serverTime = t
 end

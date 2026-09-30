@@ -20,10 +20,12 @@ local Arch = require(script.Parent.Architecture)
 
 local Life = {}
 
+-- Shorthand for the colour tables.
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
 
+-- Random entry from a list, using the circuit's seeded random.
 local function pick(rng, list)
 	return list[rng:NextInteger(1, #list)]
 end
@@ -42,7 +44,26 @@ local BUDGET = {
 	Fields = { 400, 1000, 1800, 2600 },
 }
 
-local NOT_IN_BLOCKS = { torii = true, oil_pump = true, wind_turbine = true, windmill = true, water_tower = true, igloo = true, lighthouse = true, castletower = true, hangar = true, geothermal = true, research_station = true, tiki_hut = true, barn = true, ranch_house = true, pagoda = true, cottage = true, chalet = true, ski_lodge = true }
+local NOT_IN_BLOCKS = {
+	torii = true,
+	oil_pump = true,
+	wind_turbine = true,
+	windmill = true,
+	water_tower = true,
+	igloo = true,
+	lighthouse = true,
+	castletower = true,
+	hangar = true,
+	geothermal = true,
+	research_station = true,
+	tiki_hut = true,
+	barn = true,
+	ranch_house = true,
+	pagoda = true,
+	cottage = true,
+	chalet = true,
+	ski_lodge = true,
+}
 local BIG = { skydeck_hotel = true, pyramid_hotel = true, flame_tower = true, casino_hotel = true }
 -- generic street buildings mixed in with each country's own architecture
 local FILL = {
@@ -50,9 +71,21 @@ local FILL = {
 	town = { suburban_house = 3, shop_row = 1, gas_station = 0.25 },
 }
 
-local SHIRTS = { rgb(220, 40, 40), rgb(40, 90, 200), rgb(250, 250, 250), rgb(30, 30, 34), rgb(255, 200, 30), rgb(40, 160, 80), rgb(255, 130, 30), rgb(150, 60, 200), rgb(0, 170, 200), rgb(240, 110, 160) }
+local SHIRTS = {
+	rgb(220, 40, 40),
+	rgb(40, 90, 200),
+	rgb(250, 250, 250),
+	rgb(30, 30, 34),
+	rgb(255, 200, 30),
+	rgb(40, 160, 80),
+	rgb(255, 130, 30),
+	rgb(150, 60, 200),
+	rgb(0, 170, 200),
+	rgb(240, 110, 160),
+}
 local PANTS = { rgb(40, 55, 90), rgb(30, 30, 34), rgb(120, 110, 90), rgb(70, 70, 76), rgb(200, 190, 160) }
-local SKIN = { rgb(255, 219, 172), rgb(241, 194, 125), rgb(224, 172, 105), rgb(198, 134, 66), rgb(141, 85, 36), rgb(92, 56, 30) }
+local SKIN =
+	{ rgb(255, 219, 172), rgb(241, 194, 125), rgb(224, 172, 105), rgb(198, 134, 66), rgb(141, 85, 36), rgb(92, 56, 30) }
 local ROAD = rgb(56, 58, 64)
 local PAVE = rgb(178, 176, 170)
 local PAINT = rgb(236, 236, 228)
@@ -87,10 +120,21 @@ local function person(ctx, f, cf: CFrame, rng: Random): { BasePart }
 	return {
 		P(f, Vector3.new(1.1, 2.1, 0.6), cf * CFrame.new(0, 1.05, 0), pick(rng, PANTS), Enum.Material.Fabric),
 		P(f, Vector3.new(1.35, 1.8, 0.75), cf * CFrame.new(0, 3, 0), pick(rng, SHIRTS), Enum.Material.Fabric),
-		P(f, Vector3.new(0.9, 0.9, 0.9), cf * CFrame.new(0, 4.35, 0), pick(rng, SKIN), Enum.Material.SmoothPlastic, nil, false, Enum.PartType.Ball),
+		P(
+			f,
+			Vector3.new(0.9, 0.9, 0.9),
+			cf * CFrame.new(0, 4.35, 0),
+			pick(rng, SKIN),
+			Enum.Material.SmoothPlastic,
+			nil,
+			false,
+			Enum.PartType.Ball
+		),
 	}
 end
 
+-- Registers parts that move together. `update(t)` returns where the group is at time t;
+-- every mover is moved in one BulkMoveTo per frame.
 local function addMover(ctx, parts: { BasePart }, baseCF: CFrame, update: (number) -> CFrame)
 	local offs = table.create(#parts)
 	for i, p in parts do
@@ -101,7 +145,14 @@ end
 
 -- Point on a rounded square loop (half-size r, corner radius c) around (cx, cz).
 -- Returns x, z and the unit heading. dir = -1 runs the loop the other way.
-local function loopPoint(cx: number, cz: number, r: number, c: number, s: number, dir: number): (number, number, number, number)
+local function loopPoint(
+	cx: number,
+	cz: number,
+	r: number,
+	c: number,
+	s: number,
+	dir: number
+): (number, number, number, number)
 	local L = 2 * (r - c)
 	local arc = math.pi * c / 2
 	local seg = L + arc
@@ -145,9 +196,25 @@ local function buildBank(ctx, i: number, side: number, len: number)
 	local foot = Vector3.new(x, 0, z)
 	local mid = foot + out * (depth / 2)
 	-- wedge: high edge (+Z) away from the track
-	P(f, Vector3.new(len, height, depth), CFrame.lookAt(mid + Vector3.new(0, height / 2, 0), mid + Vector3.new(0, height / 2, 0) - out), th.Ground:Lerp(Color3.new(0, 0, 0), 0.08), th.GroundMaterial, nil, false, nil, "WedgePart")
+	P(
+		f,
+		Vector3.new(len, height, depth),
+		CFrame.lookAt(mid + Vector3.new(0, height / 2, 0), mid + Vector3.new(0, height / 2, 0) - out),
+		th.Ground:Lerp(Color3.new(0, 0, 0), 0.08),
+		th.GroundMaterial,
+		nil,
+		false,
+		nil,
+		"WedgePart"
+	)
 	-- debris fence in front
-	local fence = P(f, Vector3.new(len, 7, 0.2), CFrame.lookAt(foot + Vector3.new(0, 3.5, 0) - out * 1.5, foot + Vector3.new(0, 3.5, 0) - out * 1.5 - out), rgb(90, 95, 100), Enum.Material.DiamondPlate)
+	local fence = P(
+		f,
+		Vector3.new(len, 7, 0.2),
+		CFrame.lookAt(foot + Vector3.new(0, 3.5, 0) - out * 1.5, foot + Vector3.new(0, 3.5, 0) - out * 1.5 - out),
+		rgb(90, 95, 100),
+		Enum.Material.DiamondPlate
+	)
 	fence.Transparency = 0.7
 	-- fans on four terraces
 	local prob = math.clamp(0.35 + 0.35 * ctx.Dens * th.Crowd, 0.25, 0.85)
@@ -159,22 +226,63 @@ local function buildBank(ctx, i: number, side: number, len: number)
 				local p = foot + out * (d + rng:NextNumber(-0.6, 0.6)) + along * u + Vector3.new(0, y, 0)
 				local pcf = CFrame.lookAt(p, p - out)
 				P(f, Vector3.new(1.35, 2.6, 0.8), pcf * CFrame.new(0, 1.3, 0), pick(rng, SHIRTS), Enum.Material.Fabric)
-				P(f, Vector3.new(0.9, 0.9, 0.9), pcf * CFrame.new(0, 3.05, 0), pick(rng, SKIN), Enum.Material.SmoothPlastic, nil, false, Enum.PartType.Ball)
+				P(
+					f,
+					Vector3.new(0.9, 0.9, 0.9),
+					pcf * CFrame.new(0, 3.05, 0),
+					pick(rng, SKIN),
+					Enum.Material.SmoothPlastic,
+					nil,
+					false,
+					Enum.PartType.Ball
+				)
 			end
 		end
 	end
 	-- flags and umbrellas
 	for k = 1, (if ctx.Q >= 3 then 3 else 1) do
 		local d = rng:NextNumber(8, 26)
-		local p = foot + out * d + along * rng:NextNumber(-len / 2 + 4, len / 2 - 4) + Vector3.new(0, height * d / depth, 0)
-		P(f, Vector3.new(0.25, 9, 0.25), CFrame.new(p + Vector3.new(0, 4.5, 0)), rgb(200, 200, 205), Enum.Material.Metal)
+		local p = foot
+			+ out * d
+			+ along * rng:NextNumber(-len / 2 + 4, len / 2 - 4)
+			+ Vector3.new(0, height * d / depth, 0)
+		P(
+			f,
+			Vector3.new(0.25, 9, 0.25),
+			CFrame.new(p + Vector3.new(0, 4.5, 0)),
+			rgb(200, 200, 205),
+			Enum.Material.Metal
+		)
 		local flagCol = pick(rng, SHIRTS)
-		P(f, Vector3.new(0.1, 2.4, 3.6), CFrame.lookAt(p + Vector3.new(0, 7.6, 0), p + Vector3.new(0, 7.6, 0) + out) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.new(0, 0, -1.8), flagCol, Enum.Material.Fabric)
+		P(
+			f,
+			Vector3.new(0.1, 2.4, 3.6),
+			CFrame.lookAt(p + Vector3.new(0, 7.6, 0), p + Vector3.new(0, 7.6, 0) + out)
+				* CFrame.Angles(0, math.pi / 2, 0)
+				* CFrame.new(0, 0, -1.8),
+			flagCol,
+			Enum.Material.Fabric
+		)
 		if ctx.Q >= 3 then
 			local q = foot + out * rng:NextNumber(6, 26) + along * rng:NextNumber(-len / 2 + 4, len / 2 - 4)
 			local qy = height * ((q - foot):Dot(out)) / depth
-			P(f, Vector3.new(0.2, 5, 0.2), CFrame.new(q + Vector3.new(0, qy + 2.5, 0)), rgb(220, 220, 220), Enum.Material.Metal)
-			P(f, Vector3.new(0.6, 6, 6), CFrame.new(q + Vector3.new(0, qy + 5, 0)) * CFrame.Angles(0, 0, math.pi / 2), if k % 2 == 0 then rgb(250, 250, 250) else pick(rng, SHIRTS), Enum.Material.Fabric, nil, false, Enum.PartType.Cylinder)
+			P(
+				f,
+				Vector3.new(0.2, 5, 0.2),
+				CFrame.new(q + Vector3.new(0, qy + 2.5, 0)),
+				rgb(220, 220, 220),
+				Enum.Material.Metal
+			)
+			P(
+				f,
+				Vector3.new(0.6, 6, 6),
+				CFrame.new(q + Vector3.new(0, qy + 5, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+				if k % 2 == 0 then rgb(250, 250, 250) else pick(rng, SHIRTS),
+				Enum.Material.Fabric,
+				nil,
+				false,
+				Enum.PartType.Cylinder
+			)
 		end
 	end
 	for u = -len / 2, len / 2, len / 3 do
@@ -183,6 +291,7 @@ local function buildBank(ctx, i: number, side: number, len: number)
 	end
 end
 
+-- Grass spectator banks with fans, flags and umbrellas at open spots beside the track.
 local function banks(ctx, over)
 	local t, rng = ctx.T, ctx.Rng
 	local want = ({ 1, 3, 5, 7 })[ctx.Q]
@@ -234,7 +343,12 @@ local function streetside(ctx, over)
 			local lat = side * (ctx.Barrier + 5)
 			local x1, y1, z1 = Track.PointAt(t, t.S[i], lat)
 			local x2, y2, z2 = Track.PointAt(t, t.S[i + step], lat)
-			if not t.Over[i] and ctx.Clear(x1, z1, ctx.Barrier + 1.5) and ctx.Clear(x2, z2, ctx.Barrier + 1.5) and ctx.Occ.free((x1 + x2) / 2, (z1 + z2) / 2, 3) then
+			if
+				not t.Over[i]
+				and ctx.Clear(x1, z1, ctx.Barrier + 1.5)
+				and ctx.Clear(x2, z2, ctx.Barrier + 1.5)
+				and ctx.Occ.free((x1 + x2) / 2, (z1 + z2) / 2, 3)
+			then
 				local p1, p2 = Vector3.new(x1, y1 + 0.2, z1), Vector3.new(x2, y2 + 0.2, z2)
 				local len = (p2 - p1).Magnitude
 				if len > 0.5 then
@@ -243,13 +357,35 @@ local function streetside(ctx, over)
 					local outV = Vector3.new(t.RX[i], 0, t.RZ[i]) * side
 					if n % 3 == 0 then
 						local base = p1 + outV * 3 + Vector3.new(0, 0.4, 0)
-						P(f, Vector3.new(0.5, 16, 0.5), CFrame.new(base + Vector3.new(0, 8, 0)), rgb(60, 64, 70), Enum.Material.Metal)
-						P(f, Vector3.new(2.4, 0.5, 1.4), CFrame.lookAt(base + Vector3.new(0, 16, 0) - outV * 2, base + Vector3.new(0, 16, 0) - outV * 3), if ctx.Night then rgb(255, 244, 214) else rgb(220, 222, 226), if ctx.Night then Enum.Material.Neon else Enum.Material.SmoothPlastic)
+						P(
+							f,
+							Vector3.new(0.5, 16, 0.5),
+							CFrame.new(base + Vector3.new(0, 8, 0)),
+							rgb(60, 64, 70),
+							Enum.Material.Metal
+						)
+						P(
+							f,
+							Vector3.new(2.4, 0.5, 1.4),
+							CFrame.lookAt(
+								base + Vector3.new(0, 16, 0) - outV * 2,
+								base + Vector3.new(0, 16, 0) - outV * 3
+							),
+							if ctx.Night then rgb(255, 244, 214) else rgb(220, 222, 226),
+							if ctx.Night then Enum.Material.Neon else Enum.Material.SmoothPlastic
+						)
 					end
 					if rng:NextNumber() < 0.45 * math.min(1, ctx.Dens) then
 						for _ = 1, rng:NextInteger(2, 6) do
-							local p = p1:Lerp(p2, rng:NextNumber()) + outV * rng:NextNumber(-2.8, 0.5) + Vector3.new(0, 0.4, 0)
-							person(ctx, f, CFrame.lookAt(p, p - outV) * CFrame.Angles(0, rng:NextNumber(-0.4, 0.4), 0), rng)
+							local p = p1:Lerp(p2, rng:NextNumber())
+								+ outV * rng:NextNumber(-2.8, 0.5)
+								+ Vector3.new(0, 0.4, 0)
+							person(
+								ctx,
+								f,
+								CFrame.lookAt(p, p - outV) * CFrame.Angles(0, rng:NextNumber(-0.4, 0.4), 0),
+								rng
+							)
 						end
 					end
 				end
@@ -272,22 +408,75 @@ local function campsite(ctx, over)
 			ctx.Occ.add(x, z, 45)
 			local centre = CFrame.new(x, 0, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
 			for _ = 1, 10 do
-				local cf = centre * CFrame.new(rng:NextNumber(-36, 36), 0, rng:NextNumber(-36, 36)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+				local cf = centre
+					* CFrame.new(rng:NextNumber(-36, 36), 0, rng:NextNumber(-36, 36))
+					* CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
 				local roll = rng:NextNumber()
 				if roll < 0.55 then
-					local col = pick(rng, { rgb(40, 110, 200), rgb(220, 60, 40), rgb(60, 150, 70), rgb(240, 180, 30), rgb(230, 230, 230) })
-					P(f, Vector3.new(6, 4, 4), cf * CFrame.new(0, 2, -2), col, Enum.Material.Fabric, nil, false, nil, "WedgePart")
-					P(f, Vector3.new(6, 4, 4), cf * CFrame.new(0, 2, 2) * CFrame.Angles(0, math.pi, 0), col, Enum.Material.Fabric, nil, false, nil, "WedgePart")
+					local col = pick(
+						rng,
+						{ rgb(40, 110, 200), rgb(220, 60, 40), rgb(60, 150, 70), rgb(240, 180, 30), rgb(230, 230, 230) }
+					)
+					P(
+						f,
+						Vector3.new(6, 4, 4),
+						cf * CFrame.new(0, 2, -2),
+						col,
+						Enum.Material.Fabric,
+						nil,
+						false,
+						nil,
+						"WedgePart"
+					)
+					P(
+						f,
+						Vector3.new(6, 4, 4),
+						cf * CFrame.new(0, 2, 2) * CFrame.Angles(0, math.pi, 0),
+						col,
+						Enum.Material.Fabric,
+						nil,
+						false,
+						nil,
+						"WedgePart"
+					)
 				elseif roll < 0.8 then
-					P(f, Vector3.new(7, 7, 18), cf * CFrame.new(0, 4.2, 0), rgb(240, 240, 236), Enum.Material.SmoothPlastic)
-					P(f, Vector3.new(7.1, 1, 18.1), cf * CFrame.new(0, 3.5, 0), pick(rng, { rgb(40, 110, 200), rgb(200, 60, 40), rgb(60, 140, 80) }), Enum.Material.SmoothPlastic)
-					P(f, Vector3.new(7.3, 2.2, 2.2), cf * CFrame.new(0, 1.1, 0), rgb(24, 24, 27), Enum.Material.SmoothPlastic, nil, false, Enum.PartType.Cylinder)
+					P(
+						f,
+						Vector3.new(7, 7, 18),
+						cf * CFrame.new(0, 4.2, 0),
+						rgb(240, 240, 236),
+						Enum.Material.SmoothPlastic
+					)
+					P(
+						f,
+						Vector3.new(7.1, 1, 18.1),
+						cf * CFrame.new(0, 3.5, 0),
+						pick(rng, { rgb(40, 110, 200), rgb(200, 60, 40), rgb(60, 140, 80) }),
+						Enum.Material.SmoothPlastic
+					)
+					P(
+						f,
+						Vector3.new(7.3, 2.2, 2.2),
+						cf * CFrame.new(0, 1.1, 0),
+						rgb(24, 24, 27),
+						Enum.Material.SmoothPlastic,
+						nil,
+						false,
+						Enum.PartType.Cylinder
+					)
 				else
 					Arch.Car(f, cf, Arch.CarColor(rng), ctx.Night, P)
 				end
 			end
 			for _ = 1, 8 do
-				person(ctx, f, centre * CFrame.new(rng:NextNumber(-30, 30), 0, rng:NextNumber(-30, 30)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), rng)
+				person(
+					ctx,
+					f,
+					centre
+						* CFrame.new(rng:NextNumber(-30, 30), 0, rng:NextNumber(-30, 30))
+						* CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0),
+					rng
+				)
 			end
 			return
 		end
@@ -332,6 +521,8 @@ local function helicopter(ctx)
 	end)
 end
 
+-- Life right beside the track: fan banks, campsites, and pavements, lamps and fans
+-- behind the fences on street circuits.
 function Life.Trackside(ctx)
 	local start = ctx.Parts()
 	local budget = BUDGET.Trackside[ctx.Q]
@@ -357,19 +548,39 @@ end
 -- one street along a block side. alongX: the street runs along X.
 local function street(ctx, cx: number, cz: number, alongX: boolean, len: number)
 	local P, f, rng = ctx.P, ctx.Scenery, ctx.Rng
-	P(f, if alongX then Vector3.new(len, 0.4, STREET) else Vector3.new(STREET, 0.4, len), CFrame.new(cx, 0.2, cz), ROAD, Enum.Material.Asphalt)
+	P(
+		f,
+		if alongX then Vector3.new(len, 0.4, STREET) else Vector3.new(STREET, 0.4, len),
+		CFrame.new(cx, 0.2, cz),
+		ROAD,
+		Enum.Material.Asphalt
+	)
 	if ctx.Q >= 2 then
 		for off = -HALF + 7, HALF - 7, 14 do
 			local p = if alongX then Vector3.new(cx + off, 0.43, cz) else Vector3.new(cx, 0.43, cz + off)
-			P(f, if alongX then Vector3.new(6, 0.06, 0.5) else Vector3.new(0.5, 0.06, 6), CFrame.new(p), PAINT, Enum.Material.SmoothPlastic)
+			P(
+				f,
+				if alongX then Vector3.new(6, 0.06, 0.5) else Vector3.new(0.5, 0.06, 6),
+				CFrame.new(p),
+				PAINT,
+				Enum.Material.SmoothPlastic
+			)
 		end
 	end
 	-- zebra crossing next to the intersection at the street's start
 	if ctx.Q >= 3 and rng:NextNumber() < 0.5 then
 		for k = 0, 8 do
 			local across = -STREET / 2 + 2 + k * 3.25
-			local p = if alongX then Vector3.new(cx - HALF + 4, 0.43, cz + across) else Vector3.new(cx + across, 0.43, cz - HALF + 4)
-			P(f, if alongX then Vector3.new(4, 0.06, 1.6) else Vector3.new(1.6, 0.06, 4), CFrame.new(p), PAINT, Enum.Material.SmoothPlastic)
+			local p = if alongX
+				then Vector3.new(cx - HALF + 4, 0.43, cz + across)
+				else Vector3.new(cx + across, 0.43, cz - HALF + 4)
+			P(
+				f,
+				if alongX then Vector3.new(4, 0.06, 1.6) else Vector3.new(1.6, 0.06, 4),
+				CFrame.new(p),
+				PAINT,
+				Enum.Material.SmoothPlastic
+			)
 		end
 	end
 	for k = -1, 1 do
@@ -388,7 +599,13 @@ local function furniture(ctx, centre: CFrame)
 			local base = sideCF * CFrame.new(u, CURB, -(HALF - 0.6))
 			P(f, Vector3.new(0.5, 15, 0.5), base * CFrame.new(0, 7.5, 0), rgb(58, 62, 68), Enum.Material.Metal)
 			P(f, Vector3.new(0.35, 0.35, 5), base * CFrame.new(0, 15, -2.3), rgb(58, 62, 68), Enum.Material.Metal)
-			P(f, Vector3.new(1.4, 0.5, 2.4), base * CFrame.new(0, 14.8, -4.6), if night then rgb(255, 238, 200) else rgb(220, 222, 226), if night then Enum.Material.Neon else Enum.Material.SmoothPlastic)
+			P(
+				f,
+				Vector3.new(1.4, 0.5, 2.4),
+				base * CFrame.new(0, 14.8, -4.6),
+				if night then rgb(255, 238, 200) else rgb(220, 222, 226),
+				if night then Enum.Material.Neon else Enum.Material.SmoothPlastic
+			)
 		end
 		-- a street tree in the middle of each side
 		if ctx.Tree and ctx.Q >= 2 then
@@ -398,7 +615,9 @@ local function furniture(ctx, centre: CFrame)
 		if ctx.Q >= 2 then
 			for _ = 1, rng:NextInteger(0, if ctx.Q >= 3 then 2 else 1) do
 				local u = rng:NextNumber(-BLOCK / 2 + 12, BLOCK / 2 - 12)
-				local ccf = sideCF * CFrame.new(u, 0.4, -(HALF + 3.8)) * CFrame.Angles(0, if rng:NextNumber() < 0.5 then math.pi / 2 else -math.pi / 2, 0)
+				local ccf = sideCF
+					* CFrame.new(u, 0.4, -(HALF + 3.8))
+					* CFrame.Angles(0, if rng:NextNumber() < 0.5 then math.pi / 2 else -math.pi / 2, 0)
 				Arch.Car(f, ccf, Arch.CarColor(rng, ctx.Th.Layout == "city"), false, P)
 			end
 		end
@@ -446,19 +665,52 @@ local function lots(ctx, centre: CFrame, pickName)
 	end
 end
 
+-- A city block turned into a park (grass, paths, trees, a fountain).
 local function park(ctx, centre: CFrame)
 	local P, f, rng = ctx.P, ctx.Scenery, ctx.Rng
-	P(f, Vector3.new(BLOCK, 0.3, BLOCK), centre * CFrame.new(0, CURB + 0.15, 0), ctx.Th.Ground:Lerp(rgb(90, 160, 70), 0.5), Enum.Material.Grass)
+	P(
+		f,
+		Vector3.new(BLOCK, 0.3, BLOCK),
+		centre * CFrame.new(0, CURB + 0.15, 0),
+		ctx.Th.Ground:Lerp(rgb(90, 160, 70), 0.5),
+		Enum.Material.Grass
+	)
 	for k = 0, 1 do
-		P(f, if k == 0 then Vector3.new(BLOCK, 0.35, 6) else Vector3.new(6, 0.35, BLOCK), centre * CFrame.new(0, CURB + 0.18, 0), rgb(214, 204, 180), Enum.Material.Sandstone)
+		P(
+			f,
+			if k == 0 then Vector3.new(BLOCK, 0.35, 6) else Vector3.new(6, 0.35, BLOCK),
+			centre * CFrame.new(0, CURB + 0.18, 0),
+			rgb(214, 204, 180),
+			Enum.Material.Sandstone
+		)
 	end
 	-- fountain
-	P(f, Vector3.new(1.4, 16, 16), centre * CFrame.new(0, CURB + 0.7, 0) * CFrame.Angles(0, 0, math.pi / 2), rgb(220, 216, 206), Enum.Material.Marble, nil, false, Enum.PartType.Cylinder)
-	local water = P(f, Vector3.new(0.4, 13.5, 13.5), centre * CFrame.new(0, CURB + 1.3, 0) * CFrame.Angles(0, 0, math.pi / 2), rgb(70, 150, 210), Enum.Material.Glass, nil, false, Enum.PartType.Cylinder)
+	P(
+		f,
+		Vector3.new(1.4, 16, 16),
+		centre * CFrame.new(0, CURB + 0.7, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		rgb(220, 216, 206),
+		Enum.Material.Marble,
+		nil,
+		false,
+		Enum.PartType.Cylinder
+	)
+	local water = P(
+		f,
+		Vector3.new(0.4, 13.5, 13.5),
+		centre * CFrame.new(0, CURB + 1.3, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		rgb(70, 150, 210),
+		Enum.Material.Glass,
+		nil,
+		false,
+		Enum.PartType.Cylinder
+	)
 	water.Transparency = 0.2
 	P(f, Vector3.new(1.4, 6, 1.4), centre * CFrame.new(0, CURB + 3, 0), rgb(220, 216, 206), Enum.Material.Marble)
 	for _ = 1, rng:NextInteger(8, 12) do
-		local x, z = rng:NextNumber(8, BLOCK / 2 - 6) * (if rng:NextNumber() < 0.5 then 1 else -1), rng:NextNumber(8, BLOCK / 2 - 6) * (if rng:NextNumber() < 0.5 then 1 else -1)
+		local x, z =
+			rng:NextNumber(8, BLOCK / 2 - 6) * (if rng:NextNumber() < 0.5 then 1 else -1),
+			rng:NextNumber(8, BLOCK / 2 - 6) * (if rng:NextNumber() < 0.5 then 1 else -1)
 		if ctx.Tree then
 			ctx.Tree(f, centre * CFrame.new(x, CURB + 0.3, z), rng:NextNumber(0.8, 1.2))
 		end
@@ -469,31 +721,70 @@ local function park(ctx, centre: CFrame)
 	end
 	if ctx.Q >= 3 then
 		for _ = 1, rng:NextInteger(5, 9) do
-			local p = centre * CFrame.new(rng:NextNumber(-2.5, 2.5) + (if rng:NextNumber() < 0.5 then 0 else rng:NextNumber(-40, 40)), CURB + 0.35, rng:NextNumber(-40, 40))
+			local p = centre
+				* CFrame.new(
+					rng:NextNumber(-2.5, 2.5) + (if rng:NextNumber() < 0.5 then 0 else rng:NextNumber(-40, 40)),
+					CURB + 0.35,
+					rng:NextNumber(-40, 40)
+				)
 			person(ctx, f, p * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), rng)
 		end
 	end
 end
 
+-- A city block turned into a car park.
 local function carpark(ctx, centre: CFrame)
 	local P, f, rng = ctx.P, ctx.Scenery, ctx.Rng
-	P(f, Vector3.new(BLOCK, 0.3, BLOCK), centre * CFrame.new(0, CURB + 0.15, 0), ROAD:Lerp(rgb(120, 120, 124), 0.25), Enum.Material.Asphalt)
+	P(
+		f,
+		Vector3.new(BLOCK, 0.3, BLOCK),
+		centre * CFrame.new(0, CURB + 0.15, 0),
+		ROAD:Lerp(rgb(120, 120, 124), 0.25),
+		Enum.Material.Asphalt
+	)
 	for _, rowZ in { -30, 30 } do
 		for x = -BLOCK / 2 + 6, BLOCK / 2 - 6, 9 do
-			P(f, Vector3.new(0.4, 0.06, 16), centre * CFrame.new(x, CURB + 0.33, rowZ), PAINT, Enum.Material.SmoothPlastic)
+			P(
+				f,
+				Vector3.new(0.4, 0.06, 16),
+				centre * CFrame.new(x, CURB + 0.33, rowZ),
+				PAINT,
+				Enum.Material.SmoothPlastic
+			)
 			if x < BLOCK / 2 - 12 and rng:NextNumber() < 0.6 then
-				Arch.Car(f, centre * CFrame.new(x + 4.5, CURB + 0.3, rowZ) * CFrame.Angles(0, if rowZ < 0 then 0 else math.pi, 0), Arch.CarColor(rng), false, P)
+				Arch.Car(
+					f,
+					centre
+						* CFrame.new(x + 4.5, CURB + 0.3, rowZ)
+						* CFrame.Angles(0, if rowZ < 0 then 0 else math.pi, 0),
+					Arch.CarColor(rng),
+					false,
+					P
+				)
 			end
 		end
 	end
-	P(f, Vector3.new(6, 7, 6), centre * CFrame.new(BLOCK / 2 - 6, CURB + 3.5, 0), rgb(235, 235, 235), Enum.Material.Plaster)
+	P(
+		f,
+		Vector3.new(6, 7, 6),
+		centre * CFrame.new(BLOCK / 2 - 6, CURB + 3.5, 0),
+		rgb(235, 235, 235),
+		Enum.Material.Plaster
+	)
 end
 
 -- pavement square with a kerb
 local function pavement(ctx, centre: CFrame)
-	ctx.P(ctx.Scenery, Vector3.new(BLOCK + WALK * 2, CURB, BLOCK + WALK * 2), centre * CFrame.new(0, CURB / 2, 0), PAVE, Enum.Material.Pavement)
+	ctx.P(
+		ctx.Scenery,
+		Vector3.new(BLOCK + WALK * 2, CURB, BLOCK + WALK * 2),
+		centre * CFrame.new(0, CURB / 2, 0),
+		PAVE,
+		Enum.Material.Pavement
+	)
 end
 
+-- City street grid around street and city circuits. Returns how many blocks it built.
 function Life.Districts(ctx)
 	local th, q = ctx.Th, ctx.Q
 	local fill = FILL[th.Layout]
@@ -606,7 +897,14 @@ function Life.Districts(ctx)
 		elseif roll < 0.17 then
 			carpark(ctx, centre)
 		elseif roll < 0.27 and #bigList > 0 then
-			Arch.Build(pick(rng, bigList), f, centre * CFrame.new(0, CURB, 0) * CFrame.Angles(0, rng:NextInteger(0, 3) * math.pi / 2, 0), rng, th, ctx.P)
+			Arch.Build(
+				pick(rng, bigList),
+				f,
+				centre * CFrame.new(0, CURB, 0) * CFrame.Angles(0, rng:NextInteger(0, 3) * math.pi / 2, 0),
+				rng,
+				th,
+				ctx.P
+			)
 		else
 			lots(ctx, centre, pickName)
 		end
@@ -660,6 +958,7 @@ local CROPS = {
 	{ "rapeseed", rgb(236, 214, 58), Enum.Material.Grass, 1 },
 }
 
+-- Farmland around rural circuits. Returns how many fields it laid out.
 function Life.Fields(ctx)
 	if ctx.Th.Layout ~= "rural" then
 		return 0
@@ -710,36 +1009,87 @@ function Life.Fields(ctx)
 			end
 			local w, d = cw - rng:NextNumber(4, 10), ch - rng:NextNumber(4, 10)
 			local fcf = CFrame.new(p) * rot
-			P(f, Vector3.new(w, 0.3, d), fcf * CFrame.new(0, 0.1, 0), crop[2]:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0, 0.08)), crop[3])
+			P(
+				f,
+				Vector3.new(w, 0.3, d),
+				fcf * CFrame.new(0, 0.1, 0),
+				crop[2]:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0, 0.08)),
+				crop[3]
+			)
 			ctx.Occ.add(p.X, p.Z, math.min(w, d) / 2 - 4)
 			if q >= 3 and crop[1] ~= "pasture" then
 				for k = -2, 2 do
-					P(f, Vector3.new(w - 4, 0.06, 1.2), fcf * CFrame.new(0, 0.28, k * d / 6), crop[2]:Lerp(Color3.new(0, 0, 0), 0.18), crop[3])
+					P(
+						f,
+						Vector3.new(w - 4, 0.06, 1.2),
+						fcf * CFrame.new(0, 0.28, k * d / 6),
+						crop[2]:Lerp(Color3.new(0, 0, 0), 0.18),
+						crop[3]
+					)
 				end
 			end
 			if q >= 2 then
 				-- hedge with a couple of trees along one edge
 				local edge = rng:NextInteger(0, 1)
-				local hcf = fcf * CFrame.new(if edge == 0 then 0 else w / 2 + 2, 1.3, if edge == 0 then d / 2 + 2 else 0)
-				P(f, if edge == 0 then Vector3.new(w, 2.6, 2.4) else Vector3.new(2.4, 2.6, d), hcf, rgb(62, 112, 48), Enum.Material.LeafyGrass)
+				local hcf = fcf
+					* CFrame.new(if edge == 0 then 0 else w / 2 + 2, 1.3, if edge == 0 then d / 2 + 2 else 0)
+				P(
+					f,
+					if edge == 0 then Vector3.new(w, 2.6, 2.4) else Vector3.new(2.4, 2.6, d),
+					hcf,
+					rgb(62, 112, 48),
+					Enum.Material.LeafyGrass
+				)
 				if ctx.Tree then
 					for _ = 1, 2 do
 						local along = rng:NextNumber(-0.4, 0.4)
-						ctx.Tree(f, hcf * CFrame.new(if edge == 0 then along * w else 0, -1.3, if edge == 0 then 0 else along * d), rng:NextNumber(0.9, 1.3))
+						ctx.Tree(
+							f,
+							hcf
+								* CFrame.new(
+									if edge == 0 then along * w else 0,
+									-1.3,
+									if edge == 0 then 0 else along * d
+								),
+							rng:NextNumber(0.9, 1.3)
+						)
 					end
 				end
 			end
 			if crop[1] == "wheat" then
 				for _ = 1, rng:NextInteger(2, 5) do
-					P(f, Vector3.new(4, 4, 4), fcf * CFrame.new(rng:NextNumber(-w / 2 + 5, w / 2 - 5), 2.1, rng:NextNumber(-d / 2 + 5, d / 2 - 5)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), rgb(222, 196, 120), Enum.Material.Grass, nil, false, Enum.PartType.Cylinder)
+					P(
+						f,
+						Vector3.new(4, 4, 4),
+						fcf
+							* CFrame.new(
+								rng:NextNumber(-w / 2 + 5, w / 2 - 5),
+								2.1,
+								rng:NextNumber(-d / 2 + 5, d / 2 - 5)
+							)
+							* CFrame.Angles(0, rng:NextNumber(0, 3), 0),
+						rgb(222, 196, 120),
+						Enum.Material.Grass,
+						nil,
+						false,
+						Enum.PartType.Cylinder
+					)
 				end
 			elseif crop[1] == "pasture" then
 				for _ = 1, rng:NextInteger(2, 5) do
-					local ccf = fcf * CFrame.new(rng:NextNumber(-w / 2 + 6, w / 2 - 6), 0, rng:NextNumber(-d / 2 + 6, d / 2 - 6)) * CFrame.Angles(0, rng:NextNumber(0, 6.28), 0)
+					local ccf = fcf
+						* CFrame.new(rng:NextNumber(-w / 2 + 6, w / 2 - 6), 0, rng:NextNumber(-d / 2 + 6, d / 2 - 6))
+						* CFrame.Angles(0, rng:NextNumber(0, 6.28), 0)
 					local hide = pick(rng, { rgb(245, 245, 240), rgb(120, 80, 50), rgb(40, 36, 34) })
 					P(f, Vector3.new(2.2, 2.2, 4.8), ccf * CFrame.new(0, 2.6, 0), hide, Enum.Material.SmoothPlastic)
 					P(f, Vector3.new(1.4, 1.4, 1.8), ccf * CFrame.new(0, 3.2, -3), hide, Enum.Material.SmoothPlastic)
-					P(f, Vector3.new(1.8, 1.6, 4), ccf * CFrame.new(0, 0.8, 0), rgb(60, 50, 44), Enum.Material.SmoothPlastic)
+					P(
+						f,
+						Vector3.new(1.8, 1.6, 4),
+						ccf * CFrame.new(0, 0.8, 0),
+						rgb(60, 50, 44),
+						Enum.Material.SmoothPlastic
+					)
 				end
 			elseif not tractorDone and (crop[1] == "plough" or crop[1] == "green") then
 				tractorDone = true
@@ -747,9 +1097,33 @@ function Life.Fields(ctx)
 				local col = pick(rng, { rgb(40, 130, 60), rgb(200, 40, 30), rgb(40, 90, 170) })
 				local parts = {
 					P(f, Vector3.new(3.4, 3, 7), base * CFrame.new(0, 3, 0), col, Enum.Material.SmoothPlastic),
-					P(f, Vector3.new(3.4, 3.6, 3.4), base * CFrame.new(0, 6.1, 1.6), rgb(50, 70, 90), Enum.Material.Glass),
-					P(f, Vector3.new(5.6, 4.2, 4.2), base * CFrame.new(0, 2.1, 2), rgb(26, 26, 28), Enum.Material.SmoothPlastic, nil, false, Enum.PartType.Cylinder),
-					P(f, Vector3.new(4.4, 2.4, 2.4), base * CFrame.new(0, 1.2, -2.6), rgb(26, 26, 28), Enum.Material.SmoothPlastic, nil, false, Enum.PartType.Cylinder),
+					P(
+						f,
+						Vector3.new(3.4, 3.6, 3.4),
+						base * CFrame.new(0, 6.1, 1.6),
+						rgb(50, 70, 90),
+						Enum.Material.Glass
+					),
+					P(
+						f,
+						Vector3.new(5.6, 4.2, 4.2),
+						base * CFrame.new(0, 2.1, 2),
+						rgb(26, 26, 28),
+						Enum.Material.SmoothPlastic,
+						nil,
+						false,
+						Enum.PartType.Cylinder
+					),
+					P(
+						f,
+						Vector3.new(4.4, 2.4, 2.4),
+						base * CFrame.new(0, 1.2, -2.6),
+						rgb(26, 26, 28),
+						Enum.Material.SmoothPlastic,
+						nil,
+						false,
+						Enum.PartType.Cylinder
+					),
 				}
 				local span = w / 2 - 10
 				local lane = rng:NextNumber(-d / 4, d / 4)

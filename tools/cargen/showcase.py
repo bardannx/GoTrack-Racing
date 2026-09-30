@@ -14,8 +14,8 @@ the lead car and Cycles motion blur streaks the background, like a TV shot.
 Raw renders go to tools/sim/out/showcase_<id>.png, finished pictures to
 assets/launch/thumbnails/. Needs bpy, numpy and Pillow.
 """
+
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -53,29 +53,68 @@ SHIFT_X = -0.14  # frame the cars right of centre: the logo and caption sit on t
 
 # final shots: where on the lap (0-1), which rig, which cars, and the caption
 SHOTS = {
-    "capital": dict(frac=0.50, rig="front", cars=["gt1", "falcon", "aeros"], title="CAPITAL CIRCUIT", sub="Madrid  ·  street circuit"),
-    "bay": dict(frac=0.26, rig="front", cars=["neonracer", "nova", "gt1"], title="NEON BAY STREETS", sub="Tokyo  ·  night race"),
-    "harbor": dict(frac=0.74, rig="front", cars=["aurora", "gt1", "stealth"], title="AZURE HARBOR", sub="Monaco  ·  harbour streets"),
-    "alpine": dict(frac=0.62, rig="front", cars=["viper", "gt1", "falcon"], title="ALPINE RING", sub="Austria  ·  mountain circuit"),
-    "canyon": dict(frac=0.50, rig="front", cars=["falcon", "retro90", "gt1"], title="RED ROCK CANYON", sub="Arizona  ·  desert sunset"),
-    "sakura": dict(frac=0.38, rig="front", cars=["aeros", "nova", "gt1"], title="SAKURA HILLS", sub="Japan  ·  cherry blossom"),
-    "frostpeak": dict(frac=0.74, rig="front", cars=["stealth", "aurora", "gt1"], title="FROSTPEAK GLACIER", sub="Arctic  ·  snow and ice"),
-    "volcano": dict(frac=0.74, rig="front", cars=["gt1", "arrow", "viper"], title="VOLCANO ISLAND", sub="Pacific  ·  erupting volcano"),
+    "capital": dict(
+        frac=0.50,
+        rig="front",
+        cars=["gt1", "falcon", "aeros"],
+        title="CAPITAL CIRCUIT",
+        sub="Madrid  ·  street circuit",
+    ),
+    "bay": dict(
+        frac=0.26, rig="front", cars=["neonracer", "nova", "gt1"], title="NEON BAY STREETS", sub="Tokyo  ·  night race"
+    ),
+    "harbor": dict(
+        frac=0.74,
+        rig="front",
+        cars=["aurora", "gt1", "stealth"],
+        title="AZURE HARBOR",
+        sub="Monaco  ·  harbour streets",
+    ),
+    "alpine": dict(
+        frac=0.62, rig="front", cars=["viper", "gt1", "falcon"], title="ALPINE RING", sub="Austria  ·  mountain circuit"
+    ),
+    "canyon": dict(
+        frac=0.50,
+        rig="front",
+        cars=["falcon", "retro90", "gt1"],
+        title="RED ROCK CANYON",
+        sub="Arizona  ·  desert sunset",
+    ),
+    "sakura": dict(
+        frac=0.38, rig="front", cars=["aeros", "nova", "gt1"], title="SAKURA HILLS", sub="Japan  ·  cherry blossom"
+    ),
+    "frostpeak": dict(
+        frac=0.74,
+        rig="front",
+        cars=["stealth", "aurora", "gt1"],
+        title="FROSTPEAK GLACIER",
+        sub="Arctic  ·  snow and ice",
+    ),
+    "volcano": dict(
+        frac=0.74,
+        rig="front",
+        cars=["gt1", "arrow", "viper"],
+        title="VOLCANO ISLAND",
+        sub="Pacific  ·  erupting volcano",
+    ),
 }
 
 LIVERY_OF = promo.LIV
 
 
 def lap_points(data):
+    """The circuit's centre line, converted from Roblox to Blender axes."""
     tr = np.array(data["track"], float)
     return np.stack([tr[:, 0], -tr[:, 2], tr[:, 1]], axis=1)  # Roblox -> Blender (x, -z, y)
 
 
 def lap_length(tb):
+    """Length of the closed centre line."""
     return float(np.sum(np.linalg.norm(np.roll(tb, -1, axis=0) - tb, axis=1)))
 
 
 def point_at(tb, frac):
+    """Position and direction at `frac` of the way around the lap."""
     n = len(tb)
     x = (frac % 1.0) * n
     i = int(x)
@@ -115,6 +154,7 @@ def ground(bpy, p, fwd):
 
 
 def frame_of(fwd, up):
+    """Right, forward and up vectors for a car facing `fwd` on a surface with normal `up`."""
     up = up / np.linalg.norm(up)
     f = fwd - up * np.dot(fwd, up)
     f /= max(np.linalg.norm(f), 1e-6)
@@ -123,22 +163,40 @@ def frame_of(fwd, up):
 
 
 def key_linear(ob):
+    """Makes an object's keyframes linear, so it moves at constant speed."""
     ad = ob.animation_data
     if ad and ad.action:
         try:
             curves = ad.action.fcurves
         except AttributeError:  # Blender 5 layered actions
-            curves = [fc for layer in ad.action.layers for strip in layer.strips for bag in strip.channelbags for fc in bag.fcurves]
+            curves = [
+                fc
+                for layer in ad.action.layers
+                for strip in layer.strips
+                for bag in strip.channelbags
+                for fc in bag.fcurves
+            ]
         for fc in curves:
             for kp in fc.keyframe_points:
                 kp.interpolation = "LINEAR"
 
 
 def place_car(bpy, objs, anchors, design, livery, pos, r, f, up, rim="turbine"):
+    """Places one car at `pos`, oriented by the (right, forward, up) frame."""
     from mathutils import Matrix
 
-    root = promo.add_car(objs, anchors, design, livery, promo.VARS.get(design, ()), promo.PATS.get(design, "stripe"),
-                         design in ("nova", "neonracer"), (0, 0, 0), 0.0, rim)
+    root = promo.add_car(
+        objs,
+        anchors,
+        design,
+        livery,
+        promo.VARS.get(design, ()),
+        promo.PATS.get(design, "stripe"),
+        design in ("nova", "neonracer"),
+        (0, 0, 0),
+        0.0,
+        rim,
+    )
     M = Matrix(((r[0], f[0], up[0]), (r[1], f[1], up[1]), (r[2], f[2], up[2])))
     root.rotation_mode = "QUATERNION"
     root.rotation_quaternion = M.to_quaternion()
@@ -155,7 +213,7 @@ def place_car(bpy, objs, anchors, design, livery, pos, r, f, up, rim="turbine"):
             continue
         tag = ch.name.split("#", 1)[1].split(".")[0]
         try:
-            i = int(tag[len(design):])
+            i = int(tag[len(design) :])
         except ValueError:
             continue
         rad = max(wheels[i]["r"], 0.5)
@@ -167,12 +225,17 @@ def place_car(bpy, objs, anchors, design, livery, pos, r, f, up, rim="turbine"):
 
 
 def set_camera(bpy, co, cam, lead, rig):
+    """Puts the camera where the shot's rig says, relative to the lead car, and keys it
+    to move with the car so motion blur streaks the background, not the car.
+    """
     from mathutils import Vector
 
     pos, r, f, up = lead
     R = RIGS[rig]
+
     def at(o):
         return pos + up * 1.95 + r * o[0] + f * o[1] + up * o[2]
+
     eye, look = at(R["eye"]), at(R["look"])
     cam.lens = R["lens"]
     cam.shift_x = R.get("shift", SHIFT_X)
@@ -210,6 +273,7 @@ def place_cars(bpy, data, cars, frac):
 
 
 def remove_cars(bpy, roots):
+    """Deletes the cars from the scene (between shots)."""
     for root in roots:
         for ch in list(root.children_recursive):
             bpy.data.objects.remove(ch, do_unlink=True)
@@ -245,6 +309,7 @@ def build(cid, cars, frac, rig="front"):
 
 
 def render_settings(sc, size, samples):
+    """Cycles settings for a shot: size, samples, motion blur."""
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
     sc.cycles.samples = samples
@@ -332,6 +397,7 @@ def clip(cid, cars, frac, rig, seconds, out_dir, size=(960, 540), samples=12, sp
             g, up = ground(bpy, p + right * lat, fwd)
             row.append((g, up, fwd, v))
         poses.append(row)
+
     # smooth normals and headings over time (the road is built from flat pieces)
     def smooth(row, k=4):
         out = []
@@ -344,24 +410,37 @@ def clip(cid, cars, frac, rig, seconds, out_dir, size=(960, 540), samples=12, sp
             g[2] = z
             out.append((g,) + frame_of(fw / np.linalg.norm(fw), up / np.linalg.norm(up)))
         return out
+
     frames = [smooth(row) for row in poses]
     lead_frames = frames[0]
     for k, design in enumerate(cars):
-        root = promo.add_car(objs, anchors, design, LIVERY_OF[design], promo.VARS.get(design, ()), promo.PATS.get(design, "stripe"),
-                             design in ("nova", "neonracer"), (0, 0, 0), 0.0, "turbine")
+        root = promo.add_car(
+            objs,
+            anchors,
+            design,
+            LIVERY_OF[design],
+            promo.VARS.get(design, ()),
+            promo.PATS.get(design, "stripe"),
+            design in ("nova", "neonracer"),
+            (0, 0, 0),
+            0.0,
+            "turbine",
+        )
         root.rotation_mode = "QUATERNION"
         wheels = anchors[design]["wheels"]
         spin = [c for c in root.children if c.name.startswith("w.")]
         for fr, (g, r, f, u) in enumerate(frames[k]):
             root.location = tuple(g + u * 1.95)
-            root.rotation_quaternion = Matrix(((r[0], f[0], u[0]), (r[1], f[1], u[1]), (r[2], f[2], u[2]))).to_quaternion()
+            root.rotation_quaternion = Matrix(
+                ((r[0], f[0], u[0]), (r[1], f[1], u[1]), (r[2], f[2], u[2]))
+            ).to_quaternion()
             root.keyframe_insert("location", frame=fr)
             root.keyframe_insert("rotation_quaternion", frame=fr)
             travelled = poses[k][0][3] * fr / fps
             for ch in spin:
                 tag = ch.name.split("#", 1)[1].split(".")[0]
                 try:
-                    i = int(tag[len(design):])
+                    i = int(tag[len(design) :])
                 except ValueError:
                     continue
                 ch.rotation_euler[0] = -travelled / max(wheels[i]["r"], 0.5)
@@ -402,6 +481,7 @@ def clip(cid, cars, frac, rig, seconds, out_dir, size=(960, 540), samples=12, sp
 
 
 def shot(cid, size=(1920, 1080), samples=96):
+    """Renders one store thumbnail."""
     s = SHOTS[cid]
     bpy, sc, co, cam, roots, lead, data = build(cid, s["cars"], s["frac"], s["rig"])
     render_settings(sc, size, samples)

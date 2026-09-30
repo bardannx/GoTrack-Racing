@@ -72,6 +72,8 @@ end
 
 local realClock = os.clock
 local fails = 0
+-- Starts a Time Trial session and submits a lap, faking the clock so the lap time is
+-- consistent with the time since the session started. Returns the server's answer.
 local function submit(t, frames, lapMs)
 	local start = TT.Start(player, t.Id)
 	-- only the elapsed check's two clock reads see the future; everything after
@@ -107,7 +109,18 @@ for _, c in Circuits.List do
 	if not good then
 		fails += 1
 	end
-	print(string.format("%-12s ideal %6.1fs  legit %-5s  70%%-time %-10s  1.6x %-10s  teleport %-10s %s", c.Id, t.IdealLap, tostring(legit.ok), tostring(fast.reason or fast.ok), tostring(hack.reason or hack.ok), tostring(tele.reason or tele.ok), if good then "ok" else ("WRONG " .. tostring(legit.err) .. " " .. tostring(legit.reason))))
+	print(
+		string.format(
+			"%-12s ideal %6.1fs  legit %-5s  70%%-time %-10s  1.6x %-10s  teleport %-10s %s",
+			c.Id,
+			t.IdealLap,
+			tostring(legit.ok),
+			tostring(fast.reason or fast.ok),
+			tostring(hack.reason or hack.ok),
+			tostring(tele.reason or tele.ok),
+			if good then "ok" else ("WRONG " .. tostring(legit.err) .. " " .. tostring(legit.reason))
+		)
+	)
 end
 if fails > 0 then
 	print(fails .. " circuit(s) wrong")

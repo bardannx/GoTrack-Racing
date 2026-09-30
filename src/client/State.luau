@@ -1,5 +1,7 @@
 --!nonstrict
--- Client-side cache of the player's profile (server is authoritative).
+-- The client's copy of the player's profile: coins, owned items, passes and settings.
+-- The server owns the real data and pushes a fresh copy whenever it changes; this module
+-- keeps it, answers "can I use this?" for the UI, and saves settings back.
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
@@ -23,7 +25,10 @@ State.DefaultSettings = {
 	Units = "kmh",
 	ShowGhosts = true,
 	ShowPBGhost = true,
-	Quality = if game:GetService("UserInputService").TouchEnabled and not game:GetService("UserInputService").KeyboardEnabled then 2 else 3, -- 1 low .. 4 ultra
+	Quality = if game:GetService("UserInputService").TouchEnabled
+			and not game:GetService("UserInputService").KeyboardEnabled
+		then 2
+		else 3, -- 1 low .. 4 ultra
 	Camera = "chase_near",
 	NameTags = true,
 	RacingLine = "full", -- off | braking | full
@@ -43,6 +48,7 @@ State.CameraModes = {
 	{ "tv", "TV" },
 }
 
+-- Switches to the next camera view and returns its display name.
 function State.CycleCamera(): string
 	local cur = State.Setting("Camera")
 	local idx = 1
@@ -57,10 +63,11 @@ function State.CycleCamera(): string
 end
 
 -- Settings changed on this device win over the copy in a profile push: the push can be
--- older than our last SaveSettings (it used to flip toggles back right after you changed them).
+-- older than our last SaveSettings and would flip a toggle straight back.
 local localSettings: { [string]: any } = {}
 local saveToken = 0
 
+-- Lays this device's latest settings over a profile from the server.
 local function withLocalSettings(snap)
 	if snap then
 		snap.settings = snap.settings or {}
@@ -71,6 +78,7 @@ local function withLocalSettings(snap)
 	return snap
 end
 
+-- Loads the profile (retrying for a while if the server is slow) and keeps it updated.
 function State.Init()
 	Net.Event("ProfileUpdated").OnClientEvent:Connect(function(snap)
 		State.Profile = withLocalSettings(snap)
@@ -91,6 +99,7 @@ function State.Init()
 	return false
 end
 
+-- Whether the player owns a pass (Ultimate counts as all of them).
 function State.HasPass(key: string): boolean
 	local p = State.Profile
 	if not p or not p.passes then
@@ -99,10 +108,12 @@ function State.HasPass(key: string): boolean
 	return p.passes[key] == true or p.passes.Ultimate == true
 end
 
+-- Set of pass keys the player owns.
 function State.Passes(): { [string]: boolean }
 	return (State.Profile and State.Profile.passes) or {}
 end
 
+-- Whether the player may equip a cosmetic (same rule the server checks).
 function State.CanUse(item): boolean
 	local p = State.Profile
 	if not p then
@@ -111,11 +122,12 @@ function State.CanUse(item): boolean
 	return Cosmetics.CanUse(item, p.owned or {}, p.passes or {}, p.peakTier)
 end
 
+-- A setting's value, or its default if the player never changed it.
 function State.Setting(key: string): any
 	local p = State.Profile
 	local v = p and p.settings and p.settings[key]
 	if key == "Camera" then
-		-- migrate v2 values
+		-- older saves used the short names
 		if v == "near" then
 			v = "chase_near"
 		elseif v == "far" then
@@ -128,6 +140,7 @@ function State.Setting(key: string): any
 	return v
 end
 
+-- Changes a setting straight away on this device and saves it to the server.
 function State.SetSetting(key: string, value: any)
 	local p = State.Profile
 	if not p then
@@ -167,6 +180,7 @@ function State.PromptPass(key: string): boolean
 	return true
 end
 
+-- Opens the Roblox purchase prompt for a developer product (by key).
 function State.PromptProduct(key: string): boolean
 	local prod = Monetization.ProductByKey[key]
 	if not prod then
@@ -180,8 +194,10 @@ function State.PromptProduct(key: string): boolean
 	return true
 end
 
--- Live Robux prices from the dashboard (falls back to config values)
+-- Robux prices, looked up once per session.
 local priceCache: { [string]: number } = {}
+
+-- A pass's live price from Roblox (cached), falling back to the price in Monetization.
 function State.PassPrice(key: string): number
 	local pass = Monetization.PassByKey[key]
 	if not pass then
@@ -202,6 +218,7 @@ function State.PassPrice(key: string): number
 	return pass.Price
 end
 
+-- Same as PassPrice, for developer products.
 function State.ProductPrice(key: string): number
 	local prod = Monetization.ProductByKey[key]
 	if not prod then
@@ -223,6 +240,7 @@ function State.ProductPrice(key: string): number
 	return prod.Price
 end
 
+-- Speed as display text and unit, in km/h or mph depending on the setting.
 function State.SpeedText(studsPerSecond: number): (string, string)
 	local kmh = math.abs(studsPerSecond) * Config.SpeedDisplayFactor
 	if State.Setting("Units") == "mph" then

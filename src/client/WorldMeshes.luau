@@ -2,8 +2,8 @@
 -- Places the Blender world meshes from tools/worldgen: skyscrapers, midrises, houses, a
 -- mall, trees, rocks, mountains and road cars. The templates are MeshParts in
 -- ReplicatedStorage.WorldMeshes (imported from assets/world/GoTrackWorld.fbx, named
--- <design>.<Slot>); centres and sizes come from WorldData. Until Bardan imports them,
--- Available() is false and the circuit builder keeps its part-built scenery.
+-- <design>.<Slot>); centres and sizes come from WorldData. Until they're imported in
+-- Studio, Available() is false and the circuit builder keeps its part-built scenery.
 --
 -- A design is one MeshPart per colour slot, so a whole skyscraper costs ~6 parts instead
 -- of 40-80. Colours come from the caller's paint table ({ Slot = { Color3, Material } })
@@ -22,6 +22,7 @@ WM.Designs = WorldData.Designs
 -- the FBX import turns every mesh 180 degrees around Y; undo it on every placement
 local MESH_FIX = CFrame.Angles(0, math.pi, 0)
 
+-- Shorthand for the colour tables below.
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
@@ -54,6 +55,7 @@ local NIGHT_NEON = { Beacon = rgb(255, 40, 40), Light = rgb(255, 248, 220), Tail
 local folder: Folder? = nil
 local complete: { [string]: boolean } = {}
 
+-- The imported mesh folder, or nil if it hasn't been imported into this place.
 local function templates(): Folder?
 	if folder and folder.Parent then
 		return folder

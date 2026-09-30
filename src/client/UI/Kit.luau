@@ -1,6 +1,8 @@
 --!nonstrict
--- GoTrack UI kit v3: one consistent, responsive, animated design system.
--- Everything scales from a 1280x720 reference and respects the Roblox top bar.
+-- The UI kit every screen is built with: colours, fonts, panels, buttons, tabs, sliders,
+-- toasts, modals and icons, so the whole game looks and behaves the same.
+-- Everything scales from a 1280x720 reference (960x540 on phones) and stays clear of
+-- the Roblox top bar.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -14,6 +16,7 @@ local Kit = {}
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
 
+-- Shorthand for the palette.
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
@@ -86,6 +89,7 @@ function Kit.new(className: string, props: { [string]: any }?, children: { Insta
 	return inst
 end
 
+-- Copies a table of properties onto an instance.
 local function apply(inst: Instance, props: { [string]: any }?)
 	if props then
 		for k, v in props do
@@ -96,14 +100,17 @@ local function apply(inst: Instance, props: { [string]: any }?)
 end
 Kit.Apply = apply
 
+-- Rounded corners (12 px unless given).
 function Kit.Corner(parent: Instance, radius: number?): UICorner
 	return Kit.new("UICorner", { CornerRadius = UDim.new(0, radius or 12), Parent = parent })
 end
 
+-- Fully round ends (pills, circles).
 function Kit.Round(parent: Instance): UICorner
 	return Kit.new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = parent })
 end
 
+-- A thin outline, subtle by default.
 function Kit.Stroke(parent: Instance, color: Color3?, thickness: number?, transparency: number?): UIStroke
 	return Kit.new("UIStroke", {
 		Color = color or C.Stroke,
@@ -114,6 +121,7 @@ function Kit.Stroke(parent: Instance, color: Color3?, thickness: number?, transp
 	})
 end
 
+-- Inner padding: `px` left/right, `py` top/bottom (same as px if left out).
 function Kit.Padding(parent: Instance, px: number, py: number?): UIPadding
 	local y = py or px
 	return Kit.new("UIPadding", {
@@ -125,7 +133,14 @@ function Kit.Padding(parent: Instance, px: number, py: number?): UIPadding
 	})
 end
 
-function Kit.List(parent: Instance, dir: Enum.FillDirection?, padding: number?, hAlign: Enum.HorizontalAlignment?, vAlign: Enum.VerticalAlignment?): UIListLayout
+-- A list layout (vertical unless `dir` says otherwise), sorted by LayoutOrder.
+function Kit.List(
+	parent: Instance,
+	dir: Enum.FillDirection?,
+	padding: number?,
+	hAlign: Enum.HorizontalAlignment?,
+	vAlign: Enum.VerticalAlignment?
+): UIListLayout
 	return Kit.new("UIListLayout", {
 		FillDirection = dir or Enum.FillDirection.Vertical,
 		Padding = UDim.new(0, padding or 8),
@@ -136,6 +151,7 @@ function Kit.List(parent: Instance, dir: Enum.FillDirection?, padding: number?, 
 	})
 end
 
+-- A grid layout with fixed cell size, sorted by LayoutOrder.
 function Kit.Grid(parent: Instance, cell: UDim2, padding: number?): UIGridLayout
 	return Kit.new("UIGridLayout", {
 		CellSize = cell,
@@ -178,8 +194,19 @@ function Kit.Depth(parent: Instance, base: Color3, strength: number?): UIGradien
 	})
 end
 
-function Kit.Tween(inst: Instance, time: number, props: { [string]: any }, style: Enum.EasingStyle?, dir: Enum.EasingDirection?): Tween
-	local t = TweenService:Create(inst, TweenInfo.new(time, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props)
+-- Plays a tween and returns it (Quad Out unless a style is given).
+function Kit.Tween(
+	inst: Instance,
+	time: number,
+	props: { [string]: any },
+	style: Enum.EasingStyle?,
+	dir: Enum.EasingDirection?
+): Tween
+	local t = TweenService:Create(
+		inst,
+		TweenInfo.new(time, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out),
+		props
+	)
 	t:Play()
 	return t
 end
@@ -187,7 +214,11 @@ end
 -- Endless back-and-forth tween (bobbing crowns, pulsing halos). No script loop: it stops by
 -- itself when the instance is destroyed.
 function Kit.Loop(inst: Instance, period: number, props: { [string]: any }): Tween
-	local t = TweenService:Create(inst, TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), props)
+	local t = TweenService:Create(
+		inst,
+		TweenInfo.new(period, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		props
+	)
 	t:Play()
 	return t
 end
@@ -217,6 +248,7 @@ local function testViewport(): Vector2?
 	return if typeof(v) == "Vector2" and v.X > 100 and v.Y > 100 then v else nil
 end
 
+-- Screen size (or the Studio test size).
 local function viewport(): Vector2
 	local t = testViewport()
 	if t then
@@ -226,10 +258,12 @@ local function viewport(): Vector2
 	return if cam then cam.ViewportSize else Vector2.new(1280, 720)
 end
 
+-- Phone-sized screen: less than PHONE_HEIGHT tall.
 local function isCompact(): boolean
 	return viewport().Y < PHONE_HEIGHT
 end
 
+-- UI scale for this screen: 1 at 1280x720 (960x540 on phones), clamped to 0.45-1.5.
 local function currentScale(): number
 	local vp = viewport()
 	local refW, refH = 1280, 720
@@ -247,6 +281,7 @@ function Kit.RootSize(): Vector2
 	return viewport() / currentScale()
 end
 
+-- Applies the current scale (and the Studio test size and zoom) to a screen.
 local function applyScale(root: Frame)
 	local s = currentScale()
 	local sc = root:FindFirstChildOfClass("UIScale")
@@ -283,6 +318,7 @@ function Kit.Inset(): (number, number, number)
 	return 58 / s, 170 / s, 0
 end
 
+-- Calls `fn(top, left, right)` now and whenever the top bar insets change.
 function Kit.BindInset(fn: (number, number, number) -> ())
 	table.insert(insetCallbacks, fn)
 	fn(Kit.Inset())
@@ -290,6 +326,7 @@ end
 
 local fitters = {}
 
+-- Re-lays out every screen after the window size or top bar changed.
 local function refreshAll()
 	for _, r in roots do
 		applyScale(r)
@@ -315,6 +352,7 @@ function Kit.FitHeight(frame: GuiObject, natural: number, reserve: () -> number,
 	update()
 end
 
+-- A new full-screen UI layer. Returns the ScreenGui and a scaled root frame to build in.
 function Kit.Screen(name: string, order: number?): (ScreenGui, Frame)
 	local gui = Kit.new("ScreenGui", {
 		Name = name,
@@ -324,7 +362,8 @@ function Kit.Screen(name: string, order: number?): (ScreenGui, Frame)
 		DisplayOrder = order or 1,
 		Parent = playerGui,
 	})
-	local root = Kit.new("Frame", { Name = "Root", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = gui })
+	local root =
+		Kit.new("Frame", { Name = "Root", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = gui })
 	Kit.new("UIScale", { Parent = root })
 	applyScale(root)
 	table.insert(roots, root)
@@ -362,6 +401,7 @@ function Kit.Touch(): boolean
 	return UserInputService.TouchEnabled
 end
 
+-- Touch-only device (a phone or tablet with no keyboard).
 function Kit.IsMobile(): boolean
 	if IS_STUDIO then
 		local lp = game:GetService("Players").LocalPlayer
@@ -377,7 +417,10 @@ end
 ---------------------------------------------------------------------------
 -- Glass panel: soft vertical gradient, hairline stroke
 function Kit.Panel(parent: Instance, props: { [string]: any }?): Frame
-	local f = Kit.new("Frame", { BackgroundColor3 = C.Panel, BackgroundTransparency = 0.04, BorderSizePixel = 0, Parent = parent })
+	local f = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Panel, BackgroundTransparency = 0.04, BorderSizePixel = 0, Parent = parent }
+	)
 	apply(f, props)
 	Kit.Corner(f, 16)
 	Kit.new("UIGradient", {
@@ -398,6 +441,7 @@ function Kit.Card(parent: Instance, props: { [string]: any }?, color: Color3?): 
 	return f
 end
 
+-- A text label in the game font, no background.
 function Kit.Label(parent: Instance, text: string, size: number?, props: { [string]: any }?): TextLabel
 	local l = Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
@@ -422,7 +466,8 @@ function Kit.Logo(parent: Instance, size: number, opts: { [string]: any }?): Fra
 	local center = o.Align == "center"
 	local w = math.floor(size * 5.5)
 	local h = math.floor(size * 1.72)
-	local f = Kit.new("Frame", { Name = "Logo", BackgroundTransparency = 1, Size = UDim2.fromOffset(w, h), Parent = parent })
+	local f =
+		Kit.new("Frame", { Name = "Logo", BackgroundTransparency = 1, Size = UDim2.fromOffset(w, h), Parent = parent })
 	local align = if center then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
 	local z = o.ZIndex or 1
 	-- soft drop shadow for contrast on bright 3D scenes
@@ -461,10 +506,19 @@ function Kit.Logo(parent: Instance, size: number, opts: { [string]: any }?): Fra
 		Rotation = 90,
 		Parent = main,
 	})
-	Kit.new("UIStroke", { Color = Color3.fromRGB(34, 12, 4), Thickness = math.max(1.5, size / 30), Transparency = 0.05, Parent = main })
+	Kit.new(
+		"UIStroke",
+		{ Color = Color3.fromRGB(34, 12, 4), Thickness = math.max(1.5, size / 30), Transparency = 0.05, Parent = main }
+	)
 	-- RACING with speed bars
 	local sub = size * 0.34
-	local row = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, size * 1.08), Size = UDim2.new(1, 0, 0, sub * 1.3), ZIndex = z + 1, Parent = f })
+	local row = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, size * 1.08),
+		Size = UDim2.new(1, 0, 0, sub * 1.3),
+		ZIndex = z + 1,
+		Parent = f,
+	})
 	Kit.new("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = if center then Enum.HorizontalAlignment.Center else Enum.HorizontalAlignment.Left,
@@ -474,7 +528,14 @@ function Kit.Logo(parent: Instance, size: number, opts: { [string]: any }?): Fra
 		Parent = row,
 	})
 	local function bar(order: number, width: number, color: Color3)
-		local b = Kit.new("Frame", { BackgroundColor3 = color, BorderSizePixel = 0, Size = UDim2.fromOffset(width, math.max(3, sub * 0.2)), LayoutOrder = order, ZIndex = z + 1, Parent = row })
+		local b = Kit.new("Frame", {
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			Size = UDim2.fromOffset(width, math.max(3, sub * 0.2)),
+			LayoutOrder = order,
+			ZIndex = z + 1,
+			Parent = row,
+		})
 		Kit.new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = b })
 		return b
 	end
@@ -491,7 +552,10 @@ function Kit.Logo(parent: Instance, size: number, opts: { [string]: any }?): Fra
 		ZIndex = z + 1,
 		Parent = row,
 	})
-	Kit.new("UIStroke", { Color = Color3.fromRGB(10, 12, 20), Thickness = math.max(1, sub / 14), Transparency = 0.25, Parent = racing })
+	Kit.new(
+		"UIStroke",
+		{ Color = Color3.fromRGB(10, 12, 20), Thickness = math.max(1, sub / 14), Transparency = 0.25, Parent = racing }
+	)
 	bar(3, size * (if center then 0.9 else 1.6), Color3.fromRGB(255, 184, 28))
 	Kit.Apply(f, o.Props)
 	return f
@@ -499,10 +563,24 @@ end
 
 -- Small uppercase section heading with an accent tick
 function Kit.Section(parent: Instance, text: string, order: number?, color: Color3?): Frame
-	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = order or 0, Parent = parent })
-	local tick = Kit.new("Frame", { BackgroundColor3 = color or C.Accent, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 5), Size = UDim2.fromOffset(4, 14), Parent = f })
+	local f = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = order or 0, Parent = parent }
+	)
+	local tick = Kit.new("Frame", {
+		BackgroundColor3 = color or C.Accent,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 5),
+		Size = UDim2.fromOffset(4, 14),
+		Parent = f,
+	})
 	Kit.Corner(tick, 2)
-	Kit.Label(f, string.upper(text), 13, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -12, 1, 0), TextColor3 = C.SubText })
+	Kit.Label(f, string.upper(text), 13, {
+		Font = Kit.Fonts.Title,
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(1, -12, 1, 0),
+		TextColor3 = C.SubText,
+	})
 	return f
 end
 
@@ -519,6 +597,7 @@ local STYLES = {
 }
 Kit.Styles = STYLES
 
+-- Colours a button for one of the STYLES.
 local function styleButton(b: GuiObject, st)
 	if b:IsA("TextButton") then
 		b.TextColor3 = st.text
@@ -582,7 +661,15 @@ function Kit.Clickable(b: GuiButton, onClick: (() -> ())?, sound: boolean?)
 	end
 end
 
-function Kit.Button(parent: Instance, text: string, style: string?, onClick: (() -> ())?, props: { [string]: any }?): TextButton
+-- A styled button with hover, press and click sound. Styles: primary, secondary,
+-- success, danger, red, blue, purple, ghost, dark.
+function Kit.Button(
+	parent: Instance,
+	text: string,
+	style: string?,
+	onClick: (() -> ())?,
+	props: { [string]: any }?
+): TextButton
 	local st = STYLES[style or "secondary"] or STYLES.secondary
 	local b = Kit.new("TextButton", {
 		AutoButtonColor = false,
@@ -602,10 +689,12 @@ function Kit.Button(parent: Instance, text: string, style: string?, onClick: (()
 	return b
 end
 
+-- Changes a button's style (a toggle turning on, say).
 function Kit.SetButtonStyle(b: GuiObject, style: string)
 	styleButton(b, STYLES[style] or STYLES.secondary)
 end
 
+-- A vertical scrolling list that grows with its content.
 function Kit.ScrollList(parent: Instance, props: { [string]: any }?, padding: number?): ScrollingFrame
 	local s = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
@@ -621,10 +710,17 @@ function Kit.ScrollList(parent: Instance, props: { [string]: any }?, padding: nu
 	})
 	apply(s, props)
 	Kit.List(s, Enum.FillDirection.Vertical, padding or 8)
-	Kit.new("UIPadding", { PaddingRight = UDim.new(0, 10), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 2), Parent = s })
+	Kit.new("UIPadding", {
+		PaddingRight = UDim.new(0, 10),
+		PaddingTop = UDim.new(0, 2),
+		PaddingBottom = UDim.new(0, 10),
+		PaddingLeft = UDim.new(0, 2),
+		Parent = s,
+	})
 	return s
 end
 
+-- A scrolling grid that grows with its content.
 function Kit.ScrollGrid(parent: Instance, cell: UDim2, padding: number?, props: { [string]: any }?): ScrollingFrame
 	local s = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
@@ -639,13 +735,30 @@ function Kit.ScrollGrid(parent: Instance, cell: UDim2, padding: number?, props: 
 	})
 	apply(s, props)
 	Kit.Grid(s, cell, padding)
-	Kit.new("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), Parent = s })
+	Kit.new("UIPadding", {
+		PaddingTop = UDim.new(0, 4),
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 10),
+		PaddingBottom = UDim.new(0, 10),
+		Parent = s,
+	})
 	return s
 end
 
 -- Pill tabs. Returns (bar, select(key))
-function Kit.Tabs(parent: Instance, tabs: { { key: string, text: string } }, onSelect: (string) -> (), props: { [string]: any }?): (Frame, (string) -> ())
-	local bar = Kit.new("Frame", { BackgroundColor3 = rgb(12, 14, 24), BackgroundTransparency = 0.2, Size = UDim2.new(0, 0, 0, 44), AutomaticSize = Enum.AutomaticSize.X, Parent = parent })
+function Kit.Tabs(
+	parent: Instance,
+	tabs: { { key: string, text: string } },
+	onSelect: (string) -> (),
+	props: { [string]: any }?
+): (Frame, (string) -> ())
+	local bar = Kit.new("Frame", {
+		BackgroundColor3 = rgb(12, 14, 24),
+		BackgroundTransparency = 0.2,
+		Size = UDim2.new(0, 0, 0, 44),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Parent = parent,
+	})
 	Kit.Round(bar)
 	Kit.Padding(bar, 4, 4)
 	apply(bar, props)
@@ -654,7 +767,11 @@ function Kit.Tabs(parent: Instance, tabs: { { key: string, text: string } }, onS
 	local function select(key: string)
 		for k, b in buttons do
 			local on = k == key
-			Kit.Tween(b, 0.15, { BackgroundTransparency = if on then 0 else 1, TextColor3 = if on then rgb(28, 18, 4) else C.SubText })
+			Kit.Tween(
+				b,
+				0.15,
+				{ BackgroundTransparency = if on then 0 else 1, TextColor3 = if on then rgb(28, 18, 4) else C.SubText }
+			)
 		end
 		onSelect(key)
 	end
@@ -683,8 +800,19 @@ function Kit.Tabs(parent: Instance, tabs: { { key: string, text: string } }, onS
 end
 
 -- Segmented control: options = { {key, text} }. Returns (frame, set(key))
-function Kit.Segmented(parent: Instance, options: { { any } }, current: any, onChange: (any) -> (), props: { [string]: any }?): (Frame, (any) -> ())
-	local f = Kit.new("Frame", { BackgroundColor3 = rgb(12, 14, 24), BackgroundTransparency = 0.1, Size = UDim2.fromOffset(300, 38), Parent = parent })
+function Kit.Segmented(
+	parent: Instance,
+	options: { { any } },
+	current: any,
+	onChange: (any) -> (),
+	props: { [string]: any }?
+): (Frame, (any) -> ())
+	local f = Kit.new("Frame", {
+		BackgroundColor3 = rgb(12, 14, 24),
+		BackgroundTransparency = 0.1,
+		Size = UDim2.fromOffset(300, 38),
+		Parent = parent,
+	})
 	Kit.Round(f)
 	Kit.Padding(f, 3, 3)
 	apply(f, props)
@@ -724,11 +852,28 @@ function Kit.Segmented(parent: Instance, options: { { any } }, current: any, onC
 end
 
 -- iOS-style switch. Returns (button, set(bool))
-function Kit.Toggle(parent: Instance, value: boolean, onChange: (boolean) -> (), props: { [string]: any }?): (TextButton, (boolean) -> ())
-	local b = Kit.new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = C.Panel3, Size = UDim2.fromOffset(54, 30), Parent = parent })
+function Kit.Toggle(
+	parent: Instance,
+	value: boolean,
+	onChange: (boolean) -> (),
+	props: { [string]: any }?
+): (TextButton, (boolean) -> ())
+	local b = Kit.new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = C.Panel3,
+		Size = UDim2.fromOffset(54, 30),
+		Parent = parent,
+	})
 	Kit.Round(b)
 	apply(b, props)
-	local knob = Kit.new("Frame", { BackgroundColor3 = C.White, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 4, 0.5, 0), Size = UDim2.fromOffset(22, 22), Parent = b })
+	local knob = Kit.new("Frame", {
+		BackgroundColor3 = C.White,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 4, 0.5, 0),
+		Size = UDim2.fromOffset(22, 22),
+		Parent = b,
+	})
 	Kit.Round(knob)
 	local state = value
 	local function set(v: boolean, instant: boolean?)
@@ -749,18 +894,52 @@ function Kit.Toggle(parent: Instance, value: boolean, onChange: (boolean) -> (),
 end
 
 -- Slider. onChange fires while dragging, onCommit on release. Returns (frame, set(value))
-function Kit.Slider(parent: Instance, min: number, max: number, step: number, value: number, onChange: (number) -> (), onCommit: ((number) -> ())?, props: { [string]: any }?): (Frame, (number) -> ())
+function Kit.Slider(
+	parent: Instance,
+	min: number,
+	max: number,
+	step: number,
+	value: number,
+	onChange: (number) -> (),
+	onCommit: ((number) -> ())?,
+	props: { [string]: any }?
+): (Frame, (number) -> ())
 	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(260, 30), Parent = parent })
 	apply(f, props)
-	local track = Kit.new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = C.Panel3, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, -56, 0, 8), Parent = f })
+	local track = Kit.new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = C.Panel3,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.new(1, -56, 0, 8),
+		Parent = f,
+	})
 	Kit.Round(track)
-	local fill = Kit.new("Frame", { BackgroundColor3 = C.Accent, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), Parent = track })
+	local fill = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Accent, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), Parent = track }
+	)
 	Kit.Round(fill)
 	Kit.Gradient(fill, rgb(255, 214, 90), C.Accent, 0)
-	local knob = Kit.new("Frame", { BackgroundColor3 = C.White, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(20, 20), ZIndex = 2, Parent = track })
+	local knob = Kit.new("Frame", {
+		BackgroundColor3 = C.White,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(20, 20),
+		ZIndex = 2,
+		Parent = track,
+	})
 	Kit.Round(knob)
 	Kit.Stroke(knob, C.Accent, 3, 0)
-	local valueLabel = Kit.Label(f, "", 15, { Font = Kit.Fonts.Bold, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(48, 24), TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = C.Accent })
+	local valueLabel = Kit.Label(f, "", 15, {
+		Font = Kit.Fonts.Bold,
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 0),
+		Size = UDim2.fromOffset(48, 24),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = C.Accent,
+	})
 	local cur = value
 	local function set(v: number)
 		v = math.clamp(math.floor((v - min) / step + 0.5) * step + min, min, max)
@@ -787,12 +966,18 @@ function Kit.Slider(parent: Instance, min: number, max: number, step: number, va
 		end
 	end)
 	UserInputService.InputChanged:Connect(function(io)
-		if dragging and (io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch) then
+		if
+			dragging
+			and (io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch)
+		then
 			fromX(io.Position.X)
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(io)
-		if dragging and (io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch) then
+		if
+			dragging
+			and (io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch)
+		then
 			dragging = false
 			if onCommit then
 				onCommit(cur)
@@ -802,31 +987,68 @@ function Kit.Slider(parent: Instance, min: number, max: number, step: number, va
 	return f, set
 end
 
+-- A small tinted tag with text (NEW, OWNED, x2...).
 function Kit.Chip(parent: Instance, text: string, color: Color3, props: { [string]: any }?): Frame
-	local f = Kit.new("Frame", { BackgroundColor3 = color, BackgroundTransparency = 0.8, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, Parent = parent })
+	local f = Kit.new("Frame", {
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.8,
+		Size = UDim2.fromOffset(0, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Parent = parent,
+	})
 	Kit.Round(f)
 	Kit.Stroke(f, color, 1, 0.4)
 	Kit.Padding(f, 9, 0)
-	Kit.Label(f, text, 11, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = color:Lerp(C.White, 0.35) })
+	Kit.Label(f, text, 11, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = color:Lerp(C.White, 0.35),
+	})
 	apply(f, props)
 	return f
 end
 
 -- Corner ribbon like "BEST VALUE"
 function Kit.Ribbon(parent: Instance, text: string, color: Color3, textColor: Color3?): Frame
-	local f = Kit.new("Frame", { BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, -10), Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, ZIndex = 5, Parent = parent })
+	local f = Kit.new("Frame", {
+		BackgroundColor3 = color,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, -10),
+		Size = UDim2.fromOffset(0, 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		ZIndex = 5,
+		Parent = parent,
+	})
 	Kit.Round(f)
 	Kit.Depth(f, color, 1)
 	Kit.Padding(f, 10, 0)
-	Kit.Label(f, text, 11, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = textColor or C.White, ZIndex = 6 })
+	Kit.Label(f, text, 11, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = textColor or C.White,
+		ZIndex = 6,
+	})
 	return f
 end
 
+-- A progress bar. Returns the background and the fill (set the fill's width to update it).
 function Kit.Bar(parent: Instance, frac: number, color: Color3, props: { [string]: any }?): (Frame, Frame)
-	local bg = Kit.new("Frame", { BackgroundColor3 = rgb(10, 12, 20), BackgroundTransparency = 0.1, Size = UDim2.new(1, 0, 0, 8), Parent = parent })
+	local bg = Kit.new("Frame", {
+		BackgroundColor3 = rgb(10, 12, 20),
+		BackgroundTransparency = 0.1,
+		Size = UDim2.new(1, 0, 0, 8),
+		Parent = parent,
+	})
 	Kit.Round(bg)
 	apply(bg, props)
-	local fill = Kit.new("Frame", { BackgroundColor3 = color, BorderSizePixel = 0, Size = UDim2.fromScale(math.clamp(frac, 0, 1), 1), Parent = bg })
+	local fill = Kit.new("Frame", {
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(math.clamp(frac, 0, 1), 1),
+		Parent = bg,
+	})
 	Kit.Round(fill)
 	Kit.Gradient(fill, color:Lerp(C.White, 0.3), color, 0)
 	return bg, fill
@@ -836,41 +1058,90 @@ end
 -- Drawn icons (no image assets needed)
 ---------------------------------------------------------------------------
 function Kit.Coin(parent: Instance, size: number, props: { [string]: any }?): Frame
-	local f = Kit.new("Frame", { BackgroundColor3 = rgb(255, 205, 60), Size = UDim2.fromOffset(size, size), Parent = parent })
+	local f =
+		Kit.new("Frame", { BackgroundColor3 = rgb(255, 205, 60), Size = UDim2.fromOffset(size, size), Parent = parent })
 	Kit.Round(f)
 	Kit.Gradient(f, rgb(255, 232, 120), rgb(230, 140, 20), 45)
 	Kit.Stroke(f, rgb(170, 98, 8), math.max(1, size * 0.08), 0)
-	local inner = Kit.new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.66, 0.66), Parent = f })
+	local inner = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.66, 0.66),
+		Parent = f,
+	})
 	Kit.Round(inner)
 	Kit.Stroke(inner, rgb(255, 245, 190), math.max(1, size * 0.05), 0.2)
-	Kit.Label(f, "G", size * 0.5, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = rgb(150, 84, 4) })
+	Kit.Label(f, "G", size * 0.5, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = rgb(150, 84, 4),
+	})
 	apply(f, props)
 	return f
 end
 
+-- The Robux icon, drawn with frames so it needs no image upload.
 function Kit.Robux(parent: Instance, size: number, color: Color3?, props: { [string]: any }?): Frame
 	local col = color or C.White
 	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(size, size), Parent = parent })
-	local outer = Kit.new("Frame", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.84, 0.84), Rotation = 0, Parent = f })
+	local outer = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.84, 0.84),
+		Rotation = 0,
+		Parent = f,
+	})
 	Kit.Corner(outer, math.floor(size * 0.24))
 	Kit.Stroke(outer, col, math.max(1.5, size * 0.12), 0)
-	local inner = Kit.new("Frame", { BackgroundColor3 = col, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.3, 0.3), Parent = f })
+	local inner = Kit.new("Frame", {
+		BackgroundColor3 = col,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.3, 0.3),
+		Parent = f,
+	})
 	Kit.Corner(inner, 2)
 	apply(f, props)
 	return f
 end
 
 -- Price row: [Robux icon] 1,234
-function Kit.RobuxPrice(parent: Instance, amount: number, textSize: number, color: Color3?, props: { [string]: any }?): (Frame, TextLabel)
-	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, textSize + 6), AutomaticSize = Enum.AutomaticSize.X, Parent = parent })
-	Kit.List(f, Enum.FillDirection.Horizontal, math.floor(textSize * 0.3), Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+function Kit.RobuxPrice(
+	parent: Instance,
+	amount: number,
+	textSize: number,
+	color: Color3?,
+	props: { [string]: any }?
+): (Frame, TextLabel)
+	local f = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(0, textSize + 6),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Parent = parent,
+	})
+	Kit.List(
+		f,
+		Enum.FillDirection.Horizontal,
+		math.floor(textSize * 0.3),
+		Enum.HorizontalAlignment.Center,
+		Enum.VerticalAlignment.Center
+	)
 	Kit.Robux(f, textSize * 0.95, color, { LayoutOrder = 1 })
 	local s = tostring(math.floor(amount))
 	local formatted, k = s, 0
 	repeat
 		formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
 	until k == 0
-	local l = Kit.Label(f, formatted, textSize, { Font = Kit.Fonts.Title, Size = UDim2.fromOffset(0, textSize + 6), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = color or C.White, LayoutOrder = 2 })
+	local l = Kit.Label(f, formatted, textSize, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromOffset(0, textSize + 6),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextColor3 = color or C.White,
+		LayoutOrder = 2,
+	})
 	apply(f, props)
 	return f, l
 end
@@ -880,21 +1151,47 @@ function Kit.TierBadge(parent: Instance, tier, size: number, division: string?, 
 	local col = tier.Color
 	-- just the diamond (no round glow behind it)
 	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(size, size), Parent = parent })
-	local outer = Kit.new("Frame", { BackgroundColor3 = col, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.7, 0.7), Rotation = 45, Parent = f })
+	local outer = Kit.new("Frame", {
+		BackgroundColor3 = col,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.7, 0.7),
+		Rotation = 45,
+		Parent = f,
+	})
 	Kit.Corner(outer, math.floor(size * 0.1))
 	Kit.Gradient(outer, col:Lerp(C.White, 0.45), col:Lerp(Color3.new(0, 0, 0), 0.35), 0)
 	Kit.Stroke(outer, col:Lerp(C.White, 0.6), math.max(1, size * 0.035), 0)
-	local inner = Kit.new("Frame", { BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.55), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.46, 0.46), Rotation = 45, Parent = f })
+	local inner = Kit.new("Frame", {
+		BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.55),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.46, 0.46),
+		Rotation = 45,
+		Parent = f,
+	})
 	Kit.Corner(inner, math.floor(size * 0.06))
 	Kit.Stroke(inner, col:Lerp(C.White, 0.25), math.max(1, size * 0.02), 0.2)
 	local txt = if tier.Name == "Champion" then "★" else (division or "")
-	Kit.Label(f, txt, size * (if #txt > 2 then 0.17 else 0.22), { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = col:Lerp(C.White, 0.7) })
+	Kit.Label(f, txt, size * (if #txt > 2 then 0.17 else 0.22), {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = col:Lerp(C.White, 0.7),
+	})
 	apply(f, props)
 	return f
 end
 
 -- Player headshot (AI / unknown players get initials)
-function Kit.Avatar(parent: Instance, userId: number?, size: number, fallbackName: string?, ring: Color3?, props: { [string]: any }?): Frame
+function Kit.Avatar(
+	parent: Instance,
+	userId: number?,
+	size: number,
+	fallbackName: string?,
+	ring: Color3?,
+	props: { [string]: any }?
+): Frame
 	local f = Kit.new("Frame", { BackgroundColor3 = C.Panel3, Size = UDim2.fromOffset(size, size), Parent = parent })
 	Kit.Round(f)
 	Kit.Stroke(f, ring or rgb(255, 255, 255), math.max(1.5, size * 0.05), if ring then 0 else 0.8)
@@ -916,7 +1213,12 @@ function Kit.Avatar(parent: Instance, userId: number?, size: number, fallbackNam
 			end
 		end
 		Kit.Gradient(f, rgb(70, 80, 120), rgb(35, 40, 62), 45)
-		Kit.Label(f, if initials == "" then "?" else initials, size * 0.36, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center })
+		Kit.Label(
+			f,
+			if initials == "" then "?" else initials,
+			size * 0.36,
+			{ Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center }
+		)
 	end
 	apply(f, props)
 	return f
@@ -951,15 +1253,38 @@ Kit.BindInset(function(top)
 	toastHolder.Position = UDim2.new(0.5, 0, 0, top + 12)
 end)
 
+-- A short message that pops in and fades after a few seconds (kind: info, success, warn,
+-- error).
 function Kit.Toast(msg: string, kind: string?)
-	local color = if kind == "success" then C.Success elseif kind == "error" then C.Danger elseif kind == "warn" then C.Warn else C.Accent2
-	local f = Kit.new("Frame", { BackgroundColor3 = rgb(16, 18, 30), BackgroundTransparency = 0.04, Size = UDim2.fromOffset(0, 48), AutomaticSize = Enum.AutomaticSize.X, Parent = toastHolder })
+	local color = if kind == "success"
+		then C.Success
+		elseif kind == "error" then C.Danger
+		elseif kind == "warn" then C.Warn
+		else C.Accent2
+	local f = Kit.new("Frame", {
+		BackgroundColor3 = rgb(16, 18, 30),
+		BackgroundTransparency = 0.04,
+		Size = UDim2.fromOffset(0, 48),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Parent = toastHolder,
+	})
 	Kit.Corner(f, 14)
 	local stroke = Kit.Stroke(f, color, 1.5, 0.3)
 	Kit.new("UIPadding", { PaddingLeft = UDim.new(0, 22), PaddingRight = UDim.new(0, 18), Parent = f })
-	local bar = Kit.new("Frame", { BackgroundColor3 = color, BorderSizePixel = 0, Position = UDim2.new(0, -14, 0.5, -11), Size = UDim2.fromOffset(4, 22), Parent = f })
+	local bar = Kit.new("Frame", {
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, -14, 0.5, -11),
+		Size = UDim2.fromOffset(4, 22),
+		Parent = f,
+	})
 	Kit.Corner(bar, 2)
-	local l = Kit.Label(f, msg, 16, { Size = UDim2.fromOffset(0, 48), AutomaticSize = Enum.AutomaticSize.X, Font = Kit.Fonts.Bold, TextXAlignment = Enum.TextXAlignment.Center })
+	local l = Kit.Label(f, msg, 16, {
+		Size = UDim2.fromOffset(0, 48),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Font = Kit.Fonts.Bold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+	})
 	local sc = Kit.new("UIScale", { Scale = 0.7, Parent = f })
 	Kit.Tween(sc, 0.28, { Scale = 1 }, Enum.EasingStyle.Back)
 	task.delay(3.4, function()
@@ -972,6 +1297,7 @@ function Kit.Toast(msg: string, kind: string?)
 	end)
 end
 
+-- The shared window for Modal and Prompt: dimmed background, title bar, close button.
 local function modalFrame(title: string, width: number?, height: number?): (Frame, Frame, () -> ())
 	local dim = Kit.new("TextButton", {
 		Text = "",
@@ -992,9 +1318,22 @@ local function modalFrame(title: string, width: number?, height: number?): (Fram
 	})
 	Kit.Padding(box, 24, 22)
 	Kit.List(box, Enum.FillDirection.Vertical, 14)
-	local accent = Kit.new("Frame", { BackgroundColor3 = C.Accent, BorderSizePixel = 0, Size = UDim2.fromOffset(44, 4), LayoutOrder = -1, ZIndex = 12, Parent = box })
+	local accent = Kit.new("Frame", {
+		BackgroundColor3 = C.Accent,
+		BorderSizePixel = 0,
+		Size = UDim2.fromOffset(44, 4),
+		LayoutOrder = -1,
+		ZIndex = 12,
+		Parent = box,
+	})
 	Kit.Round(accent)
-	Kit.Label(box, title, 24, { Font = Kit.Fonts.Title, LayoutOrder = 0, ZIndex = 12, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y })
+	Kit.Label(box, title, 24, {
+		Font = Kit.Fonts.Title,
+		LayoutOrder = 0,
+		ZIndex = 12,
+		TextWrapped = true,
+		AutomaticSize = Enum.AutomaticSize.Y,
+	})
 	local sc = Kit.new("UIScale", { Scale = 0.88, Parent = box })
 	Kit.Tween(sc, 0.24, { Scale = 1 }, Enum.EasingStyle.Back)
 	local closed = false
@@ -1012,9 +1351,20 @@ Kit.ModalFrame = modalFrame
 -- Buttons: { {text, style, fn} }. fn may return true to keep the modal open.
 function Kit.Modal(title: string, body: string, buttons: { { any } }, width: number?)
 	local box, _, close = modalFrame(title, width)
-	local l = Kit.Label(box, body, 16, { TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, TextColor3 = C.SubText, LayoutOrder = 1, ZIndex = 12, Font = Kit.Fonts.Medium, TextYAlignment = Enum.TextYAlignment.Top })
+	local l = Kit.Label(box, body, 16, {
+		TextWrapped = true,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextColor3 = C.SubText,
+		LayoutOrder = 1,
+		ZIndex = 12,
+		Font = Kit.Fonts.Medium,
+		TextYAlignment = Enum.TextYAlignment.Top,
+	})
 	l.Size = UDim2.new(1, 0, 0, 20)
-	local row = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 2, ZIndex = 12, Parent = box })
+	local row = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 2, ZIndex = 12, Parent = box }
+	)
 	Kit.List(row, Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
 	for i, b in buttons do
 		Kit.Button(row, b[1], b[2], function()
@@ -1054,7 +1404,10 @@ function Kit.Prompt(title: string, placeholder: string, default: string?, onSubm
 			end
 		end)
 	end
-	local row = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 2, ZIndex = 12, Parent = box })
+	local row = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 2, ZIndex = 12, Parent = box }
+	)
 	Kit.List(row, Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Right)
 	Kit.Button(row, "Cancel", "secondary", close, { LayoutOrder = 1, ZIndex = 13, Size = UDim2.fromOffset(120, 46) })
 	Kit.Button(row, "OK", "primary", function()
@@ -1086,9 +1439,19 @@ local curtainConn = nil
 function Kit.Loading(show: boolean, text: string?, detail: string?, heading: string?)
 	if show then
 		if not curtain then
-			local f = Kit.new("Frame", { BackgroundColor3 = C.Bg, Size = UDim2.fromScale(1, 1), ZIndex = 40, Parent = overlayRoot })
+			local f = Kit.new(
+				"Frame",
+				{ BackgroundColor3 = C.Bg, Size = UDim2.fromScale(1, 1), ZIndex = 40, Parent = overlayRoot }
+			)
 			Kit.Gradient(f, rgb(24, 28, 52), rgb(8, 9, 16), 90)
-			local stripes = Kit.new("Frame", { Name = "Stripes", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ClipsDescendants = true, ZIndex = 40, Parent = f })
+			local stripes = Kit.new("Frame", {
+				Name = "Stripes",
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				ClipsDescendants = true,
+				ZIndex = 40,
+				Parent = f,
+			})
 			for k = 0, 5 do
 				local s = Kit.new("Frame", {
 					BackgroundColor3 = if k % 2 == 0 then C.Accent else C.Red,
@@ -1103,30 +1466,113 @@ function Kit.Loading(show: boolean, text: string?, detail: string?, heading: str
 				})
 				s:SetAttribute("Base", 0.1 + k * 0.18)
 			end
-			Kit.Logo(f, 92, { Align = "center", Props = { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.33), ZIndex = 41 } })
+			Kit.Logo(f, 92, {
+				Align = "center",
+				Props = { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.33), ZIndex = 41 },
+			})
 			-- what is loading: small caps heading, big name, detail line
-			local card = Kit.new("Frame", { Name = "Card", BackgroundColor3 = rgb(12, 14, 26), BackgroundTransparency = 0.25, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.62), Size = UDim2.fromOffset(620, 150), ZIndex = 41, Parent = f })
+			local card = Kit.new("Frame", {
+				Name = "Card",
+				BackgroundColor3 = rgb(12, 14, 26),
+				BackgroundTransparency = 0.25,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.62),
+				Size = UDim2.fromOffset(620, 150),
+				ZIndex = 41,
+				Parent = f,
+			})
 			Kit.Corner(card, 20)
 			Kit.new("UIStroke", { Color = C.Accent, Thickness = 1.5, Transparency = 0.6, Parent = card })
-			Kit.new("TextLabel", { Name = "Head", BackgroundTransparency = 1, Text = "LOADING", FontFace = Kit.Faces.Heavy, TextSize = 15, TextColor3 = C.Accent, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 18), ZIndex = 42, Parent = card })
-			Kit.new("TextLabel", { Name = "Status", BackgroundTransparency = 1, Text = "", FontFace = Kit.Faces.Sub, TextSize = 32, TextColor3 = C.Text, TextTruncate = Enum.TextTruncate.AtEnd, Position = UDim2.fromOffset(20, 40), Size = UDim2.new(1, -40, 0, 40), ZIndex = 42, Parent = card })
-			Kit.new("TextLabel", { Name = "Detail", BackgroundTransparency = 1, Text = "", FontFace = Kit.Faces.Semi, TextSize = 16, TextColor3 = C.SubText, Position = UDim2.fromOffset(20, 82), Size = UDim2.new(1, -40, 0, 20), ZIndex = 42, Parent = card })
-			local barBg = Kit.new("Frame", { Name = "BarBg", BackgroundColor3 = rgb(40, 45, 70), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 118), Size = UDim2.new(1, -80, 0, 8), ClipsDescendants = true, ZIndex = 42, Parent = card })
+			Kit.new("TextLabel", {
+				Name = "Head",
+				BackgroundTransparency = 1,
+				Text = "LOADING",
+				FontFace = Kit.Faces.Heavy,
+				TextSize = 15,
+				TextColor3 = C.Accent,
+				Position = UDim2.fromOffset(0, 18),
+				Size = UDim2.new(1, 0, 0, 18),
+				ZIndex = 42,
+				Parent = card,
+			})
+			Kit.new("TextLabel", {
+				Name = "Status",
+				BackgroundTransparency = 1,
+				Text = "",
+				FontFace = Kit.Faces.Sub,
+				TextSize = 32,
+				TextColor3 = C.Text,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Position = UDim2.fromOffset(20, 40),
+				Size = UDim2.new(1, -40, 0, 40),
+				ZIndex = 42,
+				Parent = card,
+			})
+			Kit.new("TextLabel", {
+				Name = "Detail",
+				BackgroundTransparency = 1,
+				Text = "",
+				FontFace = Kit.Faces.Semi,
+				TextSize = 16,
+				TextColor3 = C.SubText,
+				Position = UDim2.fromOffset(20, 82),
+				Size = UDim2.new(1, -40, 0, 20),
+				ZIndex = 42,
+				Parent = card,
+			})
+			local barBg = Kit.new("Frame", {
+				Name = "BarBg",
+				BackgroundColor3 = rgb(40, 45, 70),
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.new(0.5, 0, 0, 118),
+				Size = UDim2.new(1, -80, 0, 8),
+				ClipsDescendants = true,
+				ZIndex = 42,
+				Parent = card,
+			})
 			Kit.Round(barBg)
-			local bar = Kit.new("Frame", { Name = "Bar", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.fromScale(0.35, 1), ZIndex = 43, Parent = barBg })
+			local bar = Kit.new("Frame", {
+				Name = "Bar",
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Size = UDim2.fromScale(0.35, 1),
+				ZIndex = 43,
+				Parent = barBg,
+			})
 			Kit.Round(bar)
 			Kit.Gradient(bar, C.Accent, C.Red, 0)
 			-- tip pill
-			local tip = Kit.new("Frame", { Name = "TipPill", BackgroundColor3 = rgb(12, 14, 26), BackgroundTransparency = 0.3, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -34), Size = UDim2.fromOffset(0, 40), AutomaticSize = Enum.AutomaticSize.X, ZIndex = 41, Parent = f })
+			local tip = Kit.new("Frame", {
+				Name = "TipPill",
+				BackgroundColor3 = rgb(12, 14, 26),
+				BackgroundTransparency = 0.3,
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -34),
+				Size = UDim2.fromOffset(0, 40),
+				AutomaticSize = Enum.AutomaticSize.X,
+				ZIndex = 41,
+				Parent = f,
+			})
 			Kit.Round(tip)
 			Kit.Padding(tip, 20, 0)
-			Kit.new("TextLabel", { Name = "Tip", BackgroundTransparency = 1, Text = "", FontFace = Kit.Faces.Semi, TextSize = 17, TextColor3 = rgb(215, 220, 240), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 40), RichText = true, ZIndex = 42, Parent = tip })
+			Kit.new("TextLabel", {
+				Name = "Tip",
+				BackgroundTransparency = 1,
+				Text = "",
+				FontFace = Kit.Faces.Semi,
+				TextSize = 17,
+				TextColor3 = rgb(215, 220, 240),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, 40),
+				RichText = true,
+				ZIndex = 42,
+				Parent = tip,
+			})
 			curtain = f
 			local t0 = os.clock()
 			if curtainConn then
 				curtainConn:Disconnect()
 			end
-			curtainConn =game:GetService("RunService").RenderStepped:Connect(function()
+			curtainConn = game:GetService("RunService").RenderStepped:Connect(function()
 				local t = os.clock() - t0
 				bar.Position = UDim2.fromScale(((t * 0.7) % 1.3) - 0.3, 0)
 				for _, s in stripes:GetChildren() do
@@ -1137,10 +1583,11 @@ function Kit.Loading(show: boolean, text: string?, detail: string?, heading: str
 		end
 		local cf = curtain :: Frame
 		local card = cf:FindFirstChild("Card") :: Frame
-		;(card:FindFirstChild("Status") :: TextLabel).Text = text or "Loading..."
-		;(card:FindFirstChild("Detail") :: TextLabel).Text = detail or ""
-		;(card:FindFirstChild("Head") :: TextLabel).Text = heading or "LOADING"
-		;(cf:FindFirstChild("TipPill"):FindFirstChild("Tip") :: TextLabel).Text = "<font color='#FFB81C'><b>TIP</b></font>   " .. TIPS[math.random(1, #TIPS)]
+		(card:FindFirstChild("Status") :: TextLabel).Text = text or "Loading..."
+		(card:FindFirstChild("Detail") :: TextLabel).Text = detail or ""
+		(card:FindFirstChild("Head") :: TextLabel).Text = heading or "LOADING"
+		(cf:FindFirstChild("TipPill"):FindFirstChild("Tip") :: TextLabel).Text = "<font color='#FFB81C'><b>TIP</b></font>   "
+			.. TIPS[math.random(1, #TIPS)]
 		cf.Visible = true
 		cf.BackgroundTransparency = 0
 	elseif curtain then

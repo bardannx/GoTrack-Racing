@@ -1,12 +1,20 @@
 """Shared wheel, rim and helmet meshes (unit sized; scaled per car in Roblox via MeshPart.Size).
 Tyre/rim: axial along x in -0.5..0.5 (outboard = +x), radius 1 (tyre outer / rim outer)."""
+
 import math
 import numpy as np
 import geo
 
 
 def _arc(cx, cy, r, a0, a1, n):
-    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * k / n)), cy + r * math.sin(math.radians(a0 + (a1 - a0) * k / n))) for k in range(n + 1)]
+    """n+1 points on a circular arc (angles in degrees)."""
+    return [
+        (
+            cx + r * math.cos(math.radians(a0 + (a1 - a0) * k / n)),
+            cy + r * math.sin(math.radians(a0 + (a1 - a0) * k / n)),
+        )
+        for k in range(n + 1)
+    ]
 
 
 def tyre(inner, shoulder=0.07):
@@ -31,6 +39,7 @@ def tyre(inner, shoulder=0.07):
 
 
 def compound_ring(r0, r1):
+    """The coloured tyre-compound band on the sidewall, between radii r0 and r1."""
     return geo.revolve([(0.5, r0), (0.508, r0), (0.508, r1), (0.5, r1), (0.5, r0)], 48, "x")
 
 
@@ -39,7 +48,11 @@ def tread_grooves(n=4):
     polys = []
     for k in range(n):
         x = -0.3 + 0.6 * k / (n - 1)
-        polys += geo.revolve([(x - 0.025, 1.003), (x + 0.025, 1.003), (x + 0.025, 0.995), (x - 0.025, 0.995), (x - 0.025, 1.003)], 48, "x")
+        polys += geo.revolve(
+            [(x - 0.025, 1.003), (x + 0.025, 1.003), (x + 0.025, 0.995), (x - 0.025, 0.995), (x - 0.025, 1.003)],
+            48,
+            "x",
+        )
     return polys
 
 
@@ -50,14 +63,19 @@ FACE0, FACE1 = 0.30, 0.355
 
 
 def rim_barrel():
-    return geo.revolve([(-0.45, 0.965), (0.36, 0.965), (0.40, 1.0), (0.44, 1.0), (0.44, 0.92), (-0.45, 0.92), (-0.45, 0.965)], 40, "x")
+    """The outer lip of the rim."""
+    return geo.revolve(
+        [(-0.45, 0.965), (0.36, 0.965), (0.40, 1.0), (0.44, 1.0), (0.44, 0.92), (-0.45, 0.92), (-0.45, 0.965)], 40, "x"
+    )
 
 
 def rim_back():
+    """The solid disc behind the spokes."""
     return geo.revolve([(-0.15, 0.0), (-0.15, 0.93), (-0.18, 0.93), (-0.18, 0.0)], 32, "x")
 
 
 def rim_hub():
+    """The centre hub."""
     return geo.revolve([(0.28, 0.0), (0.28, 0.17), (0.40, 0.15), (0.43, 0.10), (0.44, 0.0)], 20, "x")
 
 
@@ -74,10 +92,11 @@ def _spoke(poly_polar, angle):
 
 
 def spokes(count, w_in, w_out, r0=0.15, r1=0.94, twist=0.0, pair=0.0, steps=6):
+    """`count` spokes from r0 to r1, optionally twisted or in pairs."""
     polys = []
     for k in range(count):
         base = 2 * math.pi * k / count
-        for off in ((-pair, pair) if pair else (0.0,)):
+        for off in (-pair, pair) if pair else (0.0,):
             pts_l, pts_r = [], []
             for i in range(steps + 1):
                 f = i / steps
@@ -91,6 +110,7 @@ def spokes(count, w_in, w_out, r0=0.15, r1=0.94, twist=0.0, pair=0.0, steps=6):
 
 
 def rim_style(style):
+    """The spoke pattern for a rim style (classic, spoke, star, dish, turbine, blade, mesh)."""
     if style == "classic":
         return spokes(5, 0.07, 0.05, pair=0.13)
     if style == "spoke":
@@ -104,12 +124,17 @@ def rim_style(style):
     if style == "mesh":
         return spokes(10, 0.035, 0.03, twist=0.55) + spokes(10, 0.035, 0.03, twist=-0.55)
     if style == "dish":
-        return geo.revolve([(FACE0, 0.0), (FACE0, 0.94), (FACE1 - 0.01, 0.94), (FACE1 + 0.04, 0.5), (FACE1 + 0.05, 0.0)], 40, "x")
+        return geo.revolve(
+            [(FACE0, 0.0), (FACE0, 0.94), (FACE1 - 0.01, 0.94), (FACE1 + 0.04, 0.5), (FACE1 + 0.05, 0.0)], 40, "x"
+        )
     raise ValueError(style)
 
 
 def neon_ring():
-    return geo.revolve([(FACE1, 0.80), (FACE1 + 0.02, 0.80), (FACE1 + 0.02, 0.87), (FACE1, 0.87), (FACE1, 0.80)], 40, "x")
+    """The glowing ring on neon rims."""
+    return geo.revolve(
+        [(FACE1, 0.80), (FACE1 + 0.02, 0.80), (FACE1 + 0.02, 0.87), (FACE1, 0.87), (FACE1, 0.80)], 40, "x"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +167,10 @@ def helmet():
     polys += cap
     visor_reg = [[geo.hs_z_le(-0.18), geo.hs_y_ge(-0.07), geo.hs_y_le(0.15), geo.hs_x_ge(-0.30), geo.hs_x_le(0.30)]]
     visor, rest = geo.split(polys, visor_reg)
-    stripe_reg = [[geo.hs_x_ge(-0.085), geo.hs_x_le(0.085), geo.hs_y_ge(0.16)], [geo.hs_y_ge(-0.14), geo.hs_y_le(-0.07), geo.hs_z_le(0.1)]]
+    stripe_reg = [
+        [geo.hs_x_ge(-0.085), geo.hs_x_le(0.085), geo.hs_y_ge(0.16)],
+        [geo.hs_y_ge(-0.14), geo.hs_y_le(-0.07), geo.hs_z_le(0.1)],
+    ]
     stripe, shell = geo.split(rest, stripe_reg)
     return shell, stripe, visor
 
@@ -152,14 +180,66 @@ def helmet2():
     brow + crown stripes, rear spoiler, carbon HANS collar."""
     from geo import Track, superellipse_section
 
-    T = Track({
-        "cy": [(-0.50, -0.20), (-0.46, -0.14), (-0.38, -0.05), (-0.24, 0.02), (-0.05, 0.04), (0.12, 0.03), (0.28, 0.01), (0.40, 0.01), (0.47, 0.03)],
-        "wt": [(-0.50, 0.10), (-0.46, 0.22), (-0.38, 0.32), (-0.24, 0.38), (-0.05, 0.40), (0.12, 0.40), (0.28, 0.36), (0.40, 0.27), (0.47, 0.12)],
-        "wb": [(-0.50, 0.10), (-0.46, 0.20), (-0.38, 0.29), (-0.24, 0.34), (-0.05, 0.36), (0.12, 0.35), (0.28, 0.32), (0.40, 0.24), (0.47, 0.10)],
-        "ht": [(-0.50, 0.06), (-0.46, 0.16), (-0.38, 0.28), (-0.24, 0.36), (-0.05, 0.40), (0.12, 0.40), (0.28, 0.36), (0.40, 0.27), (0.47, 0.12)],
-        "hb": [(-0.50, 0.05), (-0.46, 0.10), (-0.38, 0.20), (-0.24, 0.30), (-0.05, 0.34), (0.12, 0.34), (0.28, 0.30), (0.40, 0.22), (0.47, 0.10)],
-        "n": [(-0.5, 2.3), (0.47, 2.2)],
-    })
+    T = Track(
+        {
+            "cy": [
+                (-0.50, -0.20),
+                (-0.46, -0.14),
+                (-0.38, -0.05),
+                (-0.24, 0.02),
+                (-0.05, 0.04),
+                (0.12, 0.03),
+                (0.28, 0.01),
+                (0.40, 0.01),
+                (0.47, 0.03),
+            ],
+            "wt": [
+                (-0.50, 0.10),
+                (-0.46, 0.22),
+                (-0.38, 0.32),
+                (-0.24, 0.38),
+                (-0.05, 0.40),
+                (0.12, 0.40),
+                (0.28, 0.36),
+                (0.40, 0.27),
+                (0.47, 0.12),
+            ],
+            "wb": [
+                (-0.50, 0.10),
+                (-0.46, 0.20),
+                (-0.38, 0.29),
+                (-0.24, 0.34),
+                (-0.05, 0.36),
+                (0.12, 0.35),
+                (0.28, 0.32),
+                (0.40, 0.24),
+                (0.47, 0.10),
+            ],
+            "ht": [
+                (-0.50, 0.06),
+                (-0.46, 0.16),
+                (-0.38, 0.28),
+                (-0.24, 0.36),
+                (-0.05, 0.40),
+                (0.12, 0.40),
+                (0.28, 0.36),
+                (0.40, 0.27),
+                (0.47, 0.12),
+            ],
+            "hb": [
+                (-0.50, 0.05),
+                (-0.46, 0.10),
+                (-0.38, 0.20),
+                (-0.24, 0.30),
+                (-0.05, 0.34),
+                (0.12, 0.34),
+                (0.28, 0.30),
+                (0.40, 0.22),
+                (0.47, 0.10),
+            ],
+            "n": [(-0.5, 2.3), (0.47, 2.2)],
+        }
+    )
     zs = [-0.50 + 0.97 * (0.5 - 0.5 * math.cos(math.pi * i / 30)) for i in range(31)]
     rings = [superellipse_section(z, T(z), 40) for z in zs]
     sides, caps = geo.loft(rings, True, True)
@@ -176,7 +256,16 @@ def helmet2():
     ]
     stripe, shell = geo.split(rest, stripe_reg)
     # rear spoiler on the crown + two little fins
-    spoiler = geo.transform(geo.box((0, 0, 0), (0.44, 0.035, 0.13)), lambda v: np.array([v[0], v[1] * math.cos(0.25) - v[2] * math.sin(0.25) + 0.36, v[1] * math.sin(0.25) + v[2] * math.cos(0.25) + 0.30]))
+    spoiler = geo.transform(
+        geo.box((0, 0, 0), (0.44, 0.035, 0.13)),
+        lambda v: np.array(
+            [
+                v[0],
+                v[1] * math.cos(0.25) - v[2] * math.sin(0.25) + 0.36,
+                v[1] * math.sin(0.25) + v[2] * math.cos(0.25) + 0.30,
+            ]
+        ),
+    )
     for s in (-1, 1):
         spoiler += geo.box((s * 0.2, 0.33, 0.29), (0.02, 0.09, 0.12))
     stripe = list(stripe) + spoiler
@@ -189,13 +278,30 @@ def helmet2():
 # ---------------------------------------------------------------------------
 def steering_modern():
     """Modern F1 wheel: carbon body, rubber grips, screen, LED strip, coloured rotaries/buttons."""
-    body_outline = [(-0.30, 0.20), (-0.12, 0.23), (0.12, 0.23), (0.30, 0.20), (0.34, 0.05), (0.30, -0.12), (0.16, -0.20),
-                    (0.08, -0.12), (-0.08, -0.12), (-0.16, -0.20), (-0.30, -0.12), (-0.34, 0.05)]
+    body_outline = [
+        (-0.30, 0.20),
+        (-0.12, 0.23),
+        (0.12, 0.23),
+        (0.30, 0.20),
+        (0.34, 0.05),
+        (0.30, -0.12),
+        (0.16, -0.20),
+        (0.08, -0.12),
+        (-0.08, -0.12),
+        (-0.16, -0.20),
+        (-0.30, -0.12),
+        (-0.34, 0.05),
+    ]
     body = geo.plate(body_outline, "xy", 0.0, 0.07)
     body += geo.revolve([(0.0, 0.0), (0.0, 0.06), (-0.22, 0.05), (-0.22, 0.0)], 12, "z")  # column
     grips = []
     for s in (-1, 1):
-        grips += geo.tube(geo.bezier([(s * 0.35, -0.16, 0.0), (s * 0.43, 0.0, 0.01), (s * 0.35, 0.19, 0.0)], 10), 0.055, N=12, flat=0.8)
+        grips += geo.tube(
+            geo.bezier([(s * 0.35, -0.16, 0.0), (s * 0.43, 0.0, 0.01), (s * 0.35, 0.19, 0.0)], 10),
+            0.055,
+            N=12,
+            flat=0.8,
+        )
     screen = geo.plate(geo.rounded_rect(-0.13, -0.02, 0.13, 0.13, 0.02, 3), "xy", 0.04, 0.015)
     leds = []
     for k in range(12):
@@ -230,10 +336,14 @@ def headrest():
         a = math.radians(-115 + 230 * k / 16)  # 0 = straight behind the head (+z)
         cx, cz = math.sin(a) * R, math.cos(a) * R
         nx, nz = math.sin(a), math.cos(a)
-        tx, tz = math.cos(a), -math.sin(a)
         w, h = 0.13, 0.26
         y0 = -0.42
-        ring = [(cx - nx * w / 2, y0, cz - nz * w / 2), (cx + nx * w / 2, y0, cz + nz * w / 2), (cx + nx * w / 2 * 0.8, y0 + h, cz + nz * w / 2 * 0.8), (cx - nx * w / 2, y0 + h * 0.9, cz - nz * w / 2)]
+        ring = [
+            (cx - nx * w / 2, y0, cz - nz * w / 2),
+            (cx + nx * w / 2, y0, cz + nz * w / 2),
+            (cx + nx * w / 2 * 0.8, y0 + h, cz + nz * w / 2 * 0.8),
+            (cx - nx * w / 2, y0 + h * 0.9, cz - nz * w / 2),
+        ]
         rings.append(np.array(ring))
     sd, cp = geo.loft(rings, True, True)
     return list(sd) + sum(cp.values(), [])

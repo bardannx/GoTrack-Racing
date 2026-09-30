@@ -1,5 +1,5 @@
 --!nonstrict
--- Sounds, rainbow paint animation and finish celebrations.
+-- Sound playback and volume, the rainbow paint animation, and finish celebrations.
 
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
@@ -10,28 +10,33 @@ local Config = require(Shared.Config)
 
 local Fx = {}
 
--- Sounds ---------------------------------------------------------------------
+-- Sounds ----------------------------------------------------------------------------------
 local soundCache: { [string]: Sound } = {}
 local masterVolume = 0.8
 
+-- Master volume from Settings (0-1).
 function Fx.SetVolume(v: number)
 	masterVolume = math.clamp(v, 0, 1)
 end
 
+-- Current master volume.
 function Fx.GetVolume(): number
 	return masterVolume
 end
 
 -- engine sounds have their own slider on top of the master volume (Settings)
 local engineVolume = 1
+-- Engine volume from Settings (0-1).
 function Fx.SetEngineVolume(v: number)
 	engineVolume = math.clamp(v, 0, 1)
 end
 
+-- Engine volume after the master volume is applied.
 function Fx.GetEngineVolume(): number
 	return masterVolume * engineVolume
 end
 
+-- Plays a one-shot sound from Config.Sounds by name. Missing ids are skipped.
 function Fx.Play(name: string, volume: number?, pitch: number?)
 	local id = Config.Sounds[name]
 	if not id or id == "" then
@@ -52,6 +57,7 @@ function Fx.Play(name: string, volume: number?, pitch: number?)
 	Debris:AddItem(clone, 6)
 end
 
+-- A looping engine sound on `parent` (nil if no engine sound is set).
 function Fx.EngineSound(parent: Instance): Sound?
 	local id = Config.Sounds.EngineLoop
 	if not id or id == "" then
@@ -66,9 +72,10 @@ function Fx.EngineSound(parent: Instance): Sound?
 	return s
 end
 
--- Rainbow paint --------------------------------------------------------------
+-- Rainbow paint ---------------------------------------------------------------------------
 local rainbowParts: { [BasePart]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 
+-- Starts the colour cycle on every part under `root` tagged Rainbow.
 function Fx.RegisterRainbow(root: Instance)
 	for _, d in root:GetDescendants() do
 		if d:IsA("BasePart") and d:GetAttribute("Rainbow") then
@@ -88,7 +95,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Celebrations -----------------------------------------------------------------
+-- Celebrations ----------------------------------------------------------------------------
 local function emitterAt(parent: Instance, props: { [string]: any }): ParticleEmitter
 	local pe = Instance.new("ParticleEmitter")
 	pe.Enabled = false
@@ -99,6 +106,7 @@ local function emitterAt(parent: Instance, props: { [string]: any }): ParticleEm
 	return pe
 end
 
+-- An invisible anchored part to hold an effect in the air.
 local function anchorPart(pos: Vector3): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
@@ -113,6 +121,7 @@ local function anchorPart(pos: Vector3): Part
 	return p
 end
 
+-- Plays the equipped finish celebration (fireworks, confetti...) at `pos`.
 function Fx.Celebrate(kind: string, pos: Vector3)
 	if kind == "celebrate_fireworks" then
 		for i = 0, 5 do

@@ -1,12 +1,13 @@
 """Build car meshes: preview renders and FBX export for Roblox.
 
-  python3 build.py render <design> <pattern|none> <out.png> [view] [variants]
-  python3 build.py sheet <design> <out.png> [pattern|none]   (4 views, in-game colours)
-  python3 build.py export <out.fbx> <manifest.json> [designs|all] [True|False|new]
-      designs: comma list of design codes (e.g. "myc,aer") or "all"
-      last arg: include shared wheel/helmet parts (True), skip them (False),
-                or only the newer shared parts (new: steering wheels + headrest)
+python3 build.py render <design> <pattern|none> <out.png> [view] [variants]
+python3 build.py sheet <design> <out.png> [pattern|none]   (4 views, in-game colours)
+python3 build.py export <out.fbx> <manifest.json> [designs|all] [True|False|new]
+    designs: comma list of design codes (e.g. "myc,aer") or "all"
+    last arg: include shared wheel/helmet parts (True), skip them (False),
+              or only the newer shared parts (new: steering wheels + headrest)
 """
+
 import json
 import math
 import sys
@@ -15,7 +16,6 @@ import time
 import numpy as np
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-import geo
 import designs
 import wheels
 
@@ -24,13 +24,24 @@ RIM_STYLES = ["classic", "spoke", "star", "turbine", "blade", "mesh", "dish"]
 # (The first generation used short codes - mod, aer, hyb... - and those meshes stay in
 # assets/cars/manifest.json as a fallback until the new ones are imported in Studio.)
 DESIGNS = {
-    "gt1": designs.modern, "aeros": designs.aeros, "stealth": designs.stealth, "nova": designs.nova,
-    "neonracer": designs.neonracer, "arrow": designs.hybrid, "falcon": designs.falcon, "viper": designs.viper,
-    "vortex": designs.r88, "apex": designs.v10, "aurora": designs.aurora, "retro70": designs.r70, "retro90": designs.r92,
+    "gt1": designs.modern,
+    "aeros": designs.aeros,
+    "stealth": designs.stealth,
+    "nova": designs.nova,
+    "neonracer": designs.neonracer,
+    "arrow": designs.hybrid,
+    "falcon": designs.falcon,
+    "viper": designs.viper,
+    "vortex": designs.r88,
+    "apex": designs.v10,
+    "aurora": designs.aurora,
+    "retro70": designs.r70,
+    "retro90": designs.r92,
 }
 
 
 def _build_design(dn):
+    """Builds one design (run in a worker process when exporting several)."""
     return DESIGNS[dn]()
 
 
@@ -63,21 +74,39 @@ def collect(names=None, shared=True):
         A["wheels"] = []
         for w in a["wheels"]:
             p = designs.to_studs(w["pos"])
-            A["wheels"].append({"pos": list(map(float, p)), "r": w["r"] * designs.SY, "w": w["w"] * designs.SX, "tyre": w["tyre"]})
+            A["wheels"].append(
+                {"pos": list(map(float, p)), "r": w["r"] * designs.SY, "w": w["w"] * designs.SX, "tyre": w["tyre"]}
+            )
         for k in ("head", "exhaust", "engine"):
             A[k] = list(map(float, designs.to_studs(a[k])))
         A["trail"] = [list(map(float, designs.to_studs(p))) for p in a["trail"]]
-        A["numberNose"] = {"pos": list(map(float, designs.to_studs(a["numberNose"]["pos"]))), "size": [a["numberNose"]["size"][0] * designs.SX, a["numberNose"]["size"][1] * designs.SZ], "pitch": a["numberNose"]["pitch"]}
-        A["numberSide"] = {"pos": list(map(float, designs.to_studs(a["numberSide"]["pos"]))), "size": [a["numberSide"]["size"][0] * designs.SZ, a["numberSide"]["size"][1] * designs.SY]}
+        A["numberNose"] = {
+            "pos": list(map(float, designs.to_studs(a["numberNose"]["pos"]))),
+            "size": [a["numberNose"]["size"][0] * designs.SX, a["numberNose"]["size"][1] * designs.SZ],
+            "pitch": a["numberNose"]["pitch"],
+        }
+        A["numberSide"] = {
+            "pos": list(map(float, designs.to_studs(a["numberSide"]["pos"]))),
+            "size": [a["numberSide"]["size"][0] * designs.SZ, a["numberSide"]["size"][1] * designs.SY],
+        }
         if a.get("flap"):
             A["flap"] = {k: list(map(float, designs.to_studs(v))) for k, v in a["flap"].items()}
         ug = a["underglow"]
-        A["underglow"] = {"pos": list(map(float, designs.to_studs(ug["pos"]))), "size": [ug["size"][0] * designs.SX, ug["size"][1] * designs.SZ]}
+        A["underglow"] = {
+            "pos": list(map(float, designs.to_studs(ug["pos"]))),
+            "size": [ug["size"][0] * designs.SX, ug["size"][1] * designs.SZ],
+        }
         anchors[dn] = A
         print(f"design {dn}: {time.time() - t:.1f}s", file=sys.stderr)
     if shared == "new":
         body, grips, screen, leds, buttons = wheels.steering_modern()
-        objs["sw.body"], objs["sw.grip"], objs["sw.screen"], objs["sw.led"], objs["sw.button"] = body, grips, screen, leds, buttons
+        objs["sw.body"], objs["sw.grip"], objs["sw.screen"], objs["sw.led"], objs["sw.button"] = (
+            body,
+            grips,
+            screen,
+            leds,
+            buttons,
+        )
         ring, spokes, hub = wheels.steering_round()
         objs["swr.ring"], objs["swr.spokes"], objs["swr.hub"] = ring, spokes, hub
         objs["h2.headrest"] = wheels.headrest()
@@ -102,6 +131,7 @@ def collect(names=None, shared=True):
 
 
 def weld(polys, tol=1e-4):
+    """Merges shared vertices of a polygon soup into (verts, faces), dropping degenerate faces."""
     idx = {}
     verts = []
     faces = []
@@ -123,6 +153,7 @@ def weld(polys, tol=1e-4):
 
 
 def bbox(polys):
+    """Centre and size of a set of polygons."""
     allv = np.concatenate([np.asarray(p) for p in polys])
     lo, hi = allv.min(axis=0), allv.max(axis=0)
     return (lo + hi) / 2, hi - lo
@@ -138,6 +169,9 @@ def bl():
 
 
 def make_object(name, polys, collection, center=True):
+    """Creates a Blender mesh object from polygons, centred on its bounding box unless told
+    not to. Returns (object, centre, size, face count).
+    """
     bpy = bl()
     c, size = bbox(polys)
     verts, faces = weld(polys)
@@ -163,12 +197,37 @@ def make_object(name, polys, collection, center=True):
 
 
 def slot_of(name):
+    """Colour slot of a mesh from its name (the last part, with a few special cases for
+    wheel and helmet meshes).
+    """
     parts = name.split(".")
     if parts[0] in ("w", "h"):
-        return parts[-1] if parts[0] == "h" else {"tyre18": "Tyre", "tyre13": "Tyre", "comp18": "Comp", "comp13": "Comp", "grooves": "Dark", "back": "Dark", "hub": "Hub", "neonring": "Neon"}.get(parts[1], "Rim")
+        return (
+            parts[-1]
+            if parts[0] == "h"
+            else {
+                "tyre18": "Tyre",
+                "tyre13": "Tyre",
+                "comp18": "Comp",
+                "comp13": "Comp",
+                "grooves": "Dark",
+                "back": "Dark",
+                "hub": "Hub",
+                "neonring": "Neon",
+            }.get(parts[1], "Rim")
+        )
     if parts[1] == "p":
         key = parts[2]
-        return {"checkA": "White", "checkB": "Black", "flame1": "Flame1", "flame2": "Flame2", "flame3": "Flame3", "retroB": "Accent", "circuit": "Neon", "chevron": "Secondary"}.get(key, "Secondary")
+        return {
+            "checkA": "White",
+            "checkB": "Black",
+            "flame1": "Flame1",
+            "flame2": "Flame2",
+            "flame3": "Flame3",
+            "retroB": "Accent",
+            "circuit": "Neon",
+            "chevron": "Secondary",
+        }.get(key, "Secondary")
     return parts[-1]
 
 
@@ -203,6 +262,7 @@ PREVIEW = {
 
 
 def material(slot, cache={}):
+    """A preview material for a colour slot (cached per slot)."""
     bpy = bl()
     if slot in cache:
         return cache[slot]
@@ -227,23 +287,34 @@ def material(slot, cache={}):
 
 # in-game default colours per design (Cosmetics.BodyLivery), for previews
 LIVERY = {
-    "gt1": ((215, 25, 35), (240, 240, 240)), "aeros": ((0, 160, 150), (240, 240, 240)), "stealth": ((22, 22, 26), (240, 240, 240)),
-    "nova": ((120, 50, 200), (240, 240, 240)), "neonracer": ((15, 20, 55), (240, 240, 240)), "arrow": ((170, 175, 185), (0, 160, 150)),
-    "falcon": ((255, 120, 20), (240, 240, 240)), "viper": ((20, 150, 80), (240, 240, 240)), "vortex": ((240, 240, 240), (215, 25, 35)),
-    "apex": ((215, 25, 35), (240, 240, 240)), "aurora": ((120, 190, 255), (240, 240, 240)), "retro70": ((215, 25, 35), (240, 240, 240)),
+    "gt1": ((215, 25, 35), (240, 240, 240)),
+    "aeros": ((0, 160, 150), (240, 240, 240)),
+    "stealth": ((22, 22, 26), (240, 240, 240)),
+    "nova": ((120, 50, 200), (240, 240, 240)),
+    "neonracer": ((15, 20, 55), (240, 240, 240)),
+    "arrow": ((170, 175, 185), (0, 160, 150)),
+    "falcon": ((255, 120, 20), (240, 240, 240)),
+    "viper": ((20, 150, 80), (240, 240, 240)),
+    "vortex": ((240, 240, 240), (215, 25, 35)),
+    "apex": ((215, 25, 35), (240, 240, 240)),
+    "aurora": ((120, 190, 255), (240, 240, 240)),
+    "retro70": ((215, 25, 35), (240, 240, 240)),
     "retro90": ((15, 25, 80), (240, 240, 240)),
 }
 
 
 def _srgb(c):
+    """0-255 sRGB colour to linear, for Blender."""
     return tuple(((v / 255) ** 2.2) for v in c)
 
 
 def render(design, pattern, out, view="front34", variants=("fin", "rwA"), res=(1100, 620)):
+    """Renders one view of a design to `out`."""
     return render_views(design, pattern, [(view, out)], variants, res)
 
 
 def render_views(design, pattern, views_out, variants=("fin", "rwA"), res=(1100, 620), livery=False):
+    """Renders a design from several views, one picture per (view, path) pair."""
     bpy = bl()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     material.__defaults__[0].clear()
@@ -254,7 +325,17 @@ def render_views(design, pattern, views_out, variants=("fin", "rwA"), res=(1100,
         PREVIEW["Secondary"] = _srgb(sc2) + (0.3,)
     objs, anchors = collect([design])
     col = bpy.context.scene.collection
-    pats = {"stripe": ["stripe"], "retro": ["retroA", "retroB"], "split": ["split"], "chevron": ["chevron"], "checker": ["checkA", "checkB"], "flames": ["flame1", "flame2", "flame3"], "side": ["side"], "circuit": ["circuit"], "carbon": ["split"]}.get(pattern, [])
+    pats = {
+        "stripe": ["stripe"],
+        "retro": ["retroA", "retroB"],
+        "split": ["split"],
+        "chevron": ["chevron"],
+        "checker": ["checkA", "checkB"],
+        "flames": ["flame1", "flame2", "flame3"],
+        "side": ["side"],
+        "circuit": ["circuit"],
+        "carbon": ["split"],
+    }.get(pattern, [])
     for name, polys in objs.items():
         parts = name.split(".")
         if parts[0] != design:
@@ -276,7 +357,11 @@ def render_views(design, pattern, views_out, variants=("fin", "rwA"), res=(1100,
         inner = 0.64 if t == "t18" else 0.47
         tn = "18" if t == "t18" else "13"
         extra = (("w.grooves", 1.0),) if t == "t13g" else ()
-        for nm, sc in ((f"w.tyre{tn}", 1.0), (f"w.comp{tn}", 1.0)) + extra + (("w.barrel", inner), ("w.back", inner), ("w.hub", inner), ("w.rim.classic", inner)):
+        for nm, sc in (
+            ((f"w.tyre{tn}", 1.0), (f"w.comp{tn}", 1.0))
+            + extra
+            + (("w.barrel", inner), ("w.back", inner), ("w.hub", inner), ("w.rim.classic", inner))
+        ):
             ob, *_ = make_object(f"{nm}#{i}", objs[nm], col, center=False)
             ob.data.materials.append(material(slot_of(nm)))
             ob.scale = (w["w"] * side, 2 * w["r"] * sc / 2, 2 * w["r"] * sc / 2)
@@ -359,6 +444,10 @@ def sheet(design, out, pattern="none", views=("front34", "rear34", "side", "top"
 
 
 def export(out_fbx, out_manifest, only=None, shared=True):
+    """Exports designs to one FBX and writes the manifest (every mesh's centre, size and face
+    count, plus each design's anchors) that gen_luau.py turns into CarData.luau.
+    `only` limits it to some designs; `shared=False` leaves out the wheel and helmet meshes.
+    """
     bpy = bl()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     objs, anchors = collect(only, shared)
@@ -372,7 +461,20 @@ def export(out_fbx, out_manifest, only=None, shared=True):
         man["objects"][name] = {"c": [float(x) for x in c], "s": [float(x) for x in size], "faces": nf}
         total += nf
     print(f"{len(man['objects'])} objects, {total} faces", file=sys.stderr)
-    bpy.ops.export_scene.fbx(filepath=out_fbx, use_selection=False, object_types={"MESH"}, apply_unit_scale=True, apply_scale_options="FBX_SCALE_UNITS", axis_forward="-Z", axis_up="Y", use_mesh_modifiers=True, mesh_smooth_type="FACE", use_triangles=True, add_leaf_bones=False, bake_anim=False)
+    bpy.ops.export_scene.fbx(
+        filepath=out_fbx,
+        use_selection=False,
+        object_types={"MESH"},
+        apply_unit_scale=True,
+        apply_scale_options="FBX_SCALE_UNITS",
+        axis_forward="-Z",
+        axis_up="Y",
+        use_mesh_modifiers=True,
+        mesh_smooth_type="FACE",
+        use_triangles=True,
+        add_leaf_bones=False,
+        bake_anim=False,
+    )
     json.dump(man, open(out_manifest, "w"), indent=1)
 
 
@@ -381,7 +483,13 @@ if __name__ == "__main__":
     if cmd == "render":
         if sys.argv[3] == "none":
             designs.FAST = True
-        render(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else "front34", tuple(sys.argv[6].split(",")) if len(sys.argv) > 6 else ("fin", "rwA"))
+        render(
+            sys.argv[2],
+            sys.argv[3],
+            sys.argv[4],
+            sys.argv[5] if len(sys.argv) > 5 else "front34",
+            tuple(sys.argv[6].split(",")) if len(sys.argv) > 6 else ("fin", "rwA"),
+        )
     elif cmd == "sheet":
         if len(sys.argv) <= 4 or sys.argv[4] == "none":
             designs.FAST = True
@@ -389,4 +497,6 @@ if __name__ == "__main__":
     elif cmd == "export":
         sh = sys.argv[5] if len(sys.argv) > 5 else "True"
         sh = {"true": True, "false": False, "new": "new"}.get(sh.lower(), True)
-        export(sys.argv[2], sys.argv[3], sys.argv[4].split(",") if len(sys.argv) > 4 and sys.argv[4] != "all" else None, sh)
+        export(
+            sys.argv[2], sys.argv[3], sys.argv[4].split(",") if len(sys.argv) > 4 and sys.argv[4] != "all" else None, sh
+        )

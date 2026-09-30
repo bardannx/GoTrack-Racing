@@ -38,6 +38,8 @@ local current = nil
 local partCounter = 0
 local QUALITY_DENSITY = { 0.4, 0.7, 1, 1.3 }
 
+-- Building a circuit makes tens of thousands of parts; pausing every 300 keeps the
+-- game responsive (the loading screen and intro keep animating).
 local function yieldMaybe()
 	partCounter += 1
 	if partCounter % 300 == 0 then
@@ -45,7 +47,19 @@ local function yieldMaybe()
 	end
 end
 
-local function P(parent: Instance, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?, name: string?, collide: boolean?, shape: Enum.PartType?, className: string?): BasePart
+-- Every scenery part goes through here: anchored, no shadow, and only solid when
+-- `collide` is set (barriers, walls). Counts toward yieldMaybe.
+local function P(
+	parent: Instance,
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	material: Enum.Material?,
+	name: string?,
+	collide: boolean?,
+	shape: Enum.PartType?,
+	className: string?
+): BasePart
 	local p = Instance.new(className or "Part")
 	p.Anchored = true
 	p.CanTouch = false
@@ -80,6 +94,7 @@ local function MESH(design: string, parent: Instance, cf: CFrame, opts): { BaseP
 	return parts
 end
 
+-- 1 or -1 (0 counts as 1).
 local function sign(x: number): number
 	return if x >= 0 then 1 else -1
 end
@@ -93,6 +108,7 @@ local function E(parent: Instance, size: Vector3, cf: CFrame, color: Color3, mat
 	return p
 end
 
+-- Text on one face of a part (boards, banners, the start gantry).
 local function textGui(part: BasePart, face: Enum.NormalId, text: string, color: Color3, bg: Color3?, font: Enum.Font?)
 	local sg = Instance.new("SurfaceGui")
 	sg.Face = face
@@ -211,13 +227,33 @@ end
 ---------------------------------------------------------------------------
 -- Scenery props
 ---------------------------------------------------------------------------
+-- One builder per prop, all called as Props.name(folder, cf, scale, theme) with `cf` on
+-- the ground.
 local Props = {}
 
 function Props.tree_round(f, cf, s, th)
 	P(f, Vector3.new(2, 8, 2) * s, cf * CFrame.new(0, 4 * s, 0), Color3.fromRGB(110, 75, 45), Enum.Material.Wood)
 	local leaf = Color3.fromRGB(70, 150, 55)
-	P(f, Vector3.new(11, 11, 11) * s, cf * CFrame.new(0, 12 * s, 0), leaf, Enum.Material.LeafyGrass, nil, false, Enum.PartType.Ball)
-	P(f, Vector3.new(7, 7, 7) * s, cf * CFrame.new(3 * s, 15 * s, 1 * s), leaf:Lerp(Color3.new(1, 1, 1), 0.08), Enum.Material.LeafyGrass, nil, false, Enum.PartType.Ball)
+	P(
+		f,
+		Vector3.new(11, 11, 11) * s,
+		cf * CFrame.new(0, 12 * s, 0),
+		leaf,
+		Enum.Material.LeafyGrass,
+		nil,
+		false,
+		Enum.PartType.Ball
+	)
+	P(
+		f,
+		Vector3.new(7, 7, 7) * s,
+		cf * CFrame.new(3 * s, 15 * s, 1 * s),
+		leaf:Lerp(Color3.new(1, 1, 1), 0.08),
+		Enum.Material.LeafyGrass,
+		nil,
+		false,
+		Enum.PartType.Ball
+	)
 end
 
 function Props.tree_eucalyptus(f, cf, s, th)
@@ -237,20 +273,50 @@ function Props.tree_maple(f, cf, s, th)
 	P(f, Vector3.new(2, 9, 2) * s, cf * CFrame.new(0, 4.5 * s, 0), Color3.fromRGB(100, 65, 40), Enum.Material.Wood)
 	local c = colors[math.random(1, 3)]
 	E(f, Vector3.new(12, 10, 12) * s, cf * CFrame.new(0, 13 * s, 0), c, Enum.Material.LeafyGrass)
-	P(f, Vector3.new(7, 7, 7) * s, cf * CFrame.new(-3 * s, 17 * s, 2 * s), c:Lerp(Color3.new(1, 1, 0), 0.15), Enum.Material.LeafyGrass, nil, false, Enum.PartType.Ball)
+	P(
+		f,
+		Vector3.new(7, 7, 7) * s,
+		cf * CFrame.new(-3 * s, 17 * s, 2 * s),
+		c:Lerp(Color3.new(1, 1, 0), 0.15),
+		Enum.Material.LeafyGrass,
+		nil,
+		false,
+		Enum.PartType.Ball
+	)
 end
 
 function Props.tree_cherry(f, cf, s, th)
 	P(f, Vector3.new(1.8, 8, 1.8) * s, cf * CFrame.new(0, 4 * s, 0), Color3.fromRGB(90, 60, 50), Enum.Material.Wood)
-	E(f, Vector3.new(13, 9, 13) * s, cf * CFrame.new(0, 12 * s, 0), Color3.fromRGB(255, 170, 205), Enum.Material.LeafyGrass)
-	P(f, Vector3.new(8, 7, 8) * s, cf * CFrame.new(3 * s, 15 * s, -2 * s), Color3.fromRGB(255, 200, 225), Enum.Material.LeafyGrass, nil, false, Enum.PartType.Ball)
+	E(
+		f,
+		Vector3.new(13, 9, 13) * s,
+		cf * CFrame.new(0, 12 * s, 0),
+		Color3.fromRGB(255, 170, 205),
+		Enum.Material.LeafyGrass
+	)
+	P(
+		f,
+		Vector3.new(8, 7, 8) * s,
+		cf * CFrame.new(3 * s, 15 * s, -2 * s),
+		Color3.fromRGB(255, 200, 225),
+		Enum.Material.LeafyGrass,
+		nil,
+		false,
+		Enum.PartType.Ball
+	)
 end
 
 function Props.tree_pine(f, cf, s, th)
 	P(f, Vector3.new(2, 6, 2) * s, cf * CFrame.new(0, 3 * s, 0), Color3.fromRGB(95, 65, 45), Enum.Material.Wood)
 	for i = 0, 2 do
 		local w = (10 - i * 2.8) * s
-		P(f, Vector3.new(w, 5 * s, w), cf * CFrame.new(0, (6 + i * 4.2) * s, 0) * CFrame.Angles(0, math.rad(45 * i), 0), Color3.fromRGB(40, 105, 60), Enum.Material.LeafyGrass)
+		P(
+			f,
+			Vector3.new(w, 5 * s, w),
+			cf * CFrame.new(0, (6 + i * 4.2) * s, 0) * CFrame.Angles(0, math.rad(45 * i), 0),
+			Color3.fromRGB(40, 105, 60),
+			Enum.Material.LeafyGrass
+		)
 	end
 end
 
@@ -258,25 +324,59 @@ function Props.snowpine(f, cf, s, th)
 	Props.tree_pine(f, cf, s, th)
 	for i = 0, 2 do
 		local w = (8 - i * 2.4) * s
-		P(f, Vector3.new(w, 1 * s, w), cf * CFrame.new(0, (8.8 + i * 4.2) * s, 0) * CFrame.Angles(0, math.rad(45 * i), 0), Color3.fromRGB(245, 250, 255), Enum.Material.Snow)
+		P(
+			f,
+			Vector3.new(w, 1 * s, w),
+			cf * CFrame.new(0, (8.8 + i * 4.2) * s, 0) * CFrame.Angles(0, math.rad(45 * i), 0),
+			Color3.fromRGB(245, 250, 255),
+			Enum.Material.Snow
+		)
 	end
 end
 
 function Props.palm(f, cf, s, th)
 	local h = 18 * s
 	for k = 0, 3 do
-		P(f, Vector3.new(1.6 * s, h / 4 + 0.4, 1.6 * s), cf * CFrame.new(k * 0.6 * s, h / 8 + k * h / 4, 0) * CFrame.Angles(0, 0, math.rad(-6)), Color3.fromRGB(150, 110, 70), Enum.Material.Wood)
+		P(
+			f,
+			Vector3.new(1.6 * s, h / 4 + 0.4, 1.6 * s),
+			cf * CFrame.new(k * 0.6 * s, h / 8 + k * h / 4, 0) * CFrame.Angles(0, 0, math.rad(-6)),
+			Color3.fromRGB(150, 110, 70),
+			Enum.Material.Wood
+		)
 	end
 	for k = 0, 5 do
 		local a = k / 6 * math.pi * 2
-		P(f, Vector3.new(1.4 * s, 0.4 * s, 9 * s), cf * CFrame.new(2.4 * s, h + 0.5, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, -1 * s, -4 * s) * CFrame.Angles(math.rad(-20), 0, 0), Color3.fromRGB(60, 160, 60), Enum.Material.LeafyGrass)
+		P(
+			f,
+			Vector3.new(1.4 * s, 0.4 * s, 9 * s),
+			cf
+				* CFrame.new(2.4 * s, h + 0.5, 0)
+				* CFrame.Angles(0, a, 0)
+				* CFrame.new(0, -1 * s, -4 * s)
+				* CFrame.Angles(math.rad(-20), 0, 0),
+			Color3.fromRGB(60, 160, 60),
+			Enum.Material.LeafyGrass
+		)
 	end
 end
 
 function Props.tree_jungle(f, cf, s, th)
 	P(f, Vector3.new(2.5, 16, 2.5) * s, cf * CFrame.new(0, 8 * s, 0), Color3.fromRGB(90, 70, 50), Enum.Material.Wood)
-	E(f, Vector3.new(16, 7, 16) * s, cf * CFrame.new(0, 18 * s, 0), Color3.fromRGB(40, 130, 50), Enum.Material.LeafyGrass)
-	E(f, Vector3.new(10, 6, 10) * s, cf * CFrame.new(-4 * s, 14 * s, 3 * s), Color3.fromRGB(60, 150, 60), Enum.Material.LeafyGrass)
+	E(
+		f,
+		Vector3.new(16, 7, 16) * s,
+		cf * CFrame.new(0, 18 * s, 0),
+		Color3.fromRGB(40, 130, 50),
+		Enum.Material.LeafyGrass
+	)
+	E(
+		f,
+		Vector3.new(10, 6, 10) * s,
+		cf * CFrame.new(-4 * s, 14 * s, 3 * s),
+		Color3.fromRGB(60, 150, 60),
+		Enum.Material.LeafyGrass
+	)
 end
 
 function Props.hedge(f, cf, s, th)
@@ -285,60 +385,159 @@ end
 
 function Props.cactus(f, cf, s, th)
 	local c = Color3.fromRGB(70, 140, 70)
-	P(f, Vector3.new(12 * s, 3 * s, 3 * s), cf * CFrame.new(0, 6 * s, 0) * CFrame.Angles(0, 0, math.pi / 2), c, nil, nil, false, Enum.PartType.Cylinder)
+	P(
+		f,
+		Vector3.new(12 * s, 3 * s, 3 * s),
+		cf * CFrame.new(0, 6 * s, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		c,
+		nil,
+		nil,
+		false,
+		Enum.PartType.Cylinder
+	)
 	for side = -1, 1, 2 do
-		P(f, Vector3.new(3 * s, 2 * s, 2 * s), cf * CFrame.new(side * 2.2 * s, 5.5 * s, 0), c, nil, nil, false, Enum.PartType.Cylinder)
-		P(f, Vector3.new(4 * s, 2 * s, 2 * s), cf * CFrame.new(side * 3.4 * s, 7.5 * s, 0) * CFrame.Angles(0, 0, math.pi / 2), c, nil, nil, false, Enum.PartType.Cylinder)
+		P(
+			f,
+			Vector3.new(3 * s, 2 * s, 2 * s),
+			cf * CFrame.new(side * 2.2 * s, 5.5 * s, 0),
+			c,
+			nil,
+			nil,
+			false,
+			Enum.PartType.Cylinder
+		)
+		P(
+			f,
+			Vector3.new(4 * s, 2 * s, 2 * s),
+			cf * CFrame.new(side * 3.4 * s, 7.5 * s, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			c,
+			nil,
+			nil,
+			false,
+			Enum.PartType.Cylinder
+		)
 	end
 end
 
 function Props.agave(f, cf, s, th)
 	for k = 0, 5 do
-		P(f, Vector3.new(0.8 * s, 5 * s, 0.4 * s), cf * CFrame.Angles(0, k * math.pi / 3, 0) * CFrame.new(0, 2 * s, -1 * s) * CFrame.Angles(math.rad(-30), 0, 0), Color3.fromRGB(90, 150, 130), Enum.Material.LeafyGrass)
+		P(
+			f,
+			Vector3.new(0.8 * s, 5 * s, 0.4 * s),
+			cf
+				* CFrame.Angles(0, k * math.pi / 3, 0)
+				* CFrame.new(0, 2 * s, -1 * s)
+				* CFrame.Angles(math.rad(-30), 0, 0),
+			Color3.fromRGB(90, 150, 130),
+			Enum.Material.LeafyGrass
+		)
 	end
 end
 
 function Props.rock(f, cf, s, th)
 	local c = th.Ground:Lerp(Color3.fromRGB(120, 120, 125), 0.7)
 	P(f, Vector3.new(9, 6, 8) * s, cf * CFrame.new(0, 2 * s, 0) * CFrame.Angles(0.2, 0.5, 0.1), c, Enum.Material.Rock)
-	P(f, Vector3.new(5, 5, 5) * s, cf * CFrame.new(4 * s, 1.5 * s, 3 * s) * CFrame.Angles(0.4, 1.2, 0.3), c:Lerp(Color3.new(0, 0, 0), 0.12), Enum.Material.Rock)
+	P(
+		f,
+		Vector3.new(5, 5, 5) * s,
+		cf * CFrame.new(4 * s, 1.5 * s, 3 * s) * CFrame.Angles(0.4, 1.2, 0.3),
+		c:Lerp(Color3.new(0, 0, 0), 0.12),
+		Enum.Material.Rock
+	)
 end
 
 function Props.lavarock(f, cf, s, th)
-	P(f, Vector3.new(10, 6, 9) * s, cf * CFrame.new(0, 2 * s, 0) * CFrame.Angles(0.2, 0.7, 0.1), Color3.fromRGB(46, 40, 40), Enum.Material.Basalt)
-	P(f, Vector3.new(8, 0.4, 6) * s, cf * CFrame.new(6 * s, 0.3, 2 * s) * CFrame.Angles(0, 0.4, 0), Color3.fromRGB(255, 90, 20), Enum.Material.Neon)
+	P(
+		f,
+		Vector3.new(10, 6, 9) * s,
+		cf * CFrame.new(0, 2 * s, 0) * CFrame.Angles(0.2, 0.7, 0.1),
+		Color3.fromRGB(46, 40, 40),
+		Enum.Material.Basalt
+	)
+	P(
+		f,
+		Vector3.new(8, 0.4, 6) * s,
+		cf * CFrame.new(6 * s, 0.3, 2 * s) * CFrame.Angles(0, 0.4, 0),
+		Color3.fromRGB(255, 90, 20),
+		Enum.Material.Neon
+	)
 end
 
 function Props.iceblock(f, cf, s, th)
-	P(f, Vector3.new(8, 10, 7) * s, cf * CFrame.new(0, 4 * s, 0) * CFrame.Angles(0.1, 0.6, 0.2), Color3.fromRGB(170, 220, 255), Enum.Material.Glacier)
+	P(
+		f,
+		Vector3.new(8, 10, 7) * s,
+		cf * CFrame.new(0, 4 * s, 0) * CFrame.Angles(0.1, 0.6, 0.2),
+		Color3.fromRGB(170, 220, 255),
+		Enum.Material.Glacier
+	)
 end
 
 function Props.dune(f, cf, s, th)
-	E(f, Vector3.new(40, 12, 30) * s, cf * CFrame.new(0, -1 * s, 0) * CFrame.Angles(0, math.random() * 3, 0), th.Ground:Lerp(Color3.new(1, 1, 1), 0.05), Enum.Material.Sand)
+	E(
+		f,
+		Vector3.new(40, 12, 30) * s,
+		cf * CFrame.new(0, -1 * s, 0) * CFrame.Angles(0, math.random() * 3, 0),
+		th.Ground:Lerp(Color3.new(1, 1, 1), 0.05),
+		Enum.Material.Sand
+	)
 end
 
 function Props.lantern(f, cf, s, th)
 	P(f, Vector3.new(0.6, 10, 0.6), cf * CFrame.new(0, 5, 0), Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
-	P(f, Vector3.new(3, 3, 3), cf * CFrame.new(0, 10, 0), Color3.fromRGB(255, 60, 40), Enum.Material.Neon, nil, false, Enum.PartType.Ball)
+	P(
+		f,
+		Vector3.new(3, 3, 3),
+		cf * CFrame.new(0, 10, 0),
+		Color3.fromRGB(255, 60, 40),
+		Enum.Material.Neon,
+		nil,
+		false,
+		Enum.PartType.Ball
+	)
 end
 
 function Props.tulips(f, cf, s, th)
-	local colors = { Color3.fromRGB(255, 50, 60), Color3.fromRGB(255, 220, 30), Color3.fromRGB(255, 120, 200), Color3.fromRGB(255, 140, 0), Color3.fromRGB(170, 60, 220) }
+	local colors = {
+		Color3.fromRGB(255, 50, 60),
+		Color3.fromRGB(255, 220, 30),
+		Color3.fromRGB(255, 120, 200),
+		Color3.fromRGB(255, 140, 0),
+		Color3.fromRGB(170, 60, 220),
+	}
 	for k = 0, 3 do
-		P(f, Vector3.new(60 * s, 1.2, 6 * s), cf * CFrame.new(0, 0.6, (k - 1.5) * 8 * s), colors[math.random(1, #colors)], Enum.Material.LeafyGrass)
+		P(
+			f,
+			Vector3.new(60 * s, 1.2, 6 * s),
+			cf * CFrame.new(0, 0.6, (k - 1.5) * 8 * s),
+			colors[math.random(1, #colors)],
+			Enum.Material.LeafyGrass
+		)
 	end
 end
 
 function Props.sunflowers(f, cf, s, th)
 	for k = 0, 2 do
-		P(f, Vector3.new(60 * s, 2.5, 7 * s), cf * CFrame.new(0, 1.2, (k - 1) * 9 * s), Color3.fromRGB(255, 200, 30), Enum.Material.LeafyGrass)
+		P(
+			f,
+			Vector3.new(60 * s, 2.5, 7 * s),
+			cf * CFrame.new(0, 1.2, (k - 1) * 9 * s),
+			Color3.fromRGB(255, 200, 30),
+			Enum.Material.LeafyGrass
+		)
 	end
 end
 
 function Props.bush(f, cf, s, th)
 	local c = th.Ground:Lerp(Color3.fromRGB(50, 110, 45), 0.6)
 	E(f, Vector3.new(7, 4, 6) * s, cf * CFrame.new(0, 1.6 * s, 0), c, Enum.Material.LeafyGrass)
-	E(f, Vector3.new(5, 3.4, 5) * s, cf * CFrame.new(2.6 * s, 1.4 * s, 1.5 * s), c:Lerp(Color3.new(1, 1, 1), 0.08), Enum.Material.LeafyGrass)
+	E(
+		f,
+		Vector3.new(5, 3.4, 5) * s,
+		cf * CFrame.new(2.6 * s, 1.4 * s, 1.5 * s),
+		c:Lerp(Color3.new(1, 1, 1), 0.08),
+		Enum.Material.LeafyGrass
+	)
 end
 
 -- Blender stand-ins for the props once the world meshes are imported:
@@ -347,15 +546,33 @@ local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
 local PROP_MESH = {
-	tree_round = { { "tree_oak", "tree_oak", "tree_birch" }, { rgb(70, 150, 55), rgb(88, 162, 62), rgb(60, 136, 52), rgb(100, 160, 60) } },
-	tree_eucalyptus = { { "tree_birch", "tree_oak" }, { rgb(120, 150, 110), rgb(108, 140, 100), rgb(132, 160, 118) }, rgb(215, 205, 190) },
+	tree_round = {
+		{ "tree_oak", "tree_oak", "tree_birch" },
+		{ rgb(70, 150, 55), rgb(88, 162, 62), rgb(60, 136, 52), rgb(100, 160, 60) },
+	},
+	tree_eucalyptus = {
+		{ "tree_birch", "tree_oak" },
+		{ rgb(120, 150, 110), rgb(108, 140, 100), rgb(132, 160, 118) },
+		rgb(215, 205, 190),
+	},
 	tree_cypress = { { "tree_cypress" }, { rgb(40, 90, 50), rgb(48, 100, 56) } },
-	tree_maple = { { "tree_oak", "tree_birch" }, { rgb(220, 80, 30), rgb(240, 160, 30), rgb(190, 40, 30), rgb(230, 120, 40), rgb(250, 190, 60) }, rgb(100, 65, 40) },
-	tree_cherry = { { "tree_cherry" }, { rgb(255, 170, 205), rgb(255, 196, 222), rgb(250, 150, 190), rgb(255, 225, 235) }, rgb(90, 60, 50) },
+	tree_maple = {
+		{ "tree_oak", "tree_birch" },
+		{ rgb(220, 80, 30), rgb(240, 160, 30), rgb(190, 40, 30), rgb(230, 120, 40), rgb(250, 190, 60) },
+		rgb(100, 65, 40),
+	},
+	tree_cherry = {
+		{ "tree_cherry" },
+		{ rgb(255, 170, 205), rgb(255, 196, 222), rgb(250, 150, 190), rgb(255, 225, 235) },
+		rgb(90, 60, 50),
+	},
 	tree_pine = { { "tree_pine" }, { rgb(40, 105, 60), rgb(34, 92, 52), rgb(52, 112, 64) } },
 	snowpine = { { "tree_snowpine" }, { rgb(40, 95, 60), rgb(34, 84, 54) } },
 	palm = { { "tree_palm" }, { rgb(60, 160, 60), rgb(80, 170, 70), rgb(70, 150, 50) }, rgb(150, 110, 70) },
-	tree_jungle = { { "tree_jungle", "tree_jungle", "tree_acacia" }, { rgb(40, 130, 50), rgb(55, 145, 60), rgb(30, 115, 45) } },
+	tree_jungle = {
+		{ "tree_jungle", "tree_jungle", "tree_acacia" },
+		{ rgb(40, 130, 50), rgb(55, 145, 60), rgb(30, 115, 45) },
+	},
 	tree_acacia = { { "tree_acacia" }, { rgb(110, 140, 60), rgb(96, 128, 52) } },
 	bush = { { "bush" } },
 	rock = { { "rock_a", "rock_b" } },
@@ -383,7 +600,14 @@ local function prop(name: string, f: Instance, cf: CFrame, s: number, th)
 			paint.Band = { rc:Lerp(rgb(210, 120, 80), 0.45), Enum.Material.Sandstone }
 		end
 		local k = s * (if name == "rock" then 1.3 else 1)
-		if MESH(design, f, cf * CFrame.Angles(0, math.random() * math.pi * 2, 0), { Scale = Vector3.new(k, k * (0.9 + math.random() * 0.25), k), Paint = paint }) then
+		if
+			MESH(
+				design,
+				f,
+				cf * CFrame.Angles(0, math.random() * math.pi * 2, 0),
+				{ Scale = Vector3.new(k, k * (0.9 + math.random() * 0.25), k), Paint = paint }
+			)
+		then
 			return
 		end
 	end
@@ -404,7 +628,17 @@ end
 -- Horizon
 ---------------------------------------------------------------------------
 -- Horizon from the Blender meshes: skyline towers, mountain ranges, mesas, rolling hills
-local SKYLINE = { "tower_glass", "tower_deco", "tower_twist", "tower_round", "tower_blade", "tower_twin", "tower_stack", "tower_resi" }
+local SKYLINE = {
+	"tower_glass",
+	"tower_deco",
+	"tower_twist",
+	"tower_round",
+	"tower_blade",
+	"tower_twin",
+	"tower_stack",
+	"tower_resi",
+}
+-- Horizon from the Blender meshes: a ring of skyscrapers or mountains past the scenery.
 local function horizonMeshes(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
 	local kind: string = th.Horizon
 	local skyline = kind == "skyline"
@@ -421,7 +655,12 @@ local function horizonMeshes(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
 				local design = SKYLINE[rng:NextInteger(1, #SKYLINE)]
 				local k = rng:NextNumber(1.1, 1.8) / c ^ 0.25
 				local p = pos + Vector3.new(rng:NextNumber(-80, 80), 0, rng:NextNumber(-80, 80))
-				MESH(design, f, CFrame.lookAt(p, Vector3.new(cx, 0, cz)), { Scale = Vector3.new(k, k * rng:NextNumber(0.8, 1.25), k), Paint = Arch.MeshPaint(design, rng, th), Night = th.Night, Lit = if th.Night then rng:NextInteger(1, 2) else 0 })
+				MESH(design, f, CFrame.lookAt(p, Vector3.new(cx, 0, cz)), {
+					Scale = Vector3.new(k, k * rng:NextNumber(0.8, 1.25), k),
+					Paint = Arch.MeshPaint(design, rng, th),
+					Night = th.Night,
+					Lit = if th.Night then rng:NextInteger(1, 2) else 0,
+				})
 			end
 		else
 			local design, k
@@ -438,23 +677,38 @@ local function horizonMeshes(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
 			if seaZ and pos.Z + W * k * 0.5 > seaZ - 40 then
 				continue
 			end
-			local rock = th.HorizonColor or (if kind == "snowmountains" then Color3.fromRGB(118, 126, 142) else Color3.fromRGB(122, 118, 110))
+			local rock = th.HorizonColor
+				or (if kind == "snowmountains" then Color3.fromRGB(118, 126, 142) else Color3.fromRGB(122, 118, 110))
 			local paint = {
-				Base = { if kind == "snowmountains" then th.Ground:Lerp(Color3.fromRGB(190, 200, 212), 0.35) else th.Ground:Lerp(Color3.fromRGB(70, 120, 60), 0.25), Enum.Material.Grass },
+				Base = {
+					if kind == "snowmountains"
+						then th.Ground:Lerp(Color3.fromRGB(190, 200, 212), 0.35)
+						else th.Ground:Lerp(Color3.fromRGB(70, 120, 60), 0.25),
+					Enum.Material.Grass,
+				},
 				Rock = { rock, Enum.Material.Rock },
 				Snow = { Color3.fromRGB(245, 248, 255), Enum.Material.Snow },
 			}
 			if kind == "mesas" then
-				local sand = th.HorizonColor or Color3.fromRGB(205, 128, 82):Lerp(Color3.fromRGB(232, 175, 118), rng:NextNumber())
+				local sand = th.HorizonColor
+					or Color3.fromRGB(205, 128, 82):Lerp(Color3.fromRGB(232, 175, 118), rng:NextNumber())
 				paint.Rock = { sand, Enum.Material.Sandstone }
 				paint.Band = { sand:Lerp(Color3.fromRGB(245, 205, 150), 0.4), Enum.Material.Sandstone }
 				paint.Base = { sand:Lerp(Color3.fromRGB(230, 200, 150), 0.5), Enum.Material.Sand }
 			end
-			MESH(design, f, CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), { Scale = Vector3.new(k * rng:NextNumber(0.75, 1.35), k * rng:NextNumber(0.75, 1.45), k * rng:NextNumber(0.75, 1.35)), Paint = paint })
+			MESH(design, f, CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), {
+				Scale = Vector3.new(
+					k * rng:NextNumber(0.75, 1.35),
+					k * rng:NextNumber(0.75, 1.45),
+					k * rng:NextNumber(0.75, 1.35)
+				),
+				Paint = paint,
+			})
 		end
 	end
 end
 
+-- The distant ring of skyline, mountains, hills or volcanoes that closes off the map.
 local function horizon(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
 	local kind: string = th.Horizon
 	if kind == "none" then
@@ -462,7 +716,8 @@ local function horizon(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
 	end
 	local useMeshes = meshesOn and kind ~= "volcanoes"
 	if useMeshes then
-		return horizonMeshes(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
+		horizonMeshes(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
+		return
 	end
 	local count = math.floor((if kind == "skyline" then 40 else 26) * math.clamp(dens, 0.6, 1.2))
 	for i = 1, count do
@@ -485,23 +740,60 @@ local function horizon(f, th, cx, cz, radius, rng, dens, seaZ, occ, q)
 				local bands = math.floor(h / (if q <= 2 then 80 else 40))
 				for k = 1, bands do
 					local lit = th.Night and rng:NextNumber() < 0.6
-					P(f, Vector3.new(w + 0.6, 3, w + 0.6), tcf * CFrame.new(0, -h / 2 + k * 40, 0), if lit then Color3.fromRGB(255, 225, 160) else glass:Lerp(Color3.new(1, 1, 1), 0.35), if lit then Enum.Material.Neon else Enum.Material.Metal)
+					P(
+						f,
+						Vector3.new(w + 0.6, 3, w + 0.6),
+						tcf * CFrame.new(0, -h / 2 + k * 40, 0),
+						if lit then Color3.fromRGB(255, 225, 160) else glass:Lerp(Color3.new(1, 1, 1), 0.35),
+						if lit then Enum.Material.Neon else Enum.Material.Metal
+					)
 				end
 				if rng:NextNumber() < 0.5 then
-					P(f, Vector3.new(w * 0.6, 20, w * 0.6), tcf * CFrame.new(0, h / 2 + 10, 0), glass, Enum.Material.Glass)
+					P(
+						f,
+						Vector3.new(w * 0.6, 20, w * 0.6),
+						tcf * CFrame.new(0, h / 2 + 10, 0),
+						glass,
+						Enum.Material.Glass
+					)
 				end
 			end
 		elseif kind == "mesas" then
 			local w, h = rng:NextNumber(300, 600), rng:NextNumber(90, 220)
-			local c = th.HorizonColor or Color3.fromRGB(205, 128, 82):Lerp(Color3.fromRGB(232, 175, 118), rng:NextNumber())
-			P(f, Vector3.new(w, h, w * 0.7), CFrame.new(pos + Vector3.new(0, h / 2, 0)) * CFrame.Angles(0, ang, 0), c, Enum.Material.Sandstone)
+			local c = th.HorizonColor
+				or Color3.fromRGB(205, 128, 82):Lerp(Color3.fromRGB(232, 175, 118), rng:NextNumber())
+			P(
+				f,
+				Vector3.new(w, h, w * 0.7),
+				CFrame.new(pos + Vector3.new(0, h / 2, 0)) * CFrame.Angles(0, ang, 0),
+				c,
+				Enum.Material.Sandstone
+			)
 		else
 			local w = rng:NextNumber(350, 700)
 			local h = rng:NextNumber(180, 480) * (if kind == "hills" then 0.45 else 1)
-			local base = th.HorizonColor or (if kind == "snowmountains" then Color3.fromRGB(130, 140, 160) elseif kind == "volcanoes" then Color3.fromRGB(66, 56, 52) else Color3.fromRGB(86, 132, 80))
-			P(f, Vector3.new(w, w, w), CFrame.new(pos + Vector3.new(0, h - w * 0.72, 0)) * CFrame.Angles(math.rad(45), ang, math.rad(35)), base, if kind == "hills" then Enum.Material.Grass else Enum.Material.Rock)
+			local base = th.HorizonColor
+				or (
+					if kind == "snowmountains"
+						then Color3.fromRGB(130, 140, 160)
+						elseif kind == "volcanoes" then Color3.fromRGB(66, 56, 52)
+						else Color3.fromRGB(86, 132, 80)
+				)
+			P(
+				f,
+				Vector3.new(w, w, w),
+				CFrame.new(pos + Vector3.new(0, h - w * 0.72, 0)) * CFrame.Angles(math.rad(45), ang, math.rad(35)),
+				base,
+				if kind == "hills" then Enum.Material.Grass else Enum.Material.Rock
+			)
 			if kind == "snowmountains" or (kind == "mountains" and h > 330) then
-				P(f, Vector3.new(w * 0.36, w * 0.36, w * 0.36), CFrame.new(pos + Vector3.new(0, h - w * 0.21, 0)) * CFrame.Angles(math.rad(45), ang, math.rad(35)), Color3.fromRGB(245, 248, 255), Enum.Material.Snow)
+				P(
+					f,
+					Vector3.new(w * 0.36, w * 0.36, w * 0.36),
+					CFrame.new(pos + Vector3.new(0, h - w * 0.21, 0)) * CFrame.Angles(math.rad(45), ang, math.rad(35)),
+					Color3.fromRGB(245, 248, 255),
+					Enum.Material.Snow
+				)
 			end
 		end
 	end
@@ -521,6 +813,8 @@ local function getOrMake(className: string, name: string, parent: Instance)
 	return n
 end
 
+-- Sky, sun, fog and post effects for the circuit's time of day and mood. Shadows,
+-- bloom and sun rays are only turned on at higher graphics settings.
 function CircuitBuilder.ApplyLighting(th, quality: number?)
 	local q = quality or 3
 	local L = th.Sky
@@ -572,6 +866,7 @@ function CircuitBuilder.ApplyLighting(th, quality: number?)
 	end
 end
 
+-- Rain or snow that follows the camera (nil if the circuit is dry).
 local function startWeather(th, folder, q)
 	if not th.Weather then
 		return nil
@@ -619,17 +914,106 @@ end
 -- Ambient particles that follow the camera: petals, leaves, pollen, sand, mist,
 -- fireflies, embers, confetti (Themes.Ambient)
 local AMBIENT = {
-	petals = { Colors = { Color3.fromRGB(255, 180, 210), Color3.fromRGB(255, 215, 230) }, Rate = 40, Size = 0.35, Speed = { 3, 6 }, Life = { 6, 9 }, Acc = Vector3.new(3, -1.5, 1.5), Rot = true },
-	petals_mixed = { Colors = { Color3.fromRGB(255, 80, 90), Color3.fromRGB(255, 220, 60), Color3.fromRGB(255, 140, 200), Color3.fromRGB(255, 150, 40) }, Rate = 26, Size = 0.3, Speed = { 3, 6 }, Life = { 6, 9 }, Acc = Vector3.new(4, -1.5, 1), Rot = true },
-	leaves = { Colors = { Color3.fromRGB(230, 100, 30), Color3.fromRGB(250, 170, 40), Color3.fromRGB(200, 50, 30) }, Rate = 30, Size = 0.5, Speed = { 3, 6 }, Life = { 6, 9 }, Acc = Vector3.new(3, -2, 2), Rot = true },
-	pollen = { Colors = { Color3.fromRGB(255, 250, 210), Color3.fromRGB(255, 255, 255) }, Rate = 30, Size = 0.18, Speed = { 1, 2 }, Life = { 6, 10 }, Acc = Vector3.new(1, 0.2, 0.5), Glow = 0.4 },
-	sand = { Colors = { Color3.fromRGB(230, 200, 150), Color3.fromRGB(215, 180, 130) }, Rate = 90, Size = 0.22, Speed = { 30, 45 }, Life = { 1.5, 2.5 }, Acc = Vector3.new(0, -2, 0), Dir = Enum.NormalId.Right, Transparency = 0.45 },
-	mist = { Colors = { Color3.fromRGB(235, 240, 240) }, Rate = 6, Size = 14, Speed = { 1, 2 }, Life = { 8, 12 }, Acc = Vector3.new(0.6, 0, 0.3), Transparency = 0.85, Low = true, Smoke = true },
-	fireflies = { Colors = { Color3.fromRGB(210, 255, 120), Color3.fromRGB(255, 240, 140) }, Rate = 18, Size = 0.25, Speed = { 0.5, 1.5 }, Life = { 3, 5 }, Acc = Vector3.new(0, 0.3, 0), Glow = 1, Low = true },
-	embers = { Colors = { Color3.fromRGB(255, 140, 40), Color3.fromRGB(255, 90, 20) }, Rate = 40, Size = 0.28, Speed = { 2, 5 }, Life = { 3, 5 }, Acc = Vector3.new(2, 4, 1), Glow = 1, Low = true },
-	confetti = { Colors = { Color3.fromRGB(230, 40, 60), Color3.fromRGB(40, 170, 90), Color3.fromRGB(255, 210, 40), Color3.fromRGB(60, 120, 230), Color3.fromRGB(255, 120, 200) }, Rate = 20, Size = 0.3, Speed = { 2, 4 }, Life = { 5, 8 }, Acc = Vector3.new(1, -2.5, 1), Rot = true },
+	petals = {
+		Colors = { Color3.fromRGB(255, 180, 210), Color3.fromRGB(255, 215, 230) },
+		Rate = 40,
+		Size = 0.35,
+		Speed = { 3, 6 },
+		Life = { 6, 9 },
+		Acc = Vector3.new(3, -1.5, 1.5),
+		Rot = true,
+	},
+	petals_mixed = {
+		Colors = {
+			Color3.fromRGB(255, 80, 90),
+			Color3.fromRGB(255, 220, 60),
+			Color3.fromRGB(255, 140, 200),
+			Color3.fromRGB(255, 150, 40),
+		},
+		Rate = 26,
+		Size = 0.3,
+		Speed = { 3, 6 },
+		Life = { 6, 9 },
+		Acc = Vector3.new(4, -1.5, 1),
+		Rot = true,
+	},
+	leaves = {
+		Colors = { Color3.fromRGB(230, 100, 30), Color3.fromRGB(250, 170, 40), Color3.fromRGB(200, 50, 30) },
+		Rate = 30,
+		Size = 0.5,
+		Speed = { 3, 6 },
+		Life = { 6, 9 },
+		Acc = Vector3.new(3, -2, 2),
+		Rot = true,
+	},
+	pollen = {
+		Colors = { Color3.fromRGB(255, 250, 210), Color3.fromRGB(255, 255, 255) },
+		Rate = 30,
+		Size = 0.18,
+		Speed = { 1, 2 },
+		Life = { 6, 10 },
+		Acc = Vector3.new(1, 0.2, 0.5),
+		Glow = 0.4,
+	},
+	sand = {
+		Colors = { Color3.fromRGB(230, 200, 150), Color3.fromRGB(215, 180, 130) },
+		Rate = 90,
+		Size = 0.22,
+		Speed = { 30, 45 },
+		Life = { 1.5, 2.5 },
+		Acc = Vector3.new(0, -2, 0),
+		Dir = Enum.NormalId.Right,
+		Transparency = 0.45,
+	},
+	mist = {
+		Colors = { Color3.fromRGB(235, 240, 240) },
+		Rate = 6,
+		Size = 14,
+		Speed = { 1, 2 },
+		Life = { 8, 12 },
+		Acc = Vector3.new(0.6, 0, 0.3),
+		Transparency = 0.85,
+		Low = true,
+		Smoke = true,
+	},
+	fireflies = {
+		Colors = { Color3.fromRGB(210, 255, 120), Color3.fromRGB(255, 240, 140) },
+		Rate = 18,
+		Size = 0.25,
+		Speed = { 0.5, 1.5 },
+		Life = { 3, 5 },
+		Acc = Vector3.new(0, 0.3, 0),
+		Glow = 1,
+		Low = true,
+	},
+	embers = {
+		Colors = { Color3.fromRGB(255, 140, 40), Color3.fromRGB(255, 90, 20) },
+		Rate = 40,
+		Size = 0.28,
+		Speed = { 2, 5 },
+		Life = { 3, 5 },
+		Acc = Vector3.new(2, 4, 1),
+		Glow = 1,
+		Low = true,
+	},
+	confetti = {
+		Colors = {
+			Color3.fromRGB(230, 40, 60),
+			Color3.fromRGB(40, 170, 90),
+			Color3.fromRGB(255, 210, 40),
+			Color3.fromRGB(60, 120, 230),
+			Color3.fromRGB(255, 120, 200),
+		},
+		Rate = 20,
+		Size = 0.3,
+		Speed = { 2, 4 },
+		Life = { 5, 8 },
+		Acc = Vector3.new(1, -2.5, 1),
+		Rot = true,
+	},
 }
 
+-- The circuit's ambient particles (petals, leaves, sand, embers), from Medium graphics up.
 local function startAmbient(th, folder, q)
 	local a = th.Ambient and AMBIENT[th.Ambient]
 	if not a or q < 2 then
@@ -686,7 +1070,11 @@ local function startFireworks(folder, cx, cz, span, q)
 			if not folder.Parent then
 				break
 			end
-			local pos = Vector3.new(cx + rng:NextNumber(-span * 0.4, span * 0.4), rng:NextNumber(130, 220), cz + rng:NextNumber(-span * 0.4, span * 0.4))
+			local pos = Vector3.new(
+				cx + rng:NextNumber(-span * 0.4, span * 0.4),
+				rng:NextNumber(130, 220),
+				cz + rng:NextNumber(-span * 0.4, span * 0.4)
+			)
 			local anchor = P(folder, Vector3.new(1, 1, 1), CFrame.new(pos), Color3.new(1, 1, 1))
 			anchor.Transparency = 1
 			local hue = rng:NextNumber()
@@ -746,6 +1134,7 @@ local function breakpoints(t): { number }
 	return pts
 end
 
+-- World position of track sample `i`, `lateral` studs off the centre line.
 local function pos(t, i: number, lateral: number?, lift: number?): Vector3
 	i = Track.Wrap(t, i)
 	local l = lateral or 0
@@ -829,7 +1218,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		braking[i] = t.V[i] - ahead > 25
 	end
 
-	-- ground ----------------------------------------------------------------
+	-- ground ------------------------------------------------------------------------------
 	local b = t.Bounds
 	local cx, cz = (b[1] + b[2]) / 2, (b[3] + b[4]) / 2
 	local halfX = (b[2] - b[1]) / 2 + 2300
@@ -837,7 +1226,15 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	local tile = 2000
 	for i = 0, math.ceil(halfX * 2 / tile) - 1 do
 		for j = 0, math.ceil(halfZ * 2 / tile) - 1 do
-			P(surface, Vector3.new(tile, 4, tile), CFrame.new(cx - halfX + tile * (i + 0.5), -2, cz - halfZ + tile * (j + 0.5)), th.Ground, th.GroundMaterial, "Grass", true)
+			P(
+				surface,
+				Vector3.new(tile, 4, tile),
+				CFrame.new(cx - halfX + tile * (i + 0.5), -2, cz - halfZ + tile * (j + 0.5)),
+				th.Ground,
+				th.GroundMaterial,
+				"Grass",
+				true
+			)
 		end
 	end
 
@@ -845,7 +1242,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	local lineMat = if night then Enum.Material.Neon else Enum.Material.SmoothPlastic
 	local lineCol = if night then Color3.fromRGB(205, 208, 215) else lineColor
 
-	-- road, lines, run-off, barriers (per smooth segment) --------------------
+	-- road, lines, run-off, barriers (per smooth segment) ---------------------------------
 	local bp = breakpoints(t)
 	local nSeg = #bp
 	local barrierCount = 0
@@ -870,30 +1267,129 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		local roadTop = t.Y[mid] + ROAD_LIFT
 		local cornerSide = -sign(k) -- outside of the bend
 
-		strip(surface, t, a, bIdx, 0, W, if over then 3 else 1.4, ROAD_LIFT, th.Road, Enum.Material.Asphalt, "Road", true, ext)
+		strip(
+			surface,
+			t,
+			a,
+			bIdx,
+			0,
+			W,
+			if over then 3 else 1.4,
+			ROAD_LIFT,
+			th.Road,
+			Enum.Material.Asphalt,
+			"Road",
+			true,
+			ext
+		)
 		-- rubbered-in racing line
 		local rlA, rlB = t.RL[ia], t.RL[ib]
-		local rub = strip(deco, t, a, bIdx, rlA, 6, 0.05, ROAD_LIFT + 0.02, th.Road:Lerp(Color3.new(0, 0, 0), 0.25), Enum.Material.Asphalt, "Rubber", false, ext * 0.5, rlB)
+		local rub = strip(
+			deco,
+			t,
+			a,
+			bIdx,
+			rlA,
+			6,
+			0.05,
+			ROAD_LIFT + 0.02,
+			th.Road:Lerp(Color3.new(0, 0, 0), 0.25),
+			Enum.Material.Asphalt,
+			"Rubber",
+			false,
+			ext * 0.5,
+			rlB
+		)
 		if rub then
 			rub.Transparency = 0.35
 		end
 		-- edge lines
 		for side = -1, 1, 2 do
-			strip(deco, t, a, bIdx, side * (W / 2 - 1.3), 0.9, 0.08, ROAD_LIFT + 0.04, lineCol, lineMat, "Line", false, ex(W / 2 - 1.3, 0.9) - 0.4)
+			strip(
+				deco,
+				t,
+				a,
+				bIdx,
+				side * (W / 2 - 1.3),
+				0.9,
+				0.08,
+				ROAD_LIFT + 0.04,
+				lineCol,
+				lineMat,
+				"Line",
+				false,
+				ex(W / 2 - 1.3, 0.9) - 0.4
+			)
 		end
 
 		if over then
 			for side = -1, 1, 2 do
-				strip(walls, t, a, bIdx, side * (W / 2 + 1.2), 1.6, 5, ROAD_LIFT + 4.4, Color3.fromRGB(205, 205, 210), Enum.Material.Concrete, "Wall", true, ex(W / 2 + 1.2, 1.6))
-				strip(deco, t, a, bIdx, side * (W / 2 + 1.2), 1.8, 1, ROAD_LIFT - 2.2, th.Accent, Enum.Material.SmoothPlastic, "Girder", false, ex(W / 2 + 1.2, 1.8))
+				strip(
+					walls,
+					t,
+					a,
+					bIdx,
+					side * (W / 2 + 1.2),
+					1.6,
+					5,
+					ROAD_LIFT + 4.4,
+					Color3.fromRGB(205, 205, 210),
+					Enum.Material.Concrete,
+					"Wall",
+					true,
+					ex(W / 2 + 1.2, 1.6)
+				)
+				strip(
+					deco,
+					t,
+					a,
+					bIdx,
+					side * (W / 2 + 1.2),
+					1.8,
+					1,
+					ROAD_LIFT - 2.2,
+					th.Accent,
+					Enum.Material.SmoothPlastic,
+					"Girder",
+					false,
+					ex(W / 2 + 1.2, 1.8)
+				)
 			end
 		elseif street then
 			for side = -1, 1, 2 do
-				strip(surface, t, a, bIdx, side * (W / 2 + 3.5), 7, 1, ROAD_LIFT + 0.05, Color3.fromRGB(150, 152, 158), Enum.Material.Asphalt, "Runoff", true, ex(W / 2 + 3.5, 7))
+				strip(
+					surface,
+					t,
+					a,
+					bIdx,
+					side * (W / 2 + 3.5),
+					7,
+					1,
+					ROAD_LIFT + 0.05,
+					Color3.fromRGB(150, 152, 158),
+					Enum.Material.Asphalt,
+					"Runoff",
+					true,
+					ex(W / 2 + 3.5, 7)
+				)
 			end
 			if roadTop > 3 then
 				for side = -1, 1, 2 do
-					strip(deco, t, a, bIdx, side * (W / 2 + 4), W / 2 + 10, roadTop, ROAD_LIFT - 1.2, Color3.fromRGB(150, 145, 140), Enum.Material.Brick, "Base", false, 0.4)
+					strip(
+						deco,
+						t,
+						a,
+						bIdx,
+						side * (W / 2 + 4),
+						W / 2 + 10,
+						roadTop,
+						ROAD_LIFT - 1.2,
+						Color3.fromRGB(150, 145, 140),
+						Enum.Material.Brick,
+						"Base",
+						false,
+						0.4
+					)
 				end
 			end
 		else
@@ -901,12 +1397,68 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				local outer = side == cornerSide and math.abs(k) > 1 / 520
 				local runW = BARRIER - W / 2
 				if th.RunoffKind == "asphalt" then
-					strip(surface, t, a, bIdx, side * (W / 2 + runW / 2), runW, 1.2, ROAD_LIFT - 0.05, th.Road:Lerp(Color3.fromRGB(80, 110, 160), 0.18), Enum.Material.Asphalt, "Runoff", true, ex(W / 2 + runW / 2, runW))
+					strip(
+						surface,
+						t,
+						a,
+						bIdx,
+						side * (W / 2 + runW / 2),
+						runW,
+						1.2,
+						ROAD_LIFT - 0.05,
+						th.Road:Lerp(Color3.fromRGB(80, 110, 160), 0.18),
+						Enum.Material.Asphalt,
+						"Runoff",
+						true,
+						ex(W / 2 + runW / 2, runW)
+					)
 				elseif outer then
-					strip(surface, t, a, bIdx, side * (W / 2 + 2.5), 5, 1.2, ROAD_LIFT - 0.05, th.Runoff, th.RunoffMaterial, "Grass", true, ex(W / 2 + 2.5, 5))
-					strip(surface, t, a, bIdx, side * (W / 2 + 5 + (runW - 5) / 2), runW - 5, 1.2, ROAD_LIFT - 0.1, Color3.fromRGB(214, 198, 160), Enum.Material.Pebble, "Gravel", true, ex(W / 2 + 5 + (runW - 5) / 2, runW - 5))
+					strip(
+						surface,
+						t,
+						a,
+						bIdx,
+						side * (W / 2 + 2.5),
+						5,
+						1.2,
+						ROAD_LIFT - 0.05,
+						th.Runoff,
+						th.RunoffMaterial,
+						"Grass",
+						true,
+						ex(W / 2 + 2.5, 5)
+					)
+					strip(
+						surface,
+						t,
+						a,
+						bIdx,
+						side * (W / 2 + 5 + (runW - 5) / 2),
+						runW - 5,
+						1.2,
+						ROAD_LIFT - 0.1,
+						Color3.fromRGB(214, 198, 160),
+						Enum.Material.Pebble,
+						"Gravel",
+						true,
+						ex(W / 2 + 5 + (runW - 5) / 2, runW - 5)
+					)
 				else
-					strip(surface, t, a, bIdx, side * (W / 2 + runW / 2), runW, 1.2, ROAD_LIFT - 0.05, th.Runoff, th.RunoffMaterial, "Grass", true, ex(W / 2 + runW / 2, runW))
+					strip(
+						surface,
+						t,
+						a,
+						bIdx,
+						side * (W / 2 + runW / 2),
+						runW,
+						1.2,
+						ROAD_LIFT - 0.05,
+						th.Runoff,
+						th.RunoffMaterial,
+						"Grass",
+						true,
+						ex(W / 2 + runW / 2, runW)
+					)
 				end
 				-- embankment down to the ground for raised sections
 				if roadTop > 1.5 then
@@ -929,13 +1481,21 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 						end
 						local center = (em + foot) / 2 - up * 0.6
 						local zAxis = ax:Cross(up)
-						P(surface, Vector3.new(acrossLen, 1.2, len + 1.5), CFrame.fromMatrix(center, ax, up, zAxis), th.Runoff:Lerp(th.Ground, 0.5), th.GroundMaterial, "Grass", true)
+						P(
+							surface,
+							Vector3.new(acrossLen, 1.2, len + 1.5),
+							CFrame.fromMatrix(center, ax, up, zAxis),
+							th.Runoff:Lerp(th.Ground, 0.5),
+							th.GroundMaterial,
+							"Grass",
+							true
+						)
 					end
 				end
 			end
 		end
 
-		-- BARRIERS on both sides -------------------------------------------------
+		-- BARRIERS on both sides ----------------------------------------------------------
 		if not over then
 			for side = -1, 1, 2 do
 				local inner = side ~= cornerSide
@@ -946,7 +1506,13 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 					local pb = pos(t, ib, side * BARRIER, 0)
 					local pm = (pa + pb) / 2
 					local minD = W / 2 + 4
-					if not (clear(pa.X, pa.Z, minD, ia, 45) and clear(pb.X, pb.Z, minD, ib, 45) and clear(pm.X, pm.Z, minD, mid, 45)) then
+					if
+						not (
+							clear(pa.X, pa.Z, minD, ia, 45)
+							and clear(pb.X, pb.Z, minD, ib, 45)
+							and clear(pm.X, pm.Z, minD, mid, 45)
+						)
+					then
 						skip = true
 					end
 				end
@@ -954,7 +1520,21 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 					barrierCount += 1
 					local lat = side * BARRIER
 					-- invisible solid collider
-					local col = strip(walls, t, a, bIdx, lat, 1.6, 7, ROAD_LIFT + 5.5, Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, "Wall", true, ex(lat, 1.6))
+					local col = strip(
+						walls,
+						t,
+						a,
+						bIdx,
+						lat,
+						1.6,
+						7,
+						ROAD_LIFT + 5.5,
+						Color3.new(1, 1, 1),
+						Enum.Material.SmoothPlastic,
+						"Wall",
+						true,
+						ex(lat, 1.6)
+					)
 					if col then
 						col.Transparency = 1
 						col.CanQuery = false
@@ -970,33 +1550,163 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 						kind = "armco"
 					end
 					if kind == "concrete" then
-						local wall = strip(deco, t, a, bIdx, lat, 1.6, 4.4, ROAD_LIFT + 3.9, if s % 4 == 0 then th.Accent else Color3.fromRGB(236, 236, 236), Enum.Material.Concrete, "WallV", false, ex(lat, 1.6))
-						strip(deco, t, a, bIdx, lat, 1.7, 0.5, ROAD_LIFT + 4.3, if s % 2 == 0 then Color3.fromRGB(220, 30, 40) else Color3.fromRGB(250, 250, 250), Enum.Material.SmoothPlastic, "WallTop", false, ex(lat, 1.7))
+						local wall = strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat,
+							1.6,
+							4.4,
+							ROAD_LIFT + 3.9,
+							if s % 4 == 0 then th.Accent else Color3.fromRGB(236, 236, 236),
+							Enum.Material.Concrete,
+							"WallV",
+							false,
+							ex(lat, 1.6)
+						)
+						strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat,
+							1.7,
+							0.5,
+							ROAD_LIFT + 4.3,
+							if s % 2 == 0 then Color3.fromRGB(220, 30, 40) else Color3.fromRGB(250, 250, 250),
+							Enum.Material.SmoothPlastic,
+							"WallTop",
+							false,
+							ex(lat, 1.7)
+						)
 						if q >= 2 then
 							-- debris catch fence: posts + cables (a translucent slab read as a
 							-- see-through wall, so it is drawn as an open frame instead)
 							local fl = lat + side * 0.6
 							local fenceCol = Color3.fromRGB(70, 74, 80)
 							for _, h in { 7.4, 11.2 } do
-								strip(deco, t, a, bIdx, fl, 0.12, 0.12, ROAD_LIFT + h, fenceCol, Enum.Material.Metal, "FenceCable", false, ex(fl, 0.12))
+								strip(
+									deco,
+									t,
+									a,
+									bIdx,
+									fl,
+									0.12,
+									0.12,
+									ROAD_LIFT + h,
+									fenceCol,
+									Enum.Material.Metal,
+									"FenceCable",
+									false,
+									ex(fl, 0.12)
+								)
 							end
 							if s % 2 == 0 then
 								local pp = pos(t, ia, fl, ROAD_LIFT)
-								P(deco, Vector3.new(0.35, 7.4, 0.35), CFrame.new(pp + Vector3.new(0, 7.6, 0)), fenceCol, Enum.Material.Metal, "FencePost")
+								P(
+									deco,
+									Vector3.new(0.35, 7.4, 0.35),
+									CFrame.new(pp + Vector3.new(0, 7.6, 0)),
+									fenceCol,
+									Enum.Material.Metal,
+									"FencePost"
+								)
 							end
 						end
 						if wall and s % 7 == 0 then
 							local brand = BRANDS[(s // 7) % #BRANDS + 1]
-							textGui(wall, if side > 0 then Enum.NormalId.Left else Enum.NormalId.Right, brand[1], brand[2], Color3.fromRGB(20, 20, 25))
+							textGui(
+								wall,
+								if side > 0 then Enum.NormalId.Left else Enum.NormalId.Right,
+								brand[1],
+								brand[2],
+								Color3.fromRGB(20, 20, 25)
+							)
 						end
 					elseif kind == "armco" then
-						strip(deco, t, a, bIdx, lat, 0.35, 0.8, ROAD_LIFT + 2.6, Color3.fromRGB(205, 210, 215), Enum.Material.Metal, "Armco", false, ex(lat, 0.35))
-						strip(deco, t, a, bIdx, lat, 0.35, 0.8, ROAD_LIFT + 1.6, Color3.fromRGB(205, 210, 215), Enum.Material.Metal, "Armco", false, ex(lat, 0.35))
-						strip(deco, t, a, bIdx, lat + side * 0.4, 0.25, 2.6, ROAD_LIFT + 2.6, Color3.fromRGB(80, 84, 90), Enum.Material.Metal, "ArmcoPost", false, ex(lat + side * 0.4, 0.25))
+						strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat,
+							0.35,
+							0.8,
+							ROAD_LIFT + 2.6,
+							Color3.fromRGB(205, 210, 215),
+							Enum.Material.Metal,
+							"Armco",
+							false,
+							ex(lat, 0.35)
+						)
+						strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat,
+							0.35,
+							0.8,
+							ROAD_LIFT + 1.6,
+							Color3.fromRGB(205, 210, 215),
+							Enum.Material.Metal,
+							"Armco",
+							false,
+							ex(lat, 0.35)
+						)
+						strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat + side * 0.4,
+							0.25,
+							2.6,
+							ROAD_LIFT + 2.6,
+							Color3.fromRGB(80, 84, 90),
+							Enum.Material.Metal,
+							"ArmcoPost",
+							false,
+							ex(lat + side * 0.4, 0.25)
+						)
 					elseif kind == "tyres" then
-						strip(deco, t, a, bIdx, lat, 2, 2.8, ROAD_LIFT + 2.8, Color3.fromRGB(24, 24, 26), Enum.Material.Fabric, "Tyres", false, ex(lat, 2))
-						local beltColors = { Color3.fromRGB(220, 35, 35), Color3.fromRGB(245, 245, 245), Color3.fromRGB(30, 90, 220), Color3.fromRGB(255, 200, 30) }
-						strip(deco, t, a, bIdx, lat - side * 0.1, 2.05, 1.1, ROAD_LIFT + 2.3, if s % 2 == 0 then beltColors[1] else beltColors[2], Enum.Material.SmoothPlastic, "Belt", false, ex(lat - side * 0.1, 2.05))
+						strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat,
+							2,
+							2.8,
+							ROAD_LIFT + 2.8,
+							Color3.fromRGB(24, 24, 26),
+							Enum.Material.Fabric,
+							"Tyres",
+							false,
+							ex(lat, 2)
+						)
+						local beltColors = {
+							Color3.fromRGB(220, 35, 35),
+							Color3.fromRGB(245, 245, 245),
+							Color3.fromRGB(30, 90, 220),
+							Color3.fromRGB(255, 200, 30),
+						}
+						strip(
+							deco,
+							t,
+							a,
+							bIdx,
+							lat - side * 0.1,
+							2.05,
+							1.1,
+							ROAD_LIFT + 2.3,
+							if s % 2 == 0 then beltColors[1] else beltColors[2],
+							Enum.Material.SmoothPlastic,
+							"Belt",
+							false,
+							ex(lat - side * 0.1, 2.05)
+						)
 					else -- tecpro blocks
 						local pa = pos(t, ia, lat, ROAD_LIFT)
 						local pb = pos(t, ib, lat, ROAD_LIFT)
@@ -1005,7 +1715,14 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 						for kk = 0, n - 1 do
 							local p0 = pa:Lerp(pb, (kk + 0.5) / n)
 							local cfb = CFrame.lookAt(p0, pb) * CFrame.new(0, 1.3, 0)
-							P(deco, Vector3.new(2.4, 2.6, len / n - 0.3), cfb, if kk % 2 == 0 then Color3.fromRGB(220, 40, 40) else Color3.fromRGB(40, 90, 210), Enum.Material.SmoothPlastic, "TecPro")
+							P(
+								deco,
+								Vector3.new(2.4, 2.6, len / n - 0.3),
+								cfb,
+								if kk % 2 == 0 then Color3.fromRGB(220, 40, 40) else Color3.fromRGB(40, 90, 210),
+								Enum.Material.SmoothPlastic,
+								"TecPro"
+							)
 						end
 					end
 				end
@@ -1014,24 +1731,66 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	end
 
 	progress("Painting kerbs and run-off", 0.28)
-	-- kerbs: red/white stripes on corners, sausage kerbs at tight apexes -----------
+	-- kerbs: red/white stripes on corners, sausage kerbs at tight apexes ------------------
 	for i = 1, t.N do
 		local k = t.K[i]
 		if math.abs(k) > 1 / 420 and not t.Over[i] then
 			local j = i + 1
 			for side = -1, 1, 2 do
-				local kerb = strip(surface, t, i, j, side * (W / 2 + 1.2), 3, 0.5, ROAD_LIFT + 0.12, if i % 2 == 0 then th.KerbA else th.KerbB, Enum.Material.SmoothPlastic, "Kerb", true, 0.05)
+				local kerb = strip(
+					surface,
+					t,
+					i,
+					j,
+					side * (W / 2 + 1.2),
+					3,
+					0.5,
+					ROAD_LIFT + 0.12,
+					if i % 2 == 0 then th.KerbA else th.KerbB,
+					Enum.Material.SmoothPlastic,
+					"Kerb",
+					true,
+					0.05
+				)
 				local _ = kerb
 			end
 			-- sausage kerb on the inside of tight corners
 			if math.abs(k) > 1 / 140 and i % 3 == 0 then
 				local insideLat = sign(k) * (W / 2 + 3.4)
-				strip(deco, t, i, j, insideLat, 1.2, 0.7, ROAD_LIFT + 0.45, Color3.fromRGB(255, 205, 30), Enum.Material.SmoothPlastic, "Sausage", false, -2)
+				strip(
+					deco,
+					t,
+					i,
+					j,
+					insideLat,
+					1.2,
+					0.7,
+					ROAD_LIFT + 0.45,
+					Color3.fromRGB(255, 205, 30),
+					Enum.Material.SmoothPlastic,
+					"Sausage",
+					false,
+					-2
+				)
 			end
 			-- painted run-off stripes on asphalt run-off (outside of the bend)
 			if th.RunoffKind == "asphalt" and not street and i % 2 == 0 then
 				local outLat = -sign(k) * (W / 2 + 6.5)
-				strip(deco, t, i, j, outLat, 7, 0.06, ROAD_LIFT - 0.02, if i % 4 == 0 then Color3.fromRGB(220, 50, 50) else Color3.fromRGB(40, 110, 220), Enum.Material.SmoothPlastic, "Paint", false, 0)
+				strip(
+					deco,
+					t,
+					i,
+					j,
+					outLat,
+					7,
+					0.06,
+					ROAD_LIFT - 0.02,
+					if i % 4 == 0 then Color3.fromRGB(220, 50, 50) else Color3.fromRGB(40, 110, 220),
+					Enum.Material.SmoothPlastic,
+					"Paint",
+					false,
+					0
+				)
 			end
 		end
 	end
@@ -1043,7 +1802,21 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				local ii = i + kk * 2
 				for side = -1, 1, 2 do
 					local lat = t.RL[Track.Wrap(t, ii)] + side * 2.2
-					local m = strip(deco, t, ii, ii + 2, lat, 0.8, 0.04, ROAD_LIFT + 0.03, Color3.fromRGB(20, 20, 22), Enum.Material.SmoothPlastic, "Skid", false, 0)
+					local m = strip(
+						deco,
+						t,
+						ii,
+						ii + 2,
+						lat,
+						0.8,
+						0.04,
+						ROAD_LIFT + 0.03,
+						Color3.fromRGB(20, 20, 22),
+						Enum.Material.SmoothPlastic,
+						"Skid",
+						false,
+						0
+					)
 					if m then
 						m.Transparency = 0.5 + kk * 0.07
 					end
@@ -1053,7 +1826,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	end
 
 	progress("Building the pit lane and grandstands", 0.4)
-	-- start / finish -------------------------------------------------------------
+	-- start / finish ----------------------------------------------------------------------
 	local lights = {}
 	do
 		local base = CFrame.lookAt(pos(t, 1), pos(t, 2))
@@ -1061,21 +1834,55 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			for col = 0, 15 do
 				local black = (row + col) % 2 == 0
 				local x = -W / 2 + W / 32 + col * W / 16
-				P(deco, Vector3.new(W / 16, 0.08, 1.8), base * CFrame.new(x, 0.05, -0.9 + row * 1.8), if black then Color3.fromRGB(15, 15, 15) else Color3.new(1, 1, 1), nil, "Line")
+				P(
+					deco,
+					Vector3.new(W / 16, 0.08, 1.8),
+					base * CFrame.new(x, 0.05, -0.9 + row * 1.8),
+					if black then Color3.fromRGB(15, 15, 15) else Color3.new(1, 1, 1),
+					nil,
+					"Line"
+				)
 			end
 		end
 		local gantryH = 22
 		for side = -1, 1, 2 do
-			P(deco, Vector3.new(3, gantryH, 3), base * CFrame.new(side * (W / 2 + 5), gantryH / 2 - ROAD_LIFT, -8), Color3.fromRGB(40, 42, 50), Enum.Material.Metal)
+			P(
+				deco,
+				Vector3.new(3, gantryH, 3),
+				base * CFrame.new(side * (W / 2 + 5), gantryH / 2 - ROAD_LIFT, -8),
+				Color3.fromRGB(40, 42, 50),
+				Enum.Material.Metal
+			)
 		end
-		local beam = P(deco, Vector3.new(W + 13, 5, 3), base * CFrame.new(0, gantryH, -8), Color3.fromRGB(30, 32, 38), Enum.Material.Metal)
+		local beam = P(
+			deco,
+			Vector3.new(W + 13, 5, 3),
+			base * CFrame.new(0, gantryH, -8),
+			Color3.fromRGB(30, 32, 38),
+			Enum.Material.Metal
+		)
 		textGui(beam, Enum.NormalId.Back, "GOTRACK RACING", Color3.fromRGB(255, 180, 40))
 		textGui(beam, Enum.NormalId.Front, def.Name:upper(), Color3.new(1, 1, 1))
 		for kk = 1, 5 do
-			local pod = P(deco, Vector3.new(3.2, 6, 1.4), base * CFrame.new((kk - 3) * 4.4, gantryH - 5.5, -6.6), Color3.fromRGB(20, 20, 22), Enum.Material.SmoothPlastic)
+			local pod = P(
+				deco,
+				Vector3.new(3.2, 6, 1.4),
+				base * CFrame.new((kk - 3) * 4.4, gantryH - 5.5, -6.6),
+				Color3.fromRGB(20, 20, 22),
+				Enum.Material.SmoothPlastic
+			)
 			local lamps = {}
 			for r = 0, 1 do
-				local lamp = P(deco, Vector3.new(0.4, 2, 2), pod.CFrame * CFrame.new(0, 1.4 - r * 2.8, 0.75) * CFrame.Angles(0, math.pi / 2, 0), Color3.fromRGB(60, 10, 10), Enum.Material.SmoothPlastic, "Lamp", false, Enum.PartType.Cylinder)
+				local lamp = P(
+					deco,
+					Vector3.new(0.4, 2, 2),
+					pod.CFrame * CFrame.new(0, 1.4 - r * 2.8, 0.75) * CFrame.Angles(0, math.pi / 2, 0),
+					Color3.fromRGB(60, 10, 10),
+					Enum.Material.SmoothPlastic,
+					"Lamp",
+					false,
+					Enum.PartType.Cylinder
+				)
 				table.insert(lamps, lamp)
 			end
 			lights[kk] = lamps
@@ -1088,7 +1895,8 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			P(deco, Vector3.new(9, 0.08, 0.7), gcf * CFrame.new(0, 0.05, -5.5), Color3.new(1, 1, 1), nil, "Line")
 			P(deco, Vector3.new(0.6, 0.08, 3), gcf * CFrame.new(-4.2, 0.05, -4.3), Color3.new(1, 1, 1), nil, "Line")
 			P(deco, Vector3.new(0.6, 0.08, 3), gcf * CFrame.new(4.2, 0.05, -4.3), Color3.new(1, 1, 1), nil, "Line")
-			local num = P(deco, Vector3.new(4, 0.06, 3), gcf * CFrame.new(0, 0.05, -8.6), Color3.new(1, 1, 1), nil, "Line")
+			local num =
+				P(deco, Vector3.new(4, 0.06, 3), gcf * CFrame.new(0, 0.05, -8.6), Color3.new(1, 1, 1), nil, "Line")
 			num.Transparency = 1
 			textGui(num, Enum.NormalId.Top, tostring(slot), Color3.new(1, 1, 1))
 		end
@@ -1100,14 +1908,32 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		occ.add(p.X, p.Z, radius)
 	end
 
-	local function alongStraight(fromS: number, toS: number, lateral: number, height: number, depth: number, color: Color3, material: Enum.Material, name: string?, yOff: number?)
+	local function alongStraight(
+		fromS: number,
+		toS: number,
+		lateral: number,
+		height: number,
+		depth: number,
+		color: Color3,
+		material: Enum.Material,
+		name: string?,
+		yOff: number?
+	)
 		local ia2 = Track.Wrap(t, math.floor(fromS / Track.DS) + 1)
 		local ib2 = Track.Wrap(t, math.floor(toS / Track.DS) + 1)
 		local pa = pos(t, ia2, lateral, 0)
 		local pb = pos(t, ib2, lateral, 0)
 		local m = (pa + pb) / 2
 		local cf = CFrame.lookAt(m, pb)
-		return P(deco, Vector3.new(depth, height, (pb - pa).Magnitude), cf * CFrame.new(0, height / 2 + (yOff or 0), 0), color, material, name), cf
+		return P(
+			deco,
+			Vector3.new(depth, height, (pb - pa).Magnitude),
+			cf * CFrame.new(0, height / 2 + (yOff or 0), 0),
+			color,
+			material,
+			name
+		),
+			cf
 	end
 
 	-- crowd blocks on a stand row
@@ -1116,8 +1942,16 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		local run = nil
 		for c = 0, n - 1 do
 			if rng:NextNumber() < prob then
-				local shirt = if rng:NextNumber() < 0.65 then th.Fans[rng:NextInteger(1, #th.Fans)] else Color3.fromHSV(rng:NextNumber(), rng:NextNumber(0.4, 0.8), rng:NextNumber(0.75, 1))
-				P(deco, Vector3.new(2, 2.4, 2.4), cf * CFrame.new(rowX, rowY + 1.2, -length / 2 + 1.6 + c * 3.2), shirt, Enum.Material.SmoothPlastic)
+				local shirt = if rng:NextNumber() < 0.65
+					then th.Fans[rng:NextInteger(1, #th.Fans)]
+					else Color3.fromHSV(rng:NextNumber(), rng:NextNumber(0.4, 0.8), rng:NextNumber(0.75, 1))
+				P(
+					deco,
+					Vector3.new(2, 2.4, 2.4),
+					cf * CFrame.new(rowX, rowY + 1.2, -length / 2 + 1.6 + c * 3.2),
+					shirt,
+					Enum.Material.SmoothPlastic
+				)
 			end
 			local _ = run
 		end
@@ -1129,23 +1963,70 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			reserve((cf * CFrame.new(-facing * 18, 0, kk * length / 3)).Position, length / 3 + 22)
 		end
 		for row = 0, rows - 1 do
-			P(deco, Vector3.new(6, 2.5 + row * 3, length), cf * CFrame.new(-facing * (row * 5), (2.5 + row * 3) / 2, 0), Color3.fromRGB(205, 206, 212), Enum.Material.Concrete)
-			local seat = P(deco, Vector3.new(5, 0.4, length), cf * CFrame.new(-facing * (row * 5), 2.7 + row * 3, 0), if row % 2 == 0 then th.Accent else th.Accent:Lerp(Color3.new(1, 1, 1), 0.4), Enum.Material.SmoothPlastic)
+			P(
+				deco,
+				Vector3.new(6, 2.5 + row * 3, length),
+				cf * CFrame.new(-facing * (row * 5), (2.5 + row * 3) / 2, 0),
+				Color3.fromRGB(205, 206, 212),
+				Enum.Material.Concrete
+			)
+			local seat = P(
+				deco,
+				Vector3.new(5, 0.4, length),
+				cf * CFrame.new(-facing * (row * 5), 2.7 + row * 3, 0),
+				if row % 2 == 0 then th.Accent else th.Accent:Lerp(Color3.new(1, 1, 1), 0.4),
+				Enum.Material.SmoothPlastic
+			)
 			local _ = seat
-			crowd(cf * CFrame.new(-facing * (row * 5), 0, 0), length, 2.9 + row * 3, 0, 0.35 + 0.5 * math.min(1, dens) * th.Crowd)
+			crowd(
+				cf * CFrame.new(-facing * (row * 5), 0, 0),
+				length,
+				2.9 + row * 3,
+				0,
+				0.35 + 0.5 * math.min(1, dens) * th.Crowd
+			)
 		end
 		local roofY = 4 + rows * 3 + 4
-		P(deco, Vector3.new(rows * 5 + 10, 1.5, length + 4), cf * CFrame.new(-facing * (rows * 2.5), roofY, 0), Color3.fromRGB(240, 242, 246), Enum.Material.Metal)
-		P(deco, Vector3.new(rows * 5 + 10.2, 2.4, 1), cf * CFrame.new(-facing * (rows * 2.5), roofY - 0.4, -length / 2 - 2), th.Accent, Enum.Material.SmoothPlastic)
+		P(
+			deco,
+			Vector3.new(rows * 5 + 10, 1.5, length + 4),
+			cf * CFrame.new(-facing * (rows * 2.5), roofY, 0),
+			Color3.fromRGB(240, 242, 246),
+			Enum.Material.Metal
+		)
+		P(
+			deco,
+			Vector3.new(rows * 5 + 10.2, 2.4, 1),
+			cf * CFrame.new(-facing * (rows * 2.5), roofY - 0.4, -length / 2 - 2),
+			th.Accent,
+			Enum.Material.SmoothPlastic
+		)
 		for c = 0, 3 do
-			P(deco, Vector3.new(1, roofY, 1), cf * CFrame.new(-facing * (rows * 5 + 2), roofY / 2, -length / 2 + c * length / 3), Color3.fromRGB(70, 72, 78), Enum.Material.Metal)
+			P(
+				deco,
+				Vector3.new(1, roofY, 1),
+				cf * CFrame.new(-facing * (rows * 5 + 2), roofY / 2, -length / 2 + c * length / 3),
+				Color3.fromRGB(70, 72, 78),
+				Enum.Material.Metal
+			)
 		end
 		local brand = BRANDS[rng:NextInteger(1, #BRANDS)]
-		local fascia = P(deco, Vector3.new(0.6, 3, length * 0.7), cf * CFrame.new(facing * 3.4, 1.5, 0), Color3.fromRGB(20, 22, 30))
-		textGui(fascia, if facing > 0 then Enum.NormalId.Right else Enum.NormalId.Left, brand[1], brand[2], Color3.fromRGB(20, 22, 30))
+		local fascia = P(
+			deco,
+			Vector3.new(0.6, 3, length * 0.7),
+			cf * CFrame.new(facing * 3.4, 1.5, 0),
+			Color3.fromRGB(20, 22, 30)
+		)
+		textGui(
+			fascia,
+			if facing > 0 then Enum.NormalId.Right else Enum.NormalId.Left,
+			brand[1],
+			brand[2],
+			Color3.fromRGB(20, 22, 30)
+		)
 	end
 
-	-- pit lane, garages and paddock (outside of the main straight) -------------------
+	-- pit lane, garages and paddock (outside of the main straight) ------------------------
 	local straightS = 0
 	local pitLat = outSide * (BARRIER + 16)
 	local okPit = true
@@ -1161,12 +2042,35 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			reserve(Vector3.new(x, 0, z), 40)
 		end
 		-- pit lane asphalt + lines + boxes
-		alongStraight(straightS - 300, straightS + 240, pitLat, 0.4, 20, th.Road, Enum.Material.Asphalt, nil, ROAD_LIFT - 0.5)
-		alongStraight(straightS - 300, straightS + 240, pitLat - outSide * 10, 0.1, 0.6, Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, nil, ROAD_LIFT - 0.05)
+		alongStraight(
+			straightS - 300,
+			straightS + 240,
+			pitLat,
+			0.4,
+			20,
+			th.Road,
+			Enum.Material.Asphalt,
+			nil,
+			ROAD_LIFT - 0.5
+		)
+		alongStraight(
+			straightS - 300,
+			straightS + 240,
+			pitLat - outSide * 10,
+			0.1,
+			0.6,
+			Color3.new(1, 1, 1),
+			Enum.Material.SmoothPlastic,
+			nil,
+			ROAD_LIFT - 0.05
+		)
 		for g = 0, 9 do
 			local sg = straightS - 270 + g * 50
 			local x, y, z, tx, _, tz = Track.PointAt(t, sg, pitLat + outSide * 6)
-			local gcf = CFrame.lookAt(Vector3.new(x, y + ROAD_LIFT - 0.02, z), Vector3.new(x + tx, y + ROAD_LIFT - 0.02, z + tz))
+			local gcf = CFrame.lookAt(
+				Vector3.new(x, y + ROAD_LIFT - 0.02, z),
+				Vector3.new(x + tx, y + ROAD_LIFT - 0.02, z + tz)
+			)
 			P(deco, Vector3.new(8, 0.06, 0.4), gcf * CFrame.new(0, 0, -6), Color3.fromRGB(255, 210, 40))
 			P(deco, Vector3.new(8, 0.06, 0.4), gcf * CFrame.new(0, 0, 6), Color3.fromRGB(255, 210, 40))
 		end
@@ -1175,12 +2079,42 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			local x1, y1, z1 = Track.PointAt(t, e[1], pitLat)
 			local x2, y2, z2 = Track.PointAt(t, e[2], outSide * (W / 2 + 12))
 			local p1, p2 = Vector3.new(x1, y1 + ROAD_LIFT - 0.3, z1), Vector3.new(x2, y2 + ROAD_LIFT - 0.3, z2)
-			P(deco, Vector3.new(14, 0.4, (p2 - p1).Magnitude + 4), CFrame.lookAt((p1 + p2) / 2, p2), th.Road, Enum.Material.Asphalt)
+			P(
+				deco,
+				Vector3.new(14, 0.4, (p2 - p1).Magnitude + 4),
+				CFrame.lookAt((p1 + p2) / 2, p2),
+				th.Road,
+				Enum.Material.Asphalt
+			)
 		end
 		-- garage building
-		local garage = alongStraight(straightS - 300, straightS + 240, outSide * (BARRIER + 42), 18, 28, Color3.fromRGB(238, 239, 244), Enum.Material.Concrete)
-		textGui(garage, if outSide > 0 then Enum.NormalId.Left else Enum.NormalId.Right, "PIT LANE  •  " .. def.Name:upper(), th.Accent, Color3.fromRGB(24, 26, 32))
-		alongStraight(straightS - 300, straightS + 240, outSide * (BARRIER + 42), 2, 32, th.Accent, Enum.Material.SmoothPlastic, nil, 18)
+		local garage = alongStraight(
+			straightS - 300,
+			straightS + 240,
+			outSide * (BARRIER + 42),
+			18,
+			28,
+			Color3.fromRGB(238, 239, 244),
+			Enum.Material.Concrete
+		)
+		textGui(
+			garage,
+			if outSide > 0 then Enum.NormalId.Left else Enum.NormalId.Right,
+			"PIT LANE  •  " .. def.Name:upper(),
+			th.Accent,
+			Color3.fromRGB(24, 26, 32)
+		)
+		alongStraight(
+			straightS - 300,
+			straightS + 240,
+			outSide * (BARRIER + 42),
+			2,
+			32,
+			th.Accent,
+			Enum.Material.SmoothPlastic,
+			nil,
+			18
+		)
 		for g = 0, 9 do
 			local sg = straightS - 270 + g * 50
 			local x, y, z, tx, _, tz = Track.PointAt(t, sg, outSide * (BARRIER + 27.8))
@@ -1194,13 +2128,25 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			local x, y, z = Track.PointAt(t, straightS - 200 + kk * 120, outSide * (BARRIER + 86))
 			if clear(x, z, BARRIER + 40) then
 				local tcf = CFrame.new(x, y, z)
-				P(deco, Vector3.new(28, 7, 20), tcf * CFrame.new(0, 3.5, 0), Color3.fromRGB(250, 250, 250), Enum.Material.Fabric)
-				P(deco, Vector3.new(29, 3, 21), tcf * CFrame.new(0, 8.5, 0), Color3.fromHSV(kk / 4, 0.5, 0.95), Enum.Material.Fabric)
+				P(
+					deco,
+					Vector3.new(28, 7, 20),
+					tcf * CFrame.new(0, 3.5, 0),
+					Color3.fromRGB(250, 250, 250),
+					Enum.Material.Fabric
+				)
+				P(
+					deco,
+					Vector3.new(29, 3, 21),
+					tcf * CFrame.new(0, 8.5, 0),
+					Color3.fromHSV(kk / 4, 0.5, 0.95),
+					Enum.Material.Fabric
+				)
 			end
 		end
 	end
 
-	-- main grandstand opposite the pits + corner grandstands ----------------------------
+	-- main grandstand opposite the pits + corner grandstands ------------------------------
 	do
 		local lat = inSide * (BARRIER + 12)
 		local ok = true
@@ -1220,8 +2166,22 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			if clear(sx, sz, BARRIER + 6) then
 				P(deco, Vector3.new(2, 26, 2), CFrame.new(sx, 13, sz), Color3.fromRGB(60, 62, 70), Enum.Material.Metal)
 				local _, _, _, tx, _, tz = Track.PointAt(t, 220, 0)
-				local scr = P(deco, Vector3.new(30, 16, 1), CFrame.lookAt(Vector3.new(sx, 32, sz), Vector3.new(sx - tx * 10 - inSide * t.RX[1] * 30, 32, sz - tz * 10 - inSide * t.RZ[1] * 30)), Color3.fromRGB(15, 16, 22))
-				textGui(scr, Enum.NormalId.Front, "LIVE  •  " .. def.Name:upper(), th.Accent, Color3.fromRGB(14, 16, 26))
+				local scr = P(
+					deco,
+					Vector3.new(30, 16, 1),
+					CFrame.lookAt(
+						Vector3.new(sx, 32, sz),
+						Vector3.new(sx - tx * 10 - inSide * t.RX[1] * 30, 32, sz - tz * 10 - inSide * t.RZ[1] * 30)
+					),
+					Color3.fromRGB(15, 16, 22)
+				)
+				textGui(
+					scr,
+					Enum.NormalId.Front,
+					"LIVE  •  " .. def.Name:upper(),
+					th.Accent,
+					Color3.fromRGB(14, 16, 26)
+				)
 			end
 		end
 	end
@@ -1279,10 +2239,28 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 					local sIdx = Track.Wrap(t, apex - math.floor((dist + 40) / Track.DS))
 					local x, y, z, tx, _, tz = Track.PointAt(t, t.S[sIdx], side * (W / 2 + 7))
 					if clear(x, z, W / 2 + 5, sIdx, 12) then
-						local bcf = CFrame.lookAt(Vector3.new(x, y + ROAD_LIFT, z), Vector3.new(x - tx, y + ROAD_LIFT, z - tz))
-						P(deco, Vector3.new(0.3, 3, 0.3), bcf * CFrame.new(0, 1.5, 0.3), Color3.fromRGB(80, 80, 85), Enum.Material.Metal)
-						local board = P(deco, Vector3.new(3, 2.4, 0.2), bcf * CFrame.new(0, 3.8, 0), Color3.fromRGB(250, 250, 250))
-						textGui(board, Enum.NormalId.Front, tostring(dist), Color3.fromRGB(15, 15, 20), Color3.fromRGB(250, 250, 250))
+						local bcf =
+							CFrame.lookAt(Vector3.new(x, y + ROAD_LIFT, z), Vector3.new(x - tx, y + ROAD_LIFT, z - tz))
+						P(
+							deco,
+							Vector3.new(0.3, 3, 0.3),
+							bcf * CFrame.new(0, 1.5, 0.3),
+							Color3.fromRGB(80, 80, 85),
+							Enum.Material.Metal
+						)
+						local board = P(
+							deco,
+							Vector3.new(3, 2.4, 0.2),
+							bcf * CFrame.new(0, 3.8, 0),
+							Color3.fromRGB(250, 250, 250)
+						)
+						textGui(
+							board,
+							Enum.NormalId.Front,
+							tostring(dist),
+							Color3.fromRGB(15, 15, 20),
+							Color3.fromRGB(250, 250, 250)
+						)
 					end
 				end
 				-- chevrons on the outside barrier of tight corners
@@ -1292,16 +2270,25 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 						local j = Track.Wrap(t, apex + o * 5)
 						local x, y, z = Track.PointAt(t, t.S[j], side * (BARRIER - 1.6))
 						local cxT, _, czT = Track.PointAt(t, t.S[j], 0)
-						local ccf = CFrame.lookAt(Vector3.new(x, y + ROAD_LIFT + 3.4, z), Vector3.new(cxT, y + ROAD_LIFT + 3.4, czT))
+						local ccf = CFrame.lookAt(
+							Vector3.new(x, y + ROAD_LIFT + 3.4, z),
+							Vector3.new(cxT, y + ROAD_LIFT + 3.4, czT)
+						)
 						local plate = P(deco, Vector3.new(6, 2.6, 0.3), ccf, Color3.fromRGB(20, 20, 24))
-						textGui(plate, Enum.NormalId.Front, arrow, Color3.fromRGB(255, 210, 30), Color3.fromRGB(20, 20, 24))
+						textGui(
+							plate,
+							Enum.NormalId.Front,
+							arrow,
+							Color3.fromRGB(255, 210, 30),
+							Color3.fromRGB(20, 20, 24)
+						)
 					end
 				end
 			end
 		end
 	end
 
-	-- marshal posts, TV towers, billboards, floodlights along the lap -----------------------
+	-- marshal posts, TV towers, billboards, floodlights along the lap ---------------------
 	do
 		local count = 0
 		for i = 20, t.N, 20 do
@@ -1313,10 +2300,28 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				local x, y, z = Track.PointAt(t, s0, side * (BARRIER + 5))
 				if clear(x, z, BARRIER + 2, i, 20) and occ.free(x, z, 5) then
 					local mcf = CFrame.new(x, y, z)
-					P(deco, Vector3.new(4, 4, 4), mcf * CFrame.new(0, 2, 0), Color3.fromRGB(255, 140, 20), Enum.Material.SmoothPlastic)
+					P(
+						deco,
+						Vector3.new(4, 4, 4),
+						mcf * CFrame.new(0, 2, 0),
+						Color3.fromRGB(255, 140, 20),
+						Enum.Material.SmoothPlastic
+					)
 					P(deco, Vector3.new(4.4, 0.4, 4.4), mcf * CFrame.new(0, 4.2, 0), Color3.fromRGB(240, 240, 240))
-					P(deco, Vector3.new(0.15, 5, 0.15), mcf * CFrame.new(1.5, 6.5, 0), Color3.fromRGB(200, 200, 200), Enum.Material.Metal)
-					P(deco, Vector3.new(0.1, 1.6, 2.4), mcf * CFrame.new(1.5, 8.2, 1.2), Color3.fromRGB(255, 220, 0), Enum.Material.Fabric)
+					P(
+						deco,
+						Vector3.new(0.15, 5, 0.15),
+						mcf * CFrame.new(1.5, 6.5, 0),
+						Color3.fromRGB(200, 200, 200),
+						Enum.Material.Metal
+					)
+					P(
+						deco,
+						Vector3.new(0.1, 1.6, 2.4),
+						mcf * CFrame.new(1.5, 8.2, 1.2),
+						Color3.fromRGB(255, 220, 0),
+						Enum.Material.Fabric
+					)
 				end
 			elseif count % 5 == 1 and dens > 0.5 then
 				-- TV camera tower
@@ -1324,9 +2329,21 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				if clear(x, z, BARRIER + 4, i, 20) and occ.free(x, z, 6) then
 					local tcf = CFrame.new(x, y, z)
 					for _, o in { { -1.5, -1.5 }, { 1.5, -1.5 }, { -1.5, 1.5 }, { 1.5, 1.5 } } do
-						P(deco, Vector3.new(0.3, 14, 0.3), tcf * CFrame.new(o[1], 7, o[2]), Color3.fromRGB(150, 150, 155), Enum.Material.Metal)
+						P(
+							deco,
+							Vector3.new(0.3, 14, 0.3),
+							tcf * CFrame.new(o[1], 7, o[2]),
+							Color3.fromRGB(150, 150, 155),
+							Enum.Material.Metal
+						)
 					end
-					P(deco, Vector3.new(4, 0.4, 4), tcf * CFrame.new(0, 14, 0), Color3.fromRGB(90, 90, 95), Enum.Material.DiamondPlate)
+					P(
+						deco,
+						Vector3.new(4, 0.4, 4),
+						tcf * CFrame.new(0, 14, 0),
+						Color3.fromRGB(90, 90, 95),
+						Enum.Material.DiamondPlate
+					)
 					P(deco, Vector3.new(1.4, 1.4, 2.4), tcf * CFrame.new(0, 15, 0), Color3.fromRGB(25, 25, 30))
 				end
 			end
@@ -1342,10 +2359,28 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				if clear(x, z, BARRIER, i, 20) and occ.free(x, z, 14) then
 					local brand = BRANDS[(count % #BRANDS) + 1]
 					local cf = CFrame.lookAt(Vector3.new(x, y + 6, z), Vector3.new(x + tx, y + 6, z + tz))
-					local board = P(deco, Vector3.new(0.6, 7, 30), cf * CFrame.new(0, ROAD_LIFT + 1, 0), Color3.fromRGB(25, 25, 30), Enum.Material.SmoothPlastic)
-					textGui(board, if side > 0 then Enum.NormalId.Left else Enum.NormalId.Right, brand[1], brand[2], Color3.fromRGB(20, 20, 26))
+					local board = P(
+						deco,
+						Vector3.new(0.6, 7, 30),
+						cf * CFrame.new(0, ROAD_LIFT + 1, 0),
+						Color3.fromRGB(25, 25, 30),
+						Enum.Material.SmoothPlastic
+					)
+					textGui(
+						board,
+						if side > 0 then Enum.NormalId.Left else Enum.NormalId.Right,
+						brand[1],
+						brand[2],
+						Color3.fromRGB(20, 20, 26)
+					)
 					for kk = -1, 1, 2 do
-						P(deco, Vector3.new(0.5, 6, 0.5), cf * CFrame.new(0, -2.5 + ROAD_LIFT, kk * 13), Color3.fromRGB(60, 60, 65), Enum.Material.Metal)
+						P(
+							deco,
+							Vector3.new(0.5, 6, 0.5),
+							cf * CFrame.new(0, -2.5 + ROAD_LIFT, kk * 13),
+							Color3.fromRGB(60, 60, 65),
+							Enum.Material.Metal
+						)
 					end
 				end
 			end
@@ -1366,9 +2401,21 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 					local x, y, z, tx, _, tz = Track.PointAt(t, t.S[i], 0)
 					local bcf = CFrame.lookAt(Vector3.new(x, y, z), Vector3.new(x + tx, y, z + tz))
 					for side = -1, 1, 2 do
-						P(deco, Vector3.new(3, 22, 3), bcf * CFrame.new(side * (BARRIER + 3), 11, 0), Color3.fromRGB(230, 232, 236), Enum.Material.Concrete)
+						P(
+							deco,
+							Vector3.new(3, 22, 3),
+							bcf * CFrame.new(side * (BARRIER + 3), 11, 0),
+							Color3.fromRGB(230, 232, 236),
+							Enum.Material.Concrete
+						)
 					end
-					local deck = P(deco, Vector3.new(BARRIER * 2 + 10, 6, 5), bcf * CFrame.new(0, 21, 0), Color3.fromRGB(28, 30, 38), Enum.Material.Metal)
+					local deck = P(
+						deco,
+						Vector3.new(BARRIER * 2 + 10, 6, 5),
+						bcf * CFrame.new(0, 21, 0),
+						Color3.fromRGB(28, 30, 38),
+						Enum.Material.Metal
+					)
 					local brand = BRANDS[rng:NextInteger(1, #BRANDS)]
 					textGui(deck, Enum.NormalId.Front, brand[1], brand[2], Color3.fromRGB(24, 26, 34))
 					textGui(deck, Enum.NormalId.Back, brand[1], brand[2], Color3.fromRGB(24, 26, 34))
@@ -1377,7 +2424,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		end
 	end
 
-	-- floodlights (night races): poles all the way round, real lights on some ---------------
+	-- floodlights (night races): poles all the way round, real lights on some -------------
 	if night then
 		local n = 0
 		local lightsPlaced = 0
@@ -1388,8 +2435,20 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			local lat = side * (BARRIER + 2.5)
 			local x, y, z = Track.PointAt(t, t.S[i], lat)
 			if clear(x, z, BARRIER, i, 20) then
-				P(deco, Vector3.new(1, 24, 1), CFrame.new(x, y + 12, z), Color3.fromRGB(80, 82, 90), Enum.Material.Metal)
-				local head = P(deco, Vector3.new(6, 1.2, 2.5), CFrame.new(x - t.RX[i] * side * 2.5, y + 24, z - t.RZ[i] * side * 2.5), Color3.fromRGB(255, 250, 232), Enum.Material.Neon)
+				P(
+					deco,
+					Vector3.new(1, 24, 1),
+					CFrame.new(x, y + 12, z),
+					Color3.fromRGB(80, 82, 90),
+					Enum.Material.Metal
+				)
+				local head = P(
+					deco,
+					Vector3.new(6, 1.2, 2.5),
+					CFrame.new(x - t.RX[i] * side * 2.5, y + 24, z - t.RZ[i] * side * 2.5),
+					Color3.fromRGB(255, 250, 232),
+					Enum.Material.Neon
+				)
 				if n % 3 == 0 and lightsPlaced < maxLights then
 					lightsPlaced += 1
 					local l = Instance.new("SpotLight")
@@ -1405,7 +2464,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		end
 	end
 
-	-- shared context for landmarks, WorldLife and the movers ---------------------------------
+	-- shared context for landmarks, WorldLife and the movers ------------------------------
 	local function openSpot(radius: number, infield: boolean?): Vector3?
 		for _ = 1, 200 do
 			local x = rng:NextNumber(b[1] - 500, b[2] + 500)
@@ -1423,8 +2482,15 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	local span = math.max(b[2] - b[1], b[4] - b[3])
 	local seaZ = if table.find(th.Landmarks, "sea") then b[4] + 380 else nil
 	if seaZ then
-		P(scenery, Vector3.new(9000, 1, 3400), CFrame.new(cx, 0.3, seaZ + 1700), th.Water, Enum.Material.Glass).Reflectance = 0.25
-		P(scenery, Vector3.new(9000, 1, 70), CFrame.new(cx, 0.2, seaZ - 25), Color3.fromRGB(225, 205, 160), Enum.Material.Sand)
+		P(scenery, Vector3.new(9000, 1, 3400), CFrame.new(cx, 0.3, seaZ + 1700), th.Water, Enum.Material.Glass).Reflectance =
+			0.25
+		P(
+			scenery,
+			Vector3.new(9000, 1, 70),
+			CFrame.new(cx, 0.2, seaZ - 25),
+			Color3.fromRGB(225, 205, 160),
+			Enum.Material.Sand
+		)
 		occ.block(function(_, z, r)
 			return z + r > seaZ - 30
 		end)
@@ -1527,22 +2593,41 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		return Vector3.new(cx + rng:NextNumber(-500, 500), 0.5, seaZ + r + rng:NextNumber(120, 320))
 	end
 
-	-- landmarks ------------------------------------------------------------------------------
+	-- landmarks ---------------------------------------------------------------------------
 	progress("Raising the landmarks", 0.52)
 	local sights, sightSpots = Landmarks.Build(ctx, th.Landmarks)
 	if table.find(th.Landmarks, "yachts") and seaZ then
 		for kk = 0, 8 do
-			local ycf = CFrame.new(cx - 700 + kk * 170 + rng:NextNumber(-40, 40), 1, seaZ + 60 + rng:NextNumber(0, 200)) * CFrame.Angles(0, rng:NextNumber(-0.3, 0.3), 0)
-			P(scenery, Vector3.new(16, 6, 60), ycf * CFrame.new(0, 2, 0), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
-			P(scenery, Vector3.new(12, 5, 30), ycf * CFrame.new(0, 7, 4), Color3.fromRGB(230, 230, 235), Enum.Material.SmoothPlastic)
-			P(scenery, Vector3.new(12.2, 1.5, 30.2), ycf * CFrame.new(0, 7.5, 4), Color3.fromRGB(40, 60, 90), Enum.Material.Glass)
+			local ycf = CFrame.new(cx - 700 + kk * 170 + rng:NextNumber(-40, 40), 1, seaZ + 60 + rng:NextNumber(0, 200))
+				* CFrame.Angles(0, rng:NextNumber(-0.3, 0.3), 0)
+			P(
+				scenery,
+				Vector3.new(16, 6, 60),
+				ycf * CFrame.new(0, 2, 0),
+				Color3.new(1, 1, 1),
+				Enum.Material.SmoothPlastic
+			)
+			P(
+				scenery,
+				Vector3.new(12, 5, 30),
+				ycf * CFrame.new(0, 7, 4),
+				Color3.fromRGB(230, 230, 235),
+				Enum.Material.SmoothPlastic
+			)
+			P(
+				scenery,
+				Vector3.new(12.2, 1.5, 30.2),
+				ycf * CFrame.new(0, 7.5, 4),
+				Color3.fromRGB(40, 60, 90),
+				Enum.Material.Glass
+			)
 			if night then
 				P(scenery, Vector3.new(16.2, 0.6, 60.2), ycf * CFrame.new(0, 4.6, 0), th.Accent, Enum.Material.Neon)
 			end
 		end
 	end
 
-	-- life around the track: fan banks, city blocks with traffic, farm fields ------------------
+	-- life around the track: fan banks, city blocks with traffic, farm fields -------------
 	local treeName = nil
 	for name in th.Props do
 		if string.find(name, "tree") or name == "palm" or name == "snowpine" then
@@ -1562,7 +2647,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	local fields = Life.Fields(ctx)
 	progress("Local architecture", 0.78)
 
-	-- the host country's architecture -------------------------------------------------------
+	-- the host country's architecture -----------------------------------------------------
 	local archList, archTotal = {}, 0
 	for name, w in th.Arch do
 		if Arch.Types[name] then
@@ -1627,7 +2712,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	local filled = Cityscape.Fill(ctx)
 
 	progress("Planting trees and scenery", 0.88)
-	-- scenery props --------------------------------------------------------------------------
+	-- scenery props -----------------------------------------------------------------------
 	local weights, totalW = {}, 0
 	for name, w in th.Props do
 		if Props[name] or PROP_MESH[name] then
@@ -1676,7 +2761,13 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		local blimp = E(scenery, Vector3.new(22, 22, 72), base, white, Enum.Material.SmoothPlastic)
 		local parts = {
 			blimp,
-			P(scenery, Vector3.new(5, 3, 12), base * CFrame.new(0, -12, 2), Color3.fromRGB(40, 42, 50), Enum.Material.SmoothPlastic),
+			P(
+				scenery,
+				Vector3.new(5, 3, 12),
+				base * CFrame.new(0, -12, 2),
+				Color3.fromRGB(40, 42, 50),
+				Enum.Material.SmoothPlastic
+			),
 			P(scenery, Vector3.new(0.6, 12, 9), base * CFrame.new(0, 6, 32), th.Accent, Enum.Material.SmoothPlastic),
 			P(scenery, Vector3.new(12, 0.6, 9), base * CFrame.new(0, 0, 32), th.Accent, Enum.Material.SmoothPlastic),
 		}
@@ -1685,7 +2776,10 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		textGui(band, Enum.NormalId.Left, "GOTRACK", Color3.fromRGB(255, 170, 30))
 		textGui(band, Enum.NormalId.Right, "GOTRACK", Color3.fromRGB(255, 170, 30))
 		if night then
-			table.insert(parts, P(scenery, Vector3.new(22.8, 0.8, 42), base * CFrame.new(0, -3.6, 0), th.Accent, Enum.Material.Neon))
+			table.insert(
+				parts,
+				P(scenery, Vector3.new(22.8, 0.8, 42), base * CFrame.new(0, -3.6, 0), th.Accent, Enum.Material.Neon)
+			)
 		end
 		ctx.Mover(parts, base, function(now)
 			local a = now * 0.012
@@ -1741,7 +2835,17 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		Connections = { weatherConn, ambientConn, moverConn },
 		Sights = sights,
 		SightSpots = sightSpots,
-		Stats = { Parts = partCounter, Barriers = barrierCount, Buildings = archCount, Blocks = blocks, Fields = fields, Filled = filled, Meshes = meshesOn, Landmarks = #sights, Movers = #movers },
+		Stats = {
+			Parts = partCounter,
+			Barriers = barrierCount,
+			Buildings = archCount,
+			Blocks = blocks,
+			Fields = fields,
+			Filled = filled,
+			Meshes = meshesOn,
+			Landmarks = #sights,
+			Movers = #movers,
+		},
 	}
 	return current
 end
@@ -1767,10 +2871,12 @@ function CircuitBuilder.SetStartLights(n: number)
 	end
 end
 
+-- The circuit that's built right now (nil in the menu).
 function CircuitBuilder.Current()
 	return current
 end
 
+-- Removes the circuit and stops everything moving on it.
 function CircuitBuilder.Clear()
 	if current then
 		for _, c in current.Connections do

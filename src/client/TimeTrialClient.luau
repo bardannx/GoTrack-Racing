@@ -1,5 +1,7 @@
 --!nonstrict
--- Time Trial: solo hot laps with ghosts, medals and a verified lap leaderboard.
+-- Time Trial on the client: solo hot laps against your ghost, with medals and a lap
+-- leaderboard. Records the car's path every lap and sends it with the time so the
+-- server can check it (server/TimeTrial.luau).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -28,20 +30,24 @@ local player = Players.LocalPlayer
 local RATE = Config.GhostSampleRate
 local active = nil
 
+-- Ghost positions are stored to 1/100 stud, which keeps the saved ghost small.
 local function round2(x: number): number
 	return math.floor(x * 100 + 0.5) / 100
 end
 
+-- A car-sized spot on the track `s` studs along and `lateral` studs off the centre line.
 local function spawnCF(t, s: number, lateral: number): CFrame
 	local x, y, z, tx, ty, tz = Track.PointAt(t, s, lateral)
 	local p = Vector3.new(x, y + 0.6 + 2.1, z)
 	return CFrame.lookAt(p, p + Vector3.new(tx, ty, tz))
 end
 
+-- Whether a time trial is running.
 function TT.IsActive(): boolean
 	return active ~= nil
 end
 
+-- Tears down everything the time trial created.
 local function cleanup(tt)
 	for _, c in tt.Connections do
 		c:Disconnect()
@@ -117,7 +123,7 @@ function TT.Start(opts)
 		end
 		return
 	end
-	local gs, lat = Track.GridSlot(t, 1)
+	local gs = Track.GridSlot(t, 1)
 	tt.StartCF = spawnCF(t, gs - 60, 0)
 	local car = CarController.new(State.Profile.car, tt.StartCF, world.Surface, player.UserId)
 	tt.Car = car
@@ -189,95 +195,106 @@ function TT.Start(opts)
 	RacingLine.Start(t, car)
 	Hud.SetDamage(car.Damage)
 
-	table.insert(tt.Connections, UserInputService.InputBegan:Connect(function(io, processed)
-		if processed or active ~= tt then
-			return
-		end
-		local k = io.KeyCode
-		if k == Enum.KeyCode.R or k == Enum.KeyCode.Return or k == Enum.KeyCode.ButtonY then
-			TT.Restart()
-		elseif k == Enum.KeyCode.Backspace or k == Enum.KeyCode.ButtonL1 then
-			TT.ResetToTrack()
-		elseif k == Enum.KeyCode.P or k == Enum.KeyCode.Tab or k == Enum.KeyCode.ButtonStart then
-			Hud.TogglePause()
-		elseif k == Enum.KeyCode.C or k == Enum.KeyCode.ButtonSelect then
-			Hud.CameraToast(State.CycleCamera())
-		end
-	end))
+	table.insert(
+		tt.Connections,
+		UserInputService.InputBegan:Connect(function(io, processed)
+			if processed or active ~= tt then
+				return
+			end
+			local k = io.KeyCode
+			if k == Enum.KeyCode.R or k == Enum.KeyCode.Return or k == Enum.KeyCode.ButtonY then
+				TT.Restart()
+			elseif k == Enum.KeyCode.Backspace or k == Enum.KeyCode.ButtonL1 then
+				TT.ResetToTrack()
+			elseif k == Enum.KeyCode.P or k == Enum.KeyCode.Tab or k == Enum.KeyCode.ButtonStart then
+				Hud.TogglePause()
+			elseif k == Enum.KeyCode.C or k == Enum.KeyCode.ButtonSelect then
+				Hud.CameraToast(State.CycleCamera())
+			end
+		end)
+	)
 
 	local nextSample = 0
 	local mapTimer = 0
-	table.insert(tt.Connections, RunService.Heartbeat:Connect(function(dt)
-		if active ~= tt or not tt.Started then
-			return
-		end
-		local chassis = car.Chassis
-		local p = chassis.Position
-		local idx, lateral, vertical = Track.Project(t, p.X, p.Y, p.Z, tt.LastIdx)
-		local prev = tt.LastIdx or idx
-		tt.LastIdx = idx
-		local now = os.clock()
-		-- gates
-		local gi = t.Gates[tt.NextGate]
-		local step = Track.IndexDelta(t, prev, idx)
-		if math.abs(step) < 150 and Track.IndexDelta(t, prev, gi) > 0 and Track.IndexDelta(t, gi, idx) >= 0 then
-			if math.abs(lateral) < t.Width / 2 + 70 then
-				TT._gate(tt, tt.NextGate, now)
+	table.insert(
+		tt.Connections,
+		RunService.Heartbeat:Connect(function(dt)
+			if active ~= tt or not tt.Started then
+				return
 			end
-		else
-			-- skipped a gate (cut the track)?
-			local nextIdx = t.Gates[tt.NextGate]
-			local following = t.Gates[(tt.NextGate % Track.GateCount) + 1]
-			if tt.LapStart and Track.IndexDelta(t, following, idx) > 0 and Track.IndexDelta(t, nextIdx, idx) > 0 and Track.IndexDelta(t, nextIdx, idx) < t.N / 3 then
-				if tt.Valid then
-					tt.Valid = false
-					Hud.Message("LAP INVALID - track limits", Kit.Colors.Danger, 2)
+			local chassis = car.Chassis
+			local p = chassis.Position
+			local idx, lateral, vertical = Track.Project(t, p.X, p.Y, p.Z, tt.LastIdx)
+			local prev = tt.LastIdx or idx
+			tt.LastIdx = idx
+			local now = os.clock()
+			-- gates
+			local gi = t.Gates[tt.NextGate]
+			local step = Track.IndexDelta(t, prev, idx)
+			if math.abs(step) < 150 and Track.IndexDelta(t, prev, gi) > 0 and Track.IndexDelta(t, gi, idx) >= 0 then
+				if math.abs(lateral) < t.Width / 2 + 70 then
+					TT._gate(tt, tt.NextGate, now)
 				end
-				tt.NextGate = (tt.NextGate % Track.GateCount) + 1
-			end
-		end
-		if tt.LapStart then
-			local lapT = now - tt.LapStart
-			Hud.SetLapTime(lapT * 1000)
-			if lapT >= nextSample then
-				local due = math.floor((lapT - nextSample) * RATE) + 1
-				for k = 1, due do
-					record(tt, k / due)
-					nextSample += 1 / RATE
+			else
+				-- skipped a gate (cut the track)?
+				local nextIdx = t.Gates[tt.NextGate]
+				local following = t.Gates[(tt.NextGate % Track.GateCount) + 1]
+				if
+					tt.LapStart
+					and Track.IndexDelta(t, following, idx) > 0
+					and Track.IndexDelta(t, nextIdx, idx) > 0
+					and Track.IndexDelta(t, nextIdx, idx) < t.N / 3
+				then
+					if tt.Valid then
+						tt.Valid = false
+						Hud.Message("LAP INVALID - track limits", Kit.Colors.Danger, 2)
+					end
+					tt.NextGate = (tt.NextGate % Track.GateCount) + 1
 				end
-				tt.LastCF = car.Chassis.CFrame
 			end
-			for _, g in tt.Ghosts do
-				g:Update(lapT)
+			if tt.LapStart then
+				local lapT = now - tt.LapStart
+				Hud.SetLapTime(lapT * 1000)
+				if lapT >= nextSample then
+					local due = math.floor((lapT - nextSample) * RATE) + 1
+					for k = 1, due do
+						record(tt, k / due)
+						nextSample += 1 / RATE
+					end
+					tt.LastCF = car.Chassis.CFrame
+				end
+				for _, g in tt.Ghosts do
+					g:Update(lapT)
+				end
 			end
-		end
-		local farOff = math.abs(lateral) > t.Width / 2 + 90 or vertical < -14
-		tt.OffTime = if farOff then tt.OffTime + dt else 0
-		if tt.OffTime > 2.5 then
-			TT.ResetToTrack()
-		end
-		if (car.OffTrack > 0.5 or car.OnRunoff) and car.Speed > 20 then
-			Hud.Warning(if car.Gravel > 0.3 then "IN THE GRAVEL" else "TRACK LIMITS")
-		else
-			Hud.Warning(nil)
-		end
-		if car.Wrecked then
-			tt.WreckT = (tt.WreckT or 0) + dt
-			if tt.WreckT > 3 then
-				tt.WreckT = 0
+			local farOff = math.abs(lateral) > t.Width / 2 + 90 or vertical < -14
+			tt.OffTime = if farOff then tt.OffTime + dt else 0
+			if tt.OffTime > 2.5 then
 				TT.ResetToTrack()
 			end
-		else
-			tt.WreckT = 0
-		end
-		local gear, rpm = car:Gear()
-		Hud.SetSpeed(car.Speed, gear, rpm, 0, car.AeroOpen)
-		mapTimer += dt
-		if mapTimer > 0.1 then
-			mapTimer = 0
-			Hud.UpdateMinimap({ [1] = { p.X, p.Z } })
-		end
-	end))
+			if (car.OffTrack > 0.5 or car.OnRunoff) and car.Speed > 20 then
+				Hud.Warning(if car.Gravel > 0.3 then "IN THE GRAVEL" else "TRACK LIMITS")
+			else
+				Hud.Warning(nil)
+			end
+			if car.Wrecked then
+				tt.WreckT = (tt.WreckT or 0) + dt
+				if tt.WreckT > 3 then
+					tt.WreckT = 0
+					TT.ResetToTrack()
+				end
+			else
+				tt.WreckT = 0
+			end
+			local gear, rpm = car:Gear()
+			Hud.SetSpeed(car.Speed, gear, rpm, 0, car.AeroOpen)
+			mapTimer += dt
+			if mapTimer > 0.1 then
+				mapTimer = 0
+				Hud.UpdateMinimap({ [1] = { p.X, p.Z } })
+			end
+		end)
+	)
 
 	tt.ResetSampling = function()
 		nextSample = 0
@@ -299,6 +316,8 @@ function TT.Start(opts)
 	})
 end
 
+-- The car crossed a timing gate: live delta to your best, and at the line, the lap is
+-- finished and sent to the server.
 function TT._gate(tt, gate: number, now: number)
 	local pro = State.HasPass("ProRacer")
 	if tt.LapStart then
@@ -356,7 +375,16 @@ function TT._gate(tt, gate: number, now: number)
 							Hud.Message(Medals.FormatTime(lapMs), Kit.Colors.Text, 2)
 						end
 						if res.newMedal and res.medal > 0 then
-							Kit.Toast(string.format("%s %s medal on %s! +%d coins", Util.MedalIcon(res.medal), Config.Medals.Names[res.medal], Circuits.ById[trackId].Name, res.coins or 0), "success")
+							Kit.Toast(
+								string.format(
+									"%s %s medal on %s! +%d coins",
+									Util.MedalIcon(res.medal),
+									Config.Medals.Names[res.medal],
+									Circuits.ById[trackId].Name,
+									res.coins or 0
+								),
+								"success"
+							)
 						end
 					elseif res and res.err then
 						Hud.Message(res.err, Kit.Colors.Danger, 2)
@@ -377,6 +405,7 @@ function TT._gate(tt, gate: number, now: number)
 	tt.NextGate = (gate % Track.GateCount) + 1
 end
 
+-- Back to the start line for a fresh lap.
 function TT.Restart()
 	local tt = active
 	if not tt or tt.IntroPlaying then
@@ -424,6 +453,7 @@ function TT.Restart()
 	end)
 end
 
+-- Puts the car back on the track a little behind where it left it.
 function TT.ResetToTrack()
 	local tt = active
 	if not tt or not tt.Started then
@@ -440,6 +470,7 @@ function TT.ResetToTrack()
 	end
 end
 
+-- Leaves Time Trial and goes back to the menu.
 function TT.Exit()
 	local tt = active
 	if not tt then

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Type-check every Luau file. Prints errors only.
-# Baseline for v0.0.1 Beta: 44 "TypeError" lines (nonstrict forward-declared
-# module functions, known noise) and 0 other errors. A NEW error = you broke something.
+# Baseline: 31 "TypeError" lines (nonstrict, forward-declared module functions: known
+# noise) and 0 other errors. Anything new means something broke.
 #   tools/check.sh [max_lines]
 set -uo pipefail
 cd "$(dirname "$0")/.."

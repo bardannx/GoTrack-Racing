@@ -5,7 +5,7 @@ The buildings, trees, rocks, mountains and road cars around every circuit can co
 ```
 designs.py ──► build.py export ──► assets/world/GoTrackWorld.fbx + manifest.json
                                           │                 │
-             Bardan: Studio File → Import 3D                 │
+            by hand: Studio File → Import 3D                 │
                           │                                  ▼
      MeshParts → ReplicatedStorage.WorldMeshes     build.py luau → src/shared/WorldData.luau
                           │
@@ -14,7 +14,7 @@ designs.py ──► build.py export ──► assets/world/GoTrackWorld.fbx + m
      WorldMeshes.luau places them (Cityscape, Architecture, props, horizon, traffic)
 ```
 
-**Until the FBX is imported, nothing breaks.** `assets/WorldMeshes.rbxmx` is an empty folder, so `WorldMeshes.Available()` is false and every system uses its part-built version (cheap 2-4 part buildings, part trees, block mountains). Everything is tested both ways: `lune run tools/sim/maps.luau 3 --meshes` pretends the meshes are imported.
+**The game never depends on the meshes.** If `ReplicatedStorage.WorldMeshes` is empty, `WorldMeshes.Available()` is false and every system uses its part-built version (cheap 2-4 part buildings, part trees, block mountains). Everything is tested both ways: `lune run tools/sim/maps.luau 3 --meshes` pretends the meshes are imported.
 
 ## Files
 
@@ -64,7 +64,7 @@ Then use it: buildings go in `Architecture` (`MESH_SUB`: which part archetype it
    `python3 tools/cargen/extract_meshes.py GoTrackRacing.rbxlx assets/CarMeshes.rbxmx && python3 tools/cargen/extract_meshes.py GoTrackRacing.rbxlx assets/WorldMeshes.rbxmx WorldMeshes`
    then commit and sync.
 
-## Import only the world meshes (Bardan, about 5 minutes)
+## Import only the world meshes (about 5 minutes)
 
 1. Studio → File → Import 3D → pick `assets/world/GoTrackWorld.fbx` → Import.
 2. Paste this into the command bar and press Enter. It moves the 146 meshes into `ReplicatedStorage.WorldMeshes`:

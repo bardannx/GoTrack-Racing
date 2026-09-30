@@ -20,10 +20,12 @@ local City = {}
 local BUDGET = { 500, 1800, 5000, 9000 }
 City.Budget = BUDGET
 
+-- Shorthand for the colour tables.
 local function rgb(r, g, b)
 	return Color3.fromRGB(r, g, b)
 end
 
+-- Random entry from a list, using the circuit's seeded random.
 local function pick(rng, list)
 	return list[rng:NextInteger(1, #list)]
 end
@@ -32,10 +34,20 @@ local M = Enum.Material
 local ROAD = rgb(58, 60, 66)
 local PAVE = rgb(176, 174, 168)
 local WARM = rgb(255, 222, 160)
-local GLASS = { rgb(80, 120, 160), rgb(110, 150, 180), rgb(70, 95, 120), rgb(120, 160, 175), rgb(90, 110, 150), rgb(60, 80, 100) }
+local GLASS =
+	{ rgb(80, 120, 160), rgb(110, 150, 180), rgb(70, 95, 120), rgb(120, 160, 175), rgb(90, 110, 150), rgb(60, 80, 100) }
 
 -- skyscraper styles per circuit (default: all of them)
-local TOWERS_ALL = { "tower_glass", "tower_deco", "tower_twist", "tower_round", "tower_blade", "tower_twin", "tower_stack", "tower_resi" }
+local TOWERS_ALL = {
+	"tower_glass",
+	"tower_deco",
+	"tower_twist",
+	"tower_round",
+	"tower_blade",
+	"tower_twin",
+	"tower_stack",
+	"tower_resi",
+}
 local TOWER_STYLE = {
 	dragon = { "tower_twist", "tower_blade", "tower_glass", "tower_round", "tower_twin", "tower_stack" },
 	neon = { "tower_glass", "tower_round", "tower_stack", "tower_blade", "tower_twist", "tower_twin" },
@@ -50,7 +62,8 @@ local MIDS = { "mid_office", "mid_apart", "mid_euro", "mid_loft", "mid_apart" }
 local WARM_MIDS = { "mid_euro", "mid_apart", "mid_euro" }
 local HOUSES = { "house_gable", "house_hip", "house_modern", "house_gable", "house_hip" }
 local WARM_HOUSES = { "house_villa", "house_villa", "house_hip" }
-local WARM_THEMES = { harbor = true, mediterranean = true, castle = true, temple = true, valley = true, marina = true, aztec = true }
+local WARM_THEMES =
+	{ harbor = true, mediterranean = true, castle = true, temple = true, valley = true, marina = true, aztec = true }
 
 -- fast approximate distance from (x, z) to the track centre line
 local function trackDistance(t)
@@ -80,30 +93,66 @@ local function cheapTower(ctx, f, cf, w, d, h, rng)
 	local P, th = ctx.P, ctx.Th
 	local glass = pick(rng, GLASS)
 	P(f, Vector3.new(w, h, d), cf * CFrame.new(0, h / 2, 0), glass, M.Glass).Reflectance = 0.15
-	P(f, Vector3.new(w + 0.8, 3, d + 0.8), cf * CFrame.new(0, h * 0.62, 0), glass:Lerp(rgb(235, 238, 244), 0.6), M.Metal)
+	P(
+		f,
+		Vector3.new(w + 0.8, 3, d + 0.8),
+		cf * CFrame.new(0, h * 0.62, 0),
+		glass:Lerp(rgb(235, 238, 244), 0.6),
+		M.Metal
+	)
 	P(f, Vector3.new(w * 0.7, 10, d * 0.7), cf * CFrame.new(0, h + 5, 0), rgb(220, 224, 230), M.Metal)
 	if th.Night then
 		P(f, Vector3.new(w + 0.4, h * 0.3, d + 0.4), cf * CFrame.new(0, h * 0.3, 0), WARM:Lerp(glass, 0.35), M.Neon)
 	end
 end
 
+-- A 3-4 part midrise for when the meshes aren't imported (walls, window band, roof).
 local function cheapMid(ctx, f, cf, w, d, h, rng)
 	local P, th = ctx.P, ctx.Th
 	local wall = Arch.WallColor(rng, th)
 	P(f, Vector3.new(w, h, d), cf * CFrame.new(0, h / 2, 0), wall, M.Concrete)
 	local lit = th.Night and rng:NextNumber() < 0.7
-	P(f, Vector3.new(w + 0.3, h * 0.55, d + 0.3), cf * CFrame.new(0, h * 0.52, 0), if lit then WARM else rgb(70, 90, 115), if lit then M.Neon else M.Glass)
+	P(
+		f,
+		Vector3.new(w + 0.3, h * 0.55, d + 0.3),
+		cf * CFrame.new(0, h * 0.52, 0),
+		if lit then WARM else rgb(70, 90, 115),
+		if lit then M.Neon else M.Glass
+	)
 	P(f, Vector3.new(w + 0.8, 1, d + 0.8), cf * CFrame.new(0, h + 0.5, 0), wall:Lerp(rgb(0, 0, 0), 0.2), M.Concrete)
 end
 
+-- A 3-4 part house for when the meshes aren't imported.
 local function cheapHouse(ctx, f, cf, rng, warm)
 	local P, th = ctx.P, ctx.Th
 	local w, d, h = rng:NextNumber(14, 18), rng:NextNumber(11, 14), rng:NextNumber(7, 10)
 	local wall = Arch.WallColor(rng, th)
 	P(f, Vector3.new(w, h, d), cf * CFrame.new(0, h / 2, 0), wall, M.Plaster)
-	local roof = if warm then rgb(196, 96, 60) else pick(rng, { rgb(78, 82, 92), rgb(150, 60, 46), rgb(116, 80, 60), rgb(70, 96, 84) })
-	P(f, Vector3.new(w + 1, 3.6, d / 2 + 0.6), cf * CFrame.new(0, h + 1.8, -d / 4 - 0.15), roof, M.Slate, nil, false, nil, "WedgePart")
-	P(f, Vector3.new(w + 1, 3.6, d / 2 + 0.6), cf * CFrame.new(0, h + 1.8, d / 4 + 0.15) * CFrame.Angles(0, math.pi, 0), roof, M.Slate, nil, false, nil, "WedgePart")
+	local roof = if warm
+		then rgb(196, 96, 60)
+		else pick(rng, { rgb(78, 82, 92), rgb(150, 60, 46), rgb(116, 80, 60), rgb(70, 96, 84) })
+	P(
+		f,
+		Vector3.new(w + 1, 3.6, d / 2 + 0.6),
+		cf * CFrame.new(0, h + 1.8, -d / 4 - 0.15),
+		roof,
+		M.Slate,
+		nil,
+		false,
+		nil,
+		"WedgePart"
+	)
+	P(
+		f,
+		Vector3.new(w + 1, 3.6, d / 2 + 0.6),
+		cf * CFrame.new(0, h + 1.8, d / 4 + 0.15) * CFrame.Angles(0, math.pi, 0),
+		roof,
+		M.Slate,
+		nil,
+		false,
+		nil,
+		"WedgePart"
+	)
 	if th.Night and rng:NextNumber() < 0.6 then
 		P(f, Vector3.new(3, 2.4, 0.3), cf * CFrame.new(-w / 4, h * 0.6, -d / 2 - 0.1), WARM, M.Neon)
 	end
@@ -120,9 +169,16 @@ local function meshBuilding(ctx, design, cf, rng, k, hMul)
 	local tower = string.sub(design, 1, 5) == "tower"
 	local ky = k * (hMul or 1)
 	local lit = if ctx.Night then rng:NextInteger(if tower then 1 else 0, 2) else 0
-	return ctx.Mesh(design, ctx.Scenery, cf, { Scale = Vector3.new(k, ky, k), Paint = Arch.MeshPaint(design, rng, ctx.Th), Night = ctx.Night, Lit = lit, Shadow = tower and ctx.Q >= 3 }) ~= nil
+	return ctx.Mesh(design, ctx.Scenery, cf, {
+		Scale = Vector3.new(k, ky, k),
+		Paint = Arch.MeshPaint(design, rng, ctx.Th),
+		Night = ctx.Night,
+		Lit = lit,
+		Shadow = tower and ctx.Q >= 3,
+	}) ~= nil
 end
 
+-- A skyscraper: a mesh design from `style`, or a cheap stand-in.
 local function tower(ctx, cf, rng, hMul, style)
 	local design = pick(rng, style)
 	if not meshBuilding(ctx, design, cf, rng, rng:NextNumber(0.85, 1.1), hMul) then
@@ -132,8 +188,33 @@ end
 
 -- The circuit's own architecture (pagodas, wind towers, chalets, colourful houses...)
 -- mixed into the fill so every map looks like its country. Generic types are left out.
-local GENERIC = { office_tower = true, glass_midrise = true, apartment = true, hotel_block = true, suburban_house = true, warehouse = true, shop_row = true, parking_garage = true, gas_station = true, twisted_tower = true, spire_tower = true, beach_condo = true, oil_pump = true, wind_turbine = true, water_tower = true, hangar = true, geothermal = true, lighthouse = true, casino_hotel = true, pyramid_hotel = true, skydeck_hotel = true, flame_tower = true, torii = true }
+local GENERIC = {
+	office_tower = true,
+	glass_midrise = true,
+	apartment = true,
+	hotel_block = true,
+	suburban_house = true,
+	warehouse = true,
+	shop_row = true,
+	parking_garage = true,
+	gas_station = true,
+	twisted_tower = true,
+	spire_tower = true,
+	beach_condo = true,
+	oil_pump = true,
+	wind_turbine = true,
+	water_tower = true,
+	hangar = true,
+	geothermal = true,
+	lighthouse = true,
+	casino_hotel = true,
+	pyramid_hotel = true,
+	skydeck_hotel = true,
+	flame_tower = true,
+	torii = true,
+}
 
+-- One of the theme's own buildings (a pagoda, a castle house...) if one fits in `maxW`.
 local function localBuilding(ctx, cf, rng, maxW: number): boolean
 	local list = ctx.LocalArch
 	if not list or #list == 0 then
@@ -158,10 +239,17 @@ local function themeProps(ctx, cf: CFrame, rng, n: number, spread: number)
 	end
 	for _ = 1, n do
 		local name = list[rng:NextInteger(1, #list)]
-		ctx.Prop(name, ctx.Scenery, cf * CFrame.new(rng:NextNumber(-spread, spread), 0, rng:NextNumber(-spread, spread)), rng:NextNumber(0.8, 1.3), ctx.Th)
+		ctx.Prop(
+			name,
+			ctx.Scenery,
+			cf * CFrame.new(rng:NextNumber(-spread, spread), 0, rng:NextNumber(-spread, spread)),
+			rng:NextNumber(0.8, 1.3),
+			ctx.Th
+		)
 	end
 end
 
+-- A midrise block, sometimes swapped for a local building.
 local function midrise(ctx, cf, rng, warm)
 	if rng:NextNumber() < (ctx.LocalShare or 0) * 0.6 and localBuilding(ctx, cf, rng, 58) then
 		return
@@ -172,6 +260,7 @@ local function midrise(ctx, cf, rng, warm)
 	end
 end
 
+-- A house, sometimes swapped for a local building.
 local function house(ctx, cf, rng, warm)
 	if rng:NextNumber() < (ctx.LocalShare or 0) and localBuilding(ctx, cf, rng, 36) then
 		return
@@ -182,6 +271,7 @@ local function house(ctx, cf, rng, warm)
 	end
 end
 
+-- One of the theme's trees.
 local function tree(ctx, cf, rng, s)
 	if ctx.Tree then
 		ctx.Tree(ctx.Scenery, cf, s or rng:NextNumber(0.8, 1.2))
@@ -194,15 +284,23 @@ local function road(ctx, a: Vector3, b: Vector3, width: number, y: number)
 	if len < 1 then
 		return
 	end
-	ctx.P(ctx.Scenery, Vector3.new(width, 0.3, len), CFrame.lookAt((a + b) / 2 + Vector3.new(0, y, 0), b + Vector3.new(0, y, 0)), ROAD, M.Asphalt)
+	ctx.P(
+		ctx.Scenery,
+		Vector3.new(width, 0.3, len),
+		CFrame.lookAt((a + b) / 2 + Vector3.new(0, y, 0), b + Vector3.new(0, y, 0)),
+		ROAD,
+		M.Asphalt
+	)
 end
 
--- grid of candidate cells around the circuit, nearest the track first
+-- Whether a point is inside the area the cityscape fills.
 local function inside(ctx, x: number, z: number): boolean
 	local dx, dz = x - ctx.Cx, z - ctx.Cz
 	return dx * dx + dz * dz < ctx.FillR * ctx.FillR
 end
 
+-- Grid of candidate cells around the circuit, `minD` to `maxD` studs from the track,
+-- nearest the track first so the view from the road fills before the far land.
 local function cells(ctx, pitch: number, minD: number, maxD: number, dist)
 	local b, rng = ctx.Bounds, ctx.Rng
 	local reach = maxD
@@ -270,7 +368,13 @@ local function sportsGround(ctx, cf: CFrame, rng)
 	local white = rgb(245, 245, 245)
 	P(f, Vector3.new(90, 0.4, 60), cf * CFrame.new(0, 0.2, 0), rgb(76, 158, 64), M.Grass)
 	for _, s in { { 88, 0.5 }, { 0.5, 58 } } do
-		P(f, Vector3.new(s[1], 0.06, s[2]), cf * CFrame.new(0, 0.43, if s[1] > 1 then 29 else 0), white, M.SmoothPlastic)
+		P(
+			f,
+			Vector3.new(s[1], 0.06, s[2]),
+			cf * CFrame.new(0, 0.43, if s[1] > 1 then 29 else 0),
+			white,
+			M.SmoothPlastic
+		)
 		if s[1] > 1 then
 			P(f, Vector3.new(s[1], 0.06, s[2]), cf * CFrame.new(0, 0.43, -29), white, M.SmoothPlastic)
 		end
@@ -286,7 +390,16 @@ local function sportsGround(ctx, cf: CFrame, rng)
 		local parts = {
 			P(f, Vector3.new(1.1, 2.1, 0.6), base * CFrame.new(0, 1.05, 0), rgb(245, 245, 245), M.Fabric),
 			P(f, Vector3.new(1.35, 1.8, 0.75), base * CFrame.new(0, 3, 0), team, M.Fabric),
-			P(f, Vector3.new(0.9, 0.9, 0.9), base * CFrame.new(0, 4.35, 0), rgb(224, 172, 105), M.SmoothPlastic, nil, false, Enum.PartType.Ball),
+			P(
+				f,
+				Vector3.new(0.9, 0.9, 0.9),
+				base * CFrame.new(0, 4.35, 0),
+				rgb(224, 172, 105),
+				M.SmoothPlastic,
+				nil,
+				false,
+				Enum.PartType.Ball
+			),
 		}
 		local cx, cz = rng:NextNumber(-30, 30), rng:NextNumber(-18, 18)
 		local rx, rz = rng:NextNumber(6, 14), rng:NextNumber(4, 10)
@@ -294,7 +407,12 @@ local function sportsGround(ctx, cf: CFrame, rng)
 		local phase = rng:NextNumber(0, 6.28)
 		ctx.Mover(parts, base, function(now)
 			local a = phase + now * w
-			local p = cf * Vector3.new(cx + math.cos(a) * rx, 0.45 + math.abs(math.sin(now * 7 + phase)) * 0.2, cz + math.sin(a * 1.3) * rz)
+			local p = cf
+				* Vector3.new(
+					cx + math.cos(a) * rx,
+					0.45 + math.abs(math.sin(now * 7 + phase)) * 0.2,
+					cz + math.sin(a * 1.3) * rz
+				)
 			local d = cf:VectorToWorldSpace(Vector3.new(-math.sin(a) * rx, 0, math.cos(a * 1.3) * rz * 1.3))
 			return CFrame.lookAt(p, p + (if d.Magnitude > 0.01 then d else Vector3.new(0, 0, -1)))
 		end)
@@ -348,16 +466,35 @@ local function city(ctx, over, dist, maxD)
 			local dt = downtown(x, z)
 			local roll = rng:NextNumber()
 			if roll < 0.025 and ctx.Q >= 2 then
-				sportsGround(ctx, centre * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, rng:NextInteger(0, 1) * math.pi / 2, 0), rng)
+				sportsGround(
+					ctx,
+					centre * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, rng:NextInteger(0, 1) * math.pi / 2, 0),
+					rng
+				)
 			elseif roll < 0.07 then
 				-- park
-				P(f, Vector3.new(slab - 8, 0.3, slab - 8), centre * CFrame.new(0, 0.6, 0), th.Ground:Lerp(rgb(90, 160, 70), 0.5), M.Grass)
+				P(
+					f,
+					Vector3.new(slab - 8, 0.3, slab - 8),
+					centre * CFrame.new(0, 0.6, 0),
+					th.Ground:Lerp(rgb(90, 160, 70), 0.5),
+					M.Grass
+				)
 				for _ = 1, rng:NextInteger(5, 9) do
 					tree(ctx, centre * CFrame.new(rng:NextNumber(-50, 50), 0.7, rng:NextNumber(-50, 50)), rng)
 				end
 				themeProps(ctx, centre * CFrame.new(0, 0.7, 0), rng, rng:NextInteger(2, 5), 48)
 			elseif roll < 0.11 and dt < 0.3 then
-				if not meshBuilding(ctx, "mall", centre * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, rng:NextInteger(0, 3) * math.pi / 2, 0), rng, 1.3, 1) then
+				if
+					not meshBuilding(
+						ctx,
+						"mall",
+						centre * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, rng:NextInteger(0, 3) * math.pi / 2, 0),
+						rng,
+						1.3,
+						1
+					)
+				then
 					cheapMid(ctx, f, centre * CFrame.new(0, 0.5, 0), 90, 70, 18, rng)
 				end
 			else
@@ -365,7 +502,9 @@ local function city(ctx, over, dist, maxD)
 				for lx = -1, 1, 2 do
 					for lz = -1, 1, 2 do
 						if rng:NextNumber() < 0.92 then
-							local lcf = centre * CFrame.new(lx * slab / 4, 0.5, lz * slab / 4) * CFrame.Angles(0, (if lz < 0 then 0 else math.pi) + rng:NextInteger(-1, 1) * 0.02, 0)
+							local lcf = centre
+								* CFrame.new(lx * slab / 4, 0.5, lz * slab / 4)
+								* CFrame.Angles(0, (if lz < 0 then 0 else math.pi) + rng:NextInteger(-1, 1) * 0.02, 0)
 							if cranes > 0 and dt > 0.15 and rng:NextNumber() < 0.06 then
 								cranes -= 1
 								construction(ctx, lcf, rng)
@@ -400,7 +539,7 @@ end
 -- Town: suburbs round a small centre
 ---------------------------------------------------------------------------
 local function town(ctx, over, dist, maxD)
-	local rng, P, f, th = ctx.Rng, ctx.P, ctx.Scenery, ctx.Th
+	local rng, th = ctx.Rng, ctx.Th
 	local pitch = 118
 	local warm = WARM_THEMES[th.Key]
 	local centreSpot = ctx.OpenSpot(60)
@@ -441,7 +580,9 @@ local function town(ctx, over, dist, maxD)
 				for row = -1, 1, 2 do
 					for k = -1, 1 do
 						if rng:NextNumber() < 0.9 then
-							local hcf = centre * CFrame.new(k * 36 + rng:NextNumber(-2, 2), 0, row * 27) * CFrame.Angles(0, if row < 0 then 0 else math.pi, 0)
+							local hcf = centre
+								* CFrame.new(k * 36 + rng:NextNumber(-2, 2), 0, row * 27)
+								* CFrame.Angles(0, if row < 0 then 0 else math.pi, 0)
 							house(ctx, hcf, rng, warm)
 							if rng:NextNumber() < 0.55 then
 								tree(ctx, hcf * CFrame.new(rng:NextNumber(-14, 14), 0, 17), rng, rng:NextNumber(0.7, 1))
@@ -478,7 +619,13 @@ local function village(ctx, at: Vector3, rng)
 		local dir = if k == 0 then Vector3.new(1, 0, 0) else Vector3.new(0, 0, 1)
 		road(ctx, at - dir * 110, at + dir * 110, 12, 0.12 + k * 0.05)
 	end
-	P(f, Vector3.new(34, 0.3, 34), CFrame.new(at + Vector3.new(0, 0.2, 0)), th.Ground:Lerp(rgb(110, 180, 80), 0.4), M.Grass)
+	P(
+		f,
+		Vector3.new(34, 0.3, 34),
+		CFrame.new(at + Vector3.new(0, 0.2, 0)),
+		th.Ground:Lerp(rgb(110, 180, 80), 0.4),
+		M.Grass
+	)
 	if th.Arch.church or rng:NextNumber() < 0.6 then
 		Arch.Build("church", f, CFrame.new(at + Vector3.new(0, 0, 36)) * CFrame.Angles(0, math.pi, 0), rng, th, ctx.P)
 	end
@@ -494,7 +641,17 @@ local function village(ctx, at: Vector3, rng)
 			else
 				local name = nil
 				for arch in th.Arch do
-					if (arch == "cottage" or arch == "chalet" or arch == "villa" or arch == "japanese_house" or arch == "colorful_house" or arch == "ranch_house" or arch == "wind_tower_house") and rng:NextNumber() < 0.6 then
+					if
+						(
+							arch == "cottage"
+							or arch == "chalet"
+							or arch == "villa"
+							or arch == "japanese_house"
+							or arch == "colorful_house"
+							or arch == "ranch_house"
+							or arch == "wind_tower_house"
+						) and rng:NextNumber() < 0.6
+					then
 						name = arch
 					end
 				end
@@ -505,7 +662,11 @@ local function village(ctx, at: Vector3, rng)
 				end
 			end
 			if rng:NextNumber() < 0.5 then
-				tree(ctx, CFrame.new(p + (p - at).Unit * 16 + Vector3.new(rng:NextNumber(-6, 6), 0, rng:NextNumber(-6, 6))), rng)
+				tree(
+					ctx,
+					CFrame.new(p + (p - at).Unit * 16 + Vector3.new(rng:NextNumber(-6, 6), 0, rng:NextNumber(-6, 6))),
+					rng
+				)
 			end
 		end
 	end
@@ -513,6 +674,7 @@ local function village(ctx, at: Vector3, rng)
 	ctx.Occ.add(at.X, at.Z, 100)
 end
 
+-- `n` trees scattered in a circle, thicker in the middle.
 local function forest(ctx, at: Vector3, radius: number, n: number, rng, propName: string?)
 	for _ = 1, n do
 		local a = rng:NextNumber(0, math.pi * 2)
@@ -549,16 +711,30 @@ local function hillAt(ctx, at: Vector3, k: number, rng)
 	local th = ctx.Th
 	local col = th.Ground:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0.02, 0.1))
 	if ctx.Meshes then
-		local placed = ctx.Mesh("hill", ctx.Scenery, CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), {
-			Scale = Vector3.new(k * rng:NextNumber(0.8, 1.3), k * rng:NextNumber(0.7, 1.2), k * rng:NextNumber(0.8, 1.3)),
-			Paint = { Base = { col, M.Grass }, Rock = { col:Lerp(rgb(120, 118, 112), 0.6), M.Rock } },
-		})
+		local placed =
+			ctx.Mesh("hill", ctx.Scenery, CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), {
+				Scale = Vector3.new(
+					k * rng:NextNumber(0.8, 1.3),
+					k * rng:NextNumber(0.7, 1.2),
+					k * rng:NextNumber(0.8, 1.3)
+				),
+				Paint = { Base = { col, M.Grass }, Rock = { col:Lerp(rgb(120, 118, 112), 0.6), M.Rock } },
+			})
 		if placed then
 			return
 		end
 	end
 	local w = 900 * k
-	local p = ctx.P(ctx.Scenery, Vector3.new(w, 150 * k * 2, w * 0.8), CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), col, M.Grass, nil, false, Enum.PartType.Ball)
+	local p = ctx.P(
+		ctx.Scenery,
+		Vector3.new(w, 150 * k * 2, w * 0.8),
+		CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
+		col,
+		M.Grass,
+		nil,
+		false,
+		Enum.PartType.Ball
+	)
 	local m = Instance.new("SpecialMesh")
 	m.MeshType = Enum.MeshType.Sphere
 	m.Parent = p
@@ -567,8 +743,26 @@ end
 -- a pond with a reedy shore and a few trees
 local function pond(ctx, at: Vector3, r: number, rng)
 	local P, f, th = ctx.P, ctx.Scenery, ctx.Th
-	P(f, Vector3.new(0.6, r * 2 + 10, r * 2 + 8), CFrame.new(at + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.pi / 2), th.Ground:Lerp(rgb(120, 110, 80), 0.35), M.Ground, nil, false, Enum.PartType.Cylinder)
-	local w = P(f, Vector3.new(0.6, r * 2, r * 2 - 2), CFrame.new(at + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.pi / 2), th.Water, M.Glass, nil, false, Enum.PartType.Cylinder)
+	P(
+		f,
+		Vector3.new(0.6, r * 2 + 10, r * 2 + 8),
+		CFrame.new(at + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+		th.Ground:Lerp(rgb(120, 110, 80), 0.35),
+		M.Ground,
+		nil,
+		false,
+		Enum.PartType.Cylinder
+	)
+	local w = P(
+		f,
+		Vector3.new(0.6, r * 2, r * 2 - 2),
+		CFrame.new(at + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+		th.Water,
+		M.Glass,
+		nil,
+		false,
+		Enum.PartType.Cylinder
+	)
 	w.Reflectance = 0.2
 	for _ = 1, rng:NextInteger(4, 8) do
 		local a = rng:NextNumber(0, math.pi * 2)
@@ -580,6 +774,7 @@ local function pond(ctx, at: Vector3, r: number, rng)
 	ctx.Occ.add(at.X, at.Z, r + 10)
 end
 
+-- Rural land: villages, ponds, forests between the fields and rolling hills further out.
 local function countryside(ctx, over, dist, maxD)
 	local rng, q = ctx.Rng, ctx.Q
 	local made = 0
@@ -648,20 +843,43 @@ local MONUMENTS = {
 	volcano = { { "mtn_peak", 0.1, 0.18 } },
 }
 
+-- A giant formation near the track (rock spire, mesa or peak), coloured for the theme.
 local function monument(ctx, e, at: Vector3, rng)
 	local th = ctx.Th
 	local design, k = e[1], rng:NextNumber(e[2], e[3])
 	local sand = th.HorizonColor or rgb(205, 128, 82):Lerp(rgb(232, 175, 118), rng:NextNumber())
 	local paint
 	if th.Key == "snow" then
-		paint = { Rock = { rgb(118, 126, 142), M.Rock }, Snow = { rgb(245, 248, 255), M.Snow }, Base = { rgb(230, 236, 245), M.Snow } }
+		paint = {
+			Rock = { rgb(118, 126, 142), M.Rock },
+			Snow = { rgb(245, 248, 255), M.Snow },
+			Base = { rgb(230, 236, 245), M.Snow },
+		}
 	elseif th.Key == "volcano" then
-		paint = { Rock = { rgb(58, 50, 48), M.Basalt }, Snow = { rgb(88, 76, 72), M.Basalt }, Base = { th.Ground, M.Ground } }
+		paint = {
+			Rock = { rgb(58, 50, 48), M.Basalt },
+			Snow = { rgb(88, 76, 72), M.Basalt },
+			Base = { th.Ground, M.Ground },
+		}
 	else
-		paint = { Rock = { sand, M.Sandstone }, Band = { sand:Lerp(rgb(245, 205, 150), 0.4), M.Sandstone }, Base = { sand:Lerp(rgb(230, 200, 150), 0.5), M.Sand } }
+		paint = {
+			Rock = { sand, M.Sandstone },
+			Band = { sand:Lerp(rgb(245, 205, 150), 0.4), M.Sandstone },
+			Base = { sand:Lerp(rgb(230, 200, 150), 0.5), M.Sand },
+		}
 	end
 	local cf = CFrame.new(at) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
-	if ctx.Meshes and ctx.Mesh(design, ctx.Scenery, cf, { Scale = Vector3.new(k * rng:NextNumber(0.8, 1.3), k * rng:NextNumber(0.8, 1.4), k * rng:NextNumber(0.8, 1.3)), Paint = paint }) then
+	if
+		ctx.Meshes
+		and ctx.Mesh(design, ctx.Scenery, cf, {
+			Scale = Vector3.new(
+				k * rng:NextNumber(0.8, 1.3),
+				k * rng:NextNumber(0.8, 1.4),
+				k * rng:NextNumber(0.8, 1.3)
+			),
+			Paint = paint,
+		})
+	then
 		return
 	end
 	-- stand-in: a stack of weathered blocks
@@ -669,12 +887,26 @@ local function monument(ctx, e, at: Vector3, rng)
 	local H = if design == "rock_spire" then 48 * k else W * 0.35
 	for s = 0, 2 do
 		local w = W * (1 - s * 0.22)
-		ctx.P(ctx.Scenery, Vector3.new(w, H / 3 + 0.5, w * 0.85), cf * CFrame.new(0, H / 6 + s * H / 3, 0) * CFrame.Angles(0, s * 0.4, 0), paint.Rock[1]:Lerp(Color3.new(1, 1, 1), s * 0.06), paint.Rock[2])
+		ctx.P(
+			ctx.Scenery,
+			Vector3.new(w, H / 3 + 0.5, w * 0.85),
+			cf * CFrame.new(0, H / 6 + s * H / 3, 0) * CFrame.Angles(0, s * 0.4, 0),
+			paint.Rock[1]:Lerp(Color3.new(1, 1, 1), s * 0.06),
+			paint.Rock[2]
+		)
 	end
 end
 
-local NOT_HAMLET = { oil_pump = true, wind_turbine = true, geothermal = true, water_tower = true, spire_tower = true, lighthouse = true }
+local NOT_HAMLET = {
+	oil_pump = true,
+	wind_turbine = true,
+	geothermal = true,
+	water_tower = true,
+	spire_tower = true,
+	lighthouse = true,
+}
 
+-- Sparse land: rock fields, groves and hamlets, mixed per theme (SPARSE).
 local function wilds(ctx, over, dist, maxD)
 	local rng, th, q = ctx.Rng, ctx.Th, ctx.Q
 	local mix = SPARSE[th.Key] or { { "rock", 2 }, { "bush", 1 } }

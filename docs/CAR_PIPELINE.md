@@ -5,7 +5,7 @@ Every car mesh in the game comes from Python code run through Blender's `bpy` mo
 ```
 designs.py / wheels.py  ──►  build.py export  ──►  .fbx + manifest.json
                                                       │            │
-               Bardan: Studio File → Import 3D ◄──────┘            │
+          by hand: Studio File → Import 3D ◄──────┘            │
                               │                                    ▼
         MeshParts → ReplicatedStorage.CarMeshes           gen_luau.py → src/shared/CarData.luau
                               │
@@ -94,7 +94,7 @@ python3 build.py render aeros stripe /tmp/aeros_stripe.png side  # with a livery
    `python3 gen_luau.py ../../assets/cars/manifest.json ../../src/shared/CarData.luau`
 6. Add the chassis in `gen_luau.py` `PRESETS` (and `ROUND_WHEEL` if it has a classic round wheel), then re-run step 5's `gen_luau.py`.
 7. In `Cosmetics.luau`, add the Body item (price or pass) and a `BodyLivery` entry.
-8. **Bardan imports the FBX in Studio.** An agent can't drive the file picker.
+8. **Import the FBX in Studio.** This step is done by hand: Studio's importer can't be scripted.
    1. Studio → File → Import 3D → pick the FBX → Import.
    2. Move all the new MeshParts into `ReplicatedStorage.CarMeshes`. Names must match the manifest. Paste this into the command bar (change the model name to the imported one):
       `local src = workspace:FindFirstChild("GoTrackCars") local dst = game.ReplicatedStorage.CarMeshes local n = 0 for _, p in src:GetDescendants() do if p:IsA("MeshPart") then local old = dst:FindFirstChild(p.Name) if old then old:Destroy() end p.Anchored = true p.Parent = dst n += 1 end end src:Destroy() print("moved", n)`
@@ -102,9 +102,9 @@ python3 build.py render aeros stripe /tmp/aeros_stripe.png side  # with a livery
 9. Refresh the Rojo asset: `python3 tools/cargen/extract_meshes.py GoTrackRacing.rbxlx assets/CarMeshes.rbxmx`.
 10. Run `bash tools/check.sh`, build, and look at the car in the Garage and in cockpit view.
 
-Changing an existing design works the same way. Export just that design (step 4), and replace its old MeshParts in `CarMeshes` when Bardan imports.
+Changing an existing design works the same way. Export just that design (step 4), and replace its old MeshParts in `CarMeshes` when you import it.
 
-**Imported (2026-09-30):** `assets/cars/GoTrackCars.fbx` holds all 13 current designs (633 meshes, ~350k triangles). They are in `ReplicatedStorage.CarMeshes` / `assets/CarMeshes.rbxmx`. The first-generation meshes are still there as a fallback. `lune run tools/sim/cars.luau` checks both cases.
+**Current state:** `assets/cars/GoTrackCars.fbx` holds all 13 current designs (633 meshes, ~350k triangles). They are in `ReplicatedStorage.CarMeshes` / `assets/CarMeshes.rbxmx`. The first-generation meshes are still there as a fallback. `lune run tools/sim/cars.luau` checks both cases.
 
 ## Store art
 

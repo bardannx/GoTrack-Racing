@@ -27,6 +27,7 @@ local folder, conn = nil, nil
 local arms = {} -- { {left, right} }
 local hidden = CFrame.new(0, -5000, 0)
 
+-- One arm of a chevron: a thin neon strip laid on the road.
 local function makeArm(parent)
 	local p = Instance.new("Part")
 	p.Anchored = true
@@ -43,6 +44,7 @@ local function makeArm(parent)
 	return p
 end
 
+-- Removes the racing line (end of race, or turned off in Settings).
 function RacingLine.Stop()
 	if conn then
 		conn:Disconnect()
@@ -64,7 +66,6 @@ function RacingLine.Start(t, car)
 	for k = 1, COUNT do
 		arms[k] = { makeArm(folder), makeArm(folder) }
 	end
-	local n = t.N
 	local hint = nil
 	local colorTimer = 0
 	local colors = {}
@@ -120,7 +121,12 @@ function RacingLine.Start(t, car)
 				local c
 				if carAtChev > need + 6 then
 					c = RED
-				elseif carAtChev > need - 18 or t.V[Track.Wrap(t, i + dmin)] < Track.Profile.TopSpeed * 0.8 and distToChev < 60 and carAtChev > need - 30 then
+				elseif
+					carAtChev > need - 18
+					or t.V[Track.Wrap(t, i + dmin)] < Track.Profile.TopSpeed * 0.8
+						and distToChev < 60
+						and carAtChev > need - 30
+				then
 					c = YELLOW
 				else
 					c = GREEN

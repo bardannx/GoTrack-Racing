@@ -34,7 +34,12 @@ end
 local fails = 0
 for i, id in ids do
 	local ok, err = pcall(function()
-		Intro.Begin(id, { Mode = if i % 3 == 0 then "tt" elseif i % 2 == 0 then "ranked" else "quick", Laps = 2, Slot = 4, Racers = 10 })
+		Intro.Begin(id, {
+			Mode = if i % 3 == 0 then "tt" elseif i % 2 == 0 then "ranked" else "quick",
+			Laps = 2,
+			Slot = 4,
+			Racers = 10,
+		})
 		for _ = 1, 30 do
 			Env.RunService.RenderStepped:Fire(1 / 20)
 		end
@@ -48,9 +53,12 @@ for i, id in ids do
 		end
 		world = CircuitBuilder.Build(id, 2, Intro.Progress)
 		local done = false
-		Intro.Reveal(world, { Duration = 6, OnDone = function()
-			done = true
-		end })
+		Intro.Reveal(world, {
+			Duration = 6,
+			OnDone = function()
+				done = true
+			end,
+		})
 		if dump then
 			task.wait(0.8)
 			for _ = 1, 20 do

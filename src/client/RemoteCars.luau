@@ -1,5 +1,5 @@
 --!nonstrict
--- Draws the other racers (players and AI) from the server's position stream.
+-- Draws the other racers (players and computer cars) from the server's position stream.
 -- Uses dead reckoning: every packet carries a timestamp and velocity, so cars are
 -- predicted to *now* (not shown in the past) and any correction is smoothed out.
 -- That keeps car-to-car contact fair: the car you hit is where it really is.
@@ -25,6 +25,7 @@ local SNAP = 30 -- corrections larger than this teleport instead of sliding
 local F = Net.Flags
 local REC = 1 + Net.StateSize
 
+-- Name tag above a car (name, title and race position).
 local function tag(model: Model, chassis: BasePart, name: string, title: string?, color: Color3)
 	local bb = Instance.new("BillboardGui")
 	bb.Size = UDim2.fromOffset(220, 46)
@@ -110,7 +111,13 @@ function RemoteCars.new(racers, yourRid: number, goTime: number)
 			parts.Model.Name = "Racer" .. r.Rid
 			Fx.RegisterRainbow(parts.Model)
 			local prim = Cosmetics.ById[(r.Car or {}).Primary or ""]
-			local bb, posLabel = tag(parts.Model, parts.Chassis, r.Name, r.Title, if prim and prim.Color then prim.Color else Color3.new(1, 1, 1))
+			local bb, posLabel = tag(
+				parts.Model,
+				parts.Chassis,
+				r.Name,
+				r.Title,
+				if prim and prim.Color then prim.Color else Color3.new(1, 1, 1)
+			)
 			local transparencies = {}
 			for _, d in parts.Model:GetDescendants() do
 				if d:IsA("BasePart") and d.Name ~= "SpinBlur" and d.Name ~= "SidewallMark" then
@@ -151,10 +158,13 @@ function RemoteCars:SetConditions(wet: boolean, night: boolean)
 	self.Night = night
 end
 
+-- Race time on the shared clock, the same timeline the packets use.
 function RemoteCars:Now(): number
 	return workspace:GetServerTimeNow() - self.GoTime
 end
 
+-- Where a car is `now`, from its last packet: position + velocity x age, turning at its
+-- yaw rate. Capped at MAX_EXTRAP so a lost packet doesn't send it flying.
 local function predict(sample, now: number): (CFrame, number)
 	local dt = math.clamp(now - sample.t, 0, MAX_EXTRAP)
 	local pos = sample.pos + sample.vel * dt
@@ -162,6 +172,7 @@ local function predict(sample, now: number): (CFrame, number)
 	return rot + pos, dt
 end
 
+-- Reads one position packet from the server (every other racer's state).
 function RemoteCars:Push(b: buffer)
 	if typeof(b) ~= "buffer" or buffer.len(b) < 2 then
 		return
@@ -191,7 +202,14 @@ function RemoteCars:Push(b: buffer)
 				local dyaw = ((yaw - old.yaw + math.pi) % (2 * math.pi)) - math.pi
 				yawRate = math.clamp(dyaw / (t - old.t), -4, 4)
 			end
-			local sample = { t = t, pos = Vector3.new(x, y, z), rot = rot, vel = Vector3.new(vx, vy, vz), yaw = yaw, yawRate = yawRate }
+			local sample = {
+				t = t,
+				pos = Vector3.new(x, y, z),
+				rot = rot,
+				vel = Vector3.new(vx, vy, vz),
+				yaw = yaw,
+				yawRate = yawRate,
+			}
 			local newCF = predict(sample, now)
 			if car.CF then
 				local err = car.CF.Position - newCF.Position
@@ -213,6 +231,7 @@ function RemoteCars:Push(b: buffer)
 	end
 end
 
+-- Updates the P1, P2... on the name tags.
 function RemoteCars:SetPositions(posByRid)
 	for rid, car in self.Cars do
 		local p = posByRid[rid]
@@ -220,12 +239,15 @@ function RemoteCars:SetPositions(posByRid)
 	end
 end
 
+-- Hides or shows a damage group (a knocked-off wing) on another racer's car.
 local function setGroupHidden(car, group: string, hidden: boolean)
 	for _, part in car.Parts.Groups[group] or {} do
 		part.LocalTransparencyModifier = if hidden then 1 else 0
 	end
 end
 
+-- Every frame: moves each car to its predicted position, easing out any correction,
+-- and updates wheels, flap, lights and sounds.
 function RemoteCars:Update(dt: number)
 	local now = self:Now()
 	local showTags = State.Setting("NameTags") ~= false
@@ -260,7 +282,11 @@ function RemoteCars:Update(dt: number)
 			end
 			-- rain light (brake flag from the owner), rain spray and floor sparks
 			if car.Parts.RainLight then
-				CarBuilder.SetRainLight(car.Parts.RainLight, bit32.band(car.Flags or 0, F.Brake) ~= 0, self.Wet == true or self.Night == true)
+				CarBuilder.SetRainLight(
+					car.Parts.RainLight,
+					bit32.band(car.Flags or 0, F.Brake) ~= 0,
+					self.Wet == true or self.Night == true
+				)
 			end
 			local spraying = self.Wet == true and car.Speed > 50
 			for _, pe in car.Parts.Spray or {} do
@@ -329,10 +355,12 @@ function RemoteCars:SlipstreamFactor(cf: CFrame): number
 	return best
 end
 
+-- The drawn car for a racer id.
 function RemoteCars:Get(rid: number)
 	return self.Cars[rid]
 end
 
+-- Removes every car.
 function RemoteCars:Destroy()
 	for _, car in self.Cars do
 		if car.Audio then

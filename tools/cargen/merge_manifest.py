@@ -1,8 +1,9 @@
 """Merge a partial export manifest into the master manifest (objects + anchors), then regenerate CarData.
 
-  python3 tools/cargen/merge_manifest.py assets/cars/manifest.json assets/cars/manifest_new.json
-  python3 tools/cargen/gen_luau.py assets/cars/manifest.json src/shared/CarData.luau
+python3 tools/cargen/merge_manifest.py assets/cars/manifest.json assets/cars/manifest_new.json
+python3 tools/cargen/gen_luau.py assets/cars/manifest.json src/shared/CarData.luau
 """
+
 import json
 import sys
 

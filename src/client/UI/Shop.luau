@@ -41,21 +41,35 @@ local RIBBONS = {
 
 local BASE_RATE = 500 / 49 -- coins per Robux of the smallest pack
 
+-- A buy button showing the Robux icon and price.
 local function priceButton(parent, robux: number, style: string, onClick, props)
 	local b = Kit.Button(parent, "", style, onClick, props)
-	local _, label = Kit.RobuxPrice(b, robux, props and props.TextSize or 18, if style == "primary" then Color3.fromRGB(30, 20, 4) else C.White, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) })
+	local _, label = Kit.RobuxPrice(
+		b,
+		robux,
+		props and props.TextSize or 18,
+		if style == "primary" then Color3.fromRGB(30, 20, 4) else C.White,
+		{ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) }
+	)
 	return b, label
 end
 
+-- The green OWNED tag that replaces the buy button.
 local function ownedChip(parent, props)
 	local f = Kit.new("Frame", { BackgroundColor3 = C.Success, BackgroundTransparency = 0.75, Parent = parent })
 	Kit.Corner(f, 12)
 	Kit.Stroke(f, C.Success, 1.5, 0.2)
-	Kit.Label(f, "✓  OWNED", 16, { Font = Kit.Fonts.Title, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.Success })
+	Kit.Label(f, "✓  OWNED", 16, {
+		Font = Kit.Fonts.Title,
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = C.Success,
+	})
 	Kit.Apply(f, props)
 	return f
 end
 
+-- Swaps the price on `label` for the live Roblox price once it has loaded.
 local function livePassPrice(pass, label)
 	if pass.Id ~= 0 then
 		task.spawn(function()
@@ -67,6 +81,7 @@ local function livePassPrice(pass, label)
 	end
 end
 
+-- A vertical scrolling area for a shop tab.
 local function scroller(parent)
 	local s = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
@@ -79,7 +94,13 @@ local function scroller(parent)
 		Parent = parent,
 	})
 	Kit.List(s, Enum.FillDirection.Vertical, 14)
-	Kit.new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 16), Parent = s })
+	Kit.new("UIPadding", {
+		PaddingTop = UDim.new(0, 12),
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 12),
+		PaddingBottom = UDim.new(0, 16),
+		Parent = s,
+	})
 	return s
 end
 
@@ -118,7 +139,10 @@ end
 local function hero(parent, order)
 	local pass = Monetization.PassByKey.Ultimate
 	local owned = State.HasPass("Ultimate")
-	local card = Kit.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0, 210), LayoutOrder = order, Parent = parent })
+	local card = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0, 210), LayoutOrder = order, Parent = parent }
+	)
 	Kit.Corner(card, 18)
 	Kit.new("UIGradient", {
 		Color = ColorSequence.new({
@@ -131,25 +155,71 @@ local function hero(parent, order)
 	})
 	Kit.Stroke(card, Color3.fromRGB(220, 190, 255), 2, 0.3)
 	local total = Monetization.TotalPassRobux() - pass.Price
-	Kit.Ribbon(card, string.format("BEST VALUE  •  SAVE %s R$", Kit.Comma(math.max(0, total - pass.Price))), C.Success, Color3.fromRGB(6, 34, 16))
-	local icon = Kit.new("Frame", { BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.7, Position = UDim2.fromOffset(22, 26), Size = UDim2.fromOffset(156, 156), Parent = card })
+	Kit.Ribbon(
+		card,
+		string.format("BEST VALUE  •  SAVE %s R$", Kit.Comma(math.max(0, total - pass.Price))),
+		C.Success,
+		Color3.fromRGB(6, 34, 16)
+	)
+	local icon = Kit.new("Frame", {
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.7,
+		Position = UDim2.fromOffset(22, 26),
+		Size = UDim2.fromOffset(156, 156),
+		Parent = card,
+	})
 	Kit.Corner(icon, 28)
 	Kit.Label(icon, pass.Icon, 90, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center })
-	Kit.Label(card, "ULTIMATE BUNDLE", 32, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(198, 24), Size = UDim2.new(1, -420, 0, 38) })
-	Kit.Label(card, pass.Description, 15, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(198, 62), Size = UDim2.new(1, -420, 0, 20), TextColor3 = Color3.fromRGB(230, 215, 255) })
-	local perks = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(198, 92), Size = UDim2.new(1, -420, 0, 100), Parent = card })
+	Kit.Label(
+		card,
+		"ULTIMATE BUNDLE",
+		32,
+		{ Font = Kit.Fonts.Title, Position = UDim2.fromOffset(198, 24), Size = UDim2.new(1, -420, 0, 38) }
+	)
+	Kit.Label(card, pass.Description, 15, {
+		Font = Kit.Fonts.Bold,
+		Position = UDim2.fromOffset(198, 62),
+		Size = UDim2.new(1, -420, 0, 20),
+		TextColor3 = Color3.fromRGB(230, 215, 255),
+	})
+	local perks = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(198, 92),
+		Size = UDim2.new(1, -420, 0, 100),
+		Parent = card,
+	})
 	Kit.List(perks, Enum.FillDirection.Vertical, 4)
 	for i, perk in pass.Perks do
-		Kit.Label(perks, "✓  " .. perk, 14, { Font = Kit.Fonts.Bold, Size = UDim2.new(1, 0, 0, 18), LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		Kit.Label(perks, "✓  " .. perk, 14, {
+			Font = Kit.Fonts.Bold,
+			Size = UDim2.new(1, 0, 0, 18),
+			LayoutOrder = i,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		})
 	end
 	if owned then
-		ownedChip(card, { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -22, 1, -22), Size = UDim2.fromOffset(200, 56) })
+		ownedChip(
+			card,
+			{ AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -22, 1, -22), Size = UDim2.fromOffset(200, 56) }
+		)
 	else
 		local _, label = priceButton(card, pass.Price, "primary", function()
 			State.PromptPass("Ultimate")
-		end, { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -22, 1, -22), Size = UDim2.fromOffset(200, 56), TextSize = 24 })
+		end, {
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, -22, 1, -22),
+			Size = UDim2.fromOffset(200, 56),
+			TextSize = 24,
+		})
 		livePassPrice(pass, label)
-		local was = Kit.Label(card, "Separately: " .. Kit.Comma(total) .. " R$", 13, { Font = Kit.Fonts.Bold, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -22, 1, -84), Size = UDim2.fromOffset(200, 18), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Color3.fromRGB(220, 200, 255) })
+		local was = Kit.Label(card, "Separately: " .. Kit.Comma(total) .. " R$", 13, {
+			Font = Kit.Fonts.Bold,
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, -22, 1, -84),
+			Size = UDim2.fromOffset(200, 18),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = Color3.fromRGB(220, 200, 255),
+		})
 		was.RichText = false
 	end
 	return card
@@ -161,23 +231,51 @@ local function starterBanner(parent, order)
 	if not pass or State.HasPass("StarterPack") then
 		return
 	end
-	local card = Kit.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0, 84), LayoutOrder = order, Parent = parent })
+	local card = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0, 84), LayoutOrder = order, Parent = parent }
+	)
 	Kit.Corner(card, 16)
-	Kit.new("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(40, 150, 80), Color3.fromRGB(16, 50, 34)), Rotation = 0, Parent = card })
+	Kit.new("UIGradient", {
+		Color = ColorSequence.new(Color3.fromRGB(40, 150, 80), Color3.fromRGB(16, 50, 34)),
+		Rotation = 0,
+		Parent = card,
+	})
 	Kit.Stroke(card, Color3.fromRGB(120, 255, 170), 1.5, 0.3)
 	Kit.IconTile(card, pass.Icon, 56, pass.Color, { Position = UDim2.fromOffset(14, 14) })
-	Kit.Label(card, "NEW PLAYER DEAL  •  " .. string.upper(pass.Name), 18, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(84, 14), Size = UDim2.new(1, -300, 0, 24), TextTruncate = Enum.TextTruncate.AtEnd })
-	Kit.Label(card, table.concat(pass.Perks, "  •  "), 13, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(84, 42), Size = UDim2.new(1, -300, 0, 28), TextWrapped = true, TextColor3 = Color3.fromRGB(200, 255, 220), TextTruncate = Enum.TextTruncate.AtEnd })
+	Kit.Label(card, "NEW PLAYER DEAL  •  " .. string.upper(pass.Name), 18, {
+		Font = Kit.Fonts.Title,
+		Position = UDim2.fromOffset(84, 14),
+		Size = UDim2.new(1, -300, 0, 24),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	Kit.Label(card, table.concat(pass.Perks, "  •  "), 13, {
+		Font = Kit.Fonts.Bold,
+		Position = UDim2.fromOffset(84, 42),
+		Size = UDim2.new(1, -300, 0, 28),
+		TextWrapped = true,
+		TextColor3 = Color3.fromRGB(200, 255, 220),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
 	local _, label = priceButton(card, pass.Price, "primary", function()
 		State.PromptPass("StarterPack")
-	end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(180, 50), TextSize = 20 })
+	end, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -16, 0.5, 0),
+		Size = UDim2.fromOffset(180, 50),
+		TextSize = 20,
+	})
 	livePassPrice(pass, label)
 end
 
+-- A game pass card: icon, name, perks and the buy button (or OWNED).
 local function passCard(parent, pass, order: number)
 	local owned = State.HasPass(pass.Key)
 	local card = Kit.Card(parent, { LayoutOrder = order }, Color3.new(1, 1, 1))
-	Kit.new("UIGradient", { Color = ColorSequence.new(pass.Color:Lerp(C.Panel2, 0.72), C.Panel2), Rotation = 90, Parent = card })
+	Kit.new(
+		"UIGradient",
+		{ Color = ColorSequence.new(pass.Color:Lerp(C.Panel2, 0.72), C.Panel2), Rotation = 90, Parent = card }
+	)
 	local st = card:FindFirstChildOfClass("UIStroke")
 	if st then
 		st.Color = pass.Color
@@ -189,19 +287,48 @@ local function passCard(parent, pass, order: number)
 		Kit.Ribbon(card, rib[1], rib[2])
 	end
 	Kit.IconTile(card, pass.Icon, 58, pass.Color, { Position = UDim2.fromOffset(14, 14) })
-	Kit.Label(card, pass.Name, 17, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(84, 16), Size = UDim2.new(1, -96, 0, 22), TextTruncate = Enum.TextTruncate.AtEnd })
-	Kit.Label(card, pass.Description, 12, { Position = UDim2.fromOffset(84, 38), Size = UDim2.new(1, -96, 0, 34), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.SubText })
-	local perks = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(16, 82), Size = UDim2.new(1, -32, 0, 100), Parent = card })
+	Kit.Label(card, pass.Name, 17, {
+		Font = Kit.Fonts.Title,
+		Position = UDim2.fromOffset(84, 16),
+		Size = UDim2.new(1, -96, 0, 22),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	Kit.Label(card, pass.Description, 12, {
+		Position = UDim2.fromOffset(84, 38),
+		Size = UDim2.new(1, -96, 0, 34),
+		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextColor3 = C.SubText,
+	})
+	local perks = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(16, 82),
+		Size = UDim2.new(1, -32, 0, 100),
+		Parent = card,
+	})
 	Kit.List(perks, Enum.FillDirection.Vertical, 2)
 	for i = 1, math.min(5, #pass.Perks) do
-		Kit.Label(perks, "<font color='#3AD87C'>✓</font>  " .. pass.Perks[i], 12, { Font = Kit.Fonts.Bold, Size = UDim2.new(1, 0, 0, 18), LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		Kit.Label(perks, "<font color='#3AD87C'>✓</font>  " .. pass.Perks[i], 12, {
+			Font = Kit.Fonts.Bold,
+			Size = UDim2.new(1, 0, 0, 18),
+			LayoutOrder = i,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		})
 	end
 	if owned then
-		ownedChip(card, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 42) })
+		ownedChip(
+			card,
+			{ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 42) }
+		)
 	else
 		local _, label = priceButton(card, pass.Price, "primary", function()
 			State.PromptPass(pass.Key)
-		end, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 42), TextSize = 17 })
+		end, {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -12),
+			Size = UDim2.new(1, -28, 0, 42),
+			TextSize = 17,
+		})
 		livePassPrice(pass, label)
 	end
 	return card
@@ -212,7 +339,10 @@ local function carPackCard(parent, packDef, order: number)
 	local pass = Monetization.PassByKey[packDef.key]
 	local owned = State.HasPass(pass.Key)
 	local card = Kit.Card(parent, { LayoutOrder = order }, Color3.new(1, 1, 1))
-	Kit.new("UIGradient", { Color = ColorSequence.new(pass.Color:Lerp(C.Panel2, 0.6), C.Panel2), Rotation = 90, Parent = card })
+	Kit.new(
+		"UIGradient",
+		{ Color = ColorSequence.new(pass.Color:Lerp(C.Panel2, 0.6), C.Panel2), Rotation = 90, Parent = card }
+	)
 	local st = card:FindFirstChildOfClass("UIStroke")
 	if st then
 		st.Color = pass.Color
@@ -229,24 +359,54 @@ local function carPackCard(parent, packDef, order: number)
 		local it = Cosmetics.ById[id]
 		table.insert(names, if it then it.Name else id)
 	end
-	Kit.Label(card, pass.Icon .. "  " .. pass.Name, 18, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(16, 160), Size = UDim2.new(1, -32, 0, 24), TextTruncate = Enum.TextTruncate.AtEnd })
-	Kit.Label(card, "🏎️  " .. table.concat(names, "  •  "), 13, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(16, 186), Size = UDim2.new(1, -32, 0, 18), TextColor3 = pass.Color:Lerp(C.White, 0.4), TextTruncate = Enum.TextTruncate.AtEnd })
-	local perks = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(16, 210), Size = UDim2.new(1, -32, 0, 60), Parent = card })
+	Kit.Label(card, pass.Icon .. "  " .. pass.Name, 18, {
+		Font = Kit.Fonts.Title,
+		Position = UDim2.fromOffset(16, 160),
+		Size = UDim2.new(1, -32, 0, 24),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	Kit.Label(card, "🏎️  " .. table.concat(names, "  •  "), 13, {
+		Font = Kit.Fonts.Bold,
+		Position = UDim2.fromOffset(16, 186),
+		Size = UDim2.new(1, -32, 0, 18),
+		TextColor3 = pass.Color:Lerp(C.White, 0.4),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	local perks = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(16, 210),
+		Size = UDim2.new(1, -32, 0, 60),
+		Parent = card,
+	})
 	Kit.List(perks, Enum.FillDirection.Vertical, 2)
 	for i = 2, math.min(4, #pass.Perks) do
-		Kit.Label(perks, "<font color='#3AD87C'>✓</font>  " .. pass.Perks[i], 12, { Font = Kit.Fonts.Bold, Size = UDim2.new(1, 0, 0, 18), LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		Kit.Label(perks, "<font color='#3AD87C'>✓</font>  " .. pass.Perks[i], 12, {
+			Font = Kit.Fonts.Bold,
+			Size = UDim2.new(1, 0, 0, 18),
+			LayoutOrder = i,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		})
 	end
 	if owned then
-		ownedChip(card, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 42) })
+		ownedChip(
+			card,
+			{ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 42) }
+		)
 	else
 		local _, label = priceButton(card, pass.Price, "primary", function()
 			State.PromptPass(pass.Key)
-		end, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 42), TextSize = 17 })
+		end, {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -12),
+			Size = UDim2.new(1, -28, 0, 42),
+			TextSize = 17,
+		})
 		livePassPrice(pass, label)
 	end
 	return card
 end
 
+-- A little stack of `n` coins as the picture on a coin pack.
 local function coinPile(parent, n: number, props)
 	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(100, 70), Parent = parent })
 	Kit.Apply(f, props)
@@ -261,11 +421,15 @@ local function coinPile(parent, n: number, props)
 	return f
 end
 
+-- A coin pack or Coin Boost card.
 local function coinCard(parent, prod, order: number, idx: number)
 	local isBoost = prod.BoostMinutes ~= nil
 	local color = if isBoost then C.Warn else C.Accent
 	local card = Kit.Card(parent, { LayoutOrder = order }, Color3.new(1, 1, 1))
-	Kit.new("UIGradient", { Color = ColorSequence.new(color:Lerp(C.Panel2, 0.8), C.Panel2), Rotation = 90, Parent = card })
+	Kit.new(
+		"UIGradient",
+		{ Color = ColorSequence.new(color:Lerp(C.Panel2, 0.8), C.Panel2), Rotation = 90, Parent = card }
+	)
 	if prod.Coins then
 		local rate = prod.Coins / prod.Price
 		local bonus = math.floor((rate / BASE_RATE - 1) * 100 + 0.5)
@@ -275,19 +439,59 @@ local function coinCard(parent, prod, order: number, idx: number)
 			Kit.Ribbon(card, "POPULAR", C.Red)
 		end
 		coinPile(card, idx + 1, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16) })
-		Kit.Label(card, Kit.Comma(prod.Coins), 28, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(0, 92), Size = UDim2.new(1, 0, 0, 32), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.Gold })
-		Kit.Label(card, prod.Name, 13, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(0, 124), Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.SubText })
+		Kit.Label(card, Kit.Comma(prod.Coins), 28, {
+			Font = Kit.Fonts.Title,
+			Position = UDim2.fromOffset(0, 92),
+			Size = UDim2.new(1, 0, 0, 32),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = C.Gold,
+		})
+		Kit.Label(card, prod.Name, 13, {
+			Font = Kit.Fonts.Bold,
+			Position = UDim2.fromOffset(0, 124),
+			Size = UDim2.new(1, 0, 0, 18),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = C.SubText,
+		})
 		if bonus > 0 then
-			Kit.Chip(card, "+" .. bonus .. "% BONUS", C.Success, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 146) })
+			Kit.Chip(
+				card,
+				"+" .. bonus .. "% BONUS",
+				C.Success,
+				{ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 146) }
+			)
 		end
 	else
-		Kit.IconTile(card, "⚡", 70, C.Warn, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16) })
-		Kit.Label(card, "2X COINS", 26, { Font = Kit.Fonts.Title, Position = UDim2.fromOffset(0, 92), Size = UDim2.new(1, 0, 0, 30), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.Warn })
-		Kit.Label(card, "for " .. prod.BoostMinutes .. " minutes of racing", 13, { Font = Kit.Fonts.Bold, Position = UDim2.fromOffset(0, 124), Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = C.SubText })
+		Kit.IconTile(
+			card,
+			"⚡",
+			70,
+			C.Warn,
+			{ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16) }
+		)
+		Kit.Label(card, "2X COINS", 26, {
+			Font = Kit.Fonts.Title,
+			Position = UDim2.fromOffset(0, 92),
+			Size = UDim2.new(1, 0, 0, 30),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = C.Warn,
+		})
+		Kit.Label(card, "for " .. prod.BoostMinutes .. " minutes of racing", 13, {
+			Font = Kit.Fonts.Bold,
+			Position = UDim2.fromOffset(0, 124),
+			Size = UDim2.new(1, 0, 0, 18),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = C.SubText,
+		})
 	end
 	local _, label = priceButton(card, prod.Price, "primary", function()
 		State.PromptProduct(prod.Key)
-	end, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.new(1, -28, 0, 44), TextSize = 18 })
+	end, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -12),
+		Size = UDim2.new(1, -28, 0, 44),
+		TextSize = 18,
+	})
 	if prod.Id ~= 0 then
 		task.spawn(function()
 			local p = State.ProductPrice(prod.Key)
@@ -299,11 +503,26 @@ local function coinCard(parent, prod, order: number, idx: number)
 	return card
 end
 
+-- A section title with an optional link on the right ("All passes").
 local function sectionRow(parent, title, order, linkText, linkFn)
-	local f = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order, Parent = parent })
+	local f = Kit.new(
+		"Frame",
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order, Parent = parent }
+	)
 	Kit.Section(f, title, 0)
 	if linkText then
-		local b = Kit.new("TextButton", { Text = linkText .. "  ›", Font = Kit.Fonts.Bold, TextSize = 13, TextColor3 = C.Accent2, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(160, 24), TextXAlignment = Enum.TextXAlignment.Right, Parent = f })
+		local b = Kit.new("TextButton", {
+			Text = linkText .. "  ›",
+			Font = Kit.Fonts.Bold,
+			TextSize = 13,
+			TextColor3 = C.Accent2,
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.fromOffset(160, 24),
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = f,
+		})
 		Kit.Clickable(b, linkFn)
 	end
 end
@@ -311,11 +530,17 @@ end
 -- a 3-column grid sized for `count` cards (explicit height: no layout surprises)
 local function grid(parent, order: number, cellH: number, count: number)
 	local rows = math.max(1, math.ceil(count / 3))
-	local g = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, rows * (cellH + 14) - 14), LayoutOrder = order, Parent = parent })
+	local g = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, rows * (cellH + 14) - 14),
+		LayoutOrder = order,
+		Parent = parent,
+	})
 	Kit.Grid(g, UDim2.new(1 / 3, -10, 0, cellH), 14)
 	return g
 end
 
+-- Featured tab: the Ultimate Bundle, the starter deal, popular passes and coin packs.
 local function showFeatured()
 	Util.Clear(content, true)
 	local s = scroller(content)
@@ -343,9 +568,15 @@ local function showFeatured()
 		local idx = table.find({ "Coins500", "Coins1500", "Coins4000", "Coins10000", "Coins30000" }, key) or 1
 		coinCard(crow, Monetization.ProductByKey[key], i, idx)
 	end
-	Kit.Label(s, "Purchases are handled securely by Roblox. Nothing in the shop changes car speed - races stay fair.", 12, { LayoutOrder = 9, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center })
+	Kit.Label(
+		s,
+		"Purchases are handled securely by Roblox. Nothing in the shop changes car speed - races stay fair.",
+		12,
+		{ LayoutOrder = 9, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center }
+	)
 end
 
+-- Passes tab.
 local function showPasses()
 	Util.Clear(content, true)
 	local s = scroller(content)
@@ -356,9 +587,15 @@ local function showPasses()
 			passCard(g, pass, if State.HasPass(key) then i + 100 else i)
 		end
 	end
-	Kit.Label(s, "Owned passes move to the end  •  the Ultimate Bundle includes every pass", 12, { LayoutOrder = 2, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center })
+	Kit.Label(
+		s,
+		"Owned passes move to the end  •  the Ultimate Bundle includes every pass",
+		12,
+		{ LayoutOrder = 2, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center }
+	)
 end
 
+-- Car Packs tab (packs you own go to the end).
 local function showCars()
 	Util.Clear(content, true)
 	local s = scroller(content)
@@ -366,9 +603,15 @@ local function showCars()
 	for i, def in CAR_PACKS do
 		carPackCard(g, def, if State.HasPass(def.key) then i + 100 else i)
 	end
-	Kit.Label(s, "Every chassis drives exactly the same - it's all about style. More chassis are sold for coins in the Garage.", 12, { LayoutOrder = 2, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center })
+	Kit.Label(
+		s,
+		"Every chassis drives exactly the same - it's all about style. More chassis are sold for coins in the Garage.",
+		12,
+		{ LayoutOrder = 2, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center }
+	)
 end
 
+-- Coins & Boosts tab.
 local function showCoins()
 	Util.Clear(content, true)
 	local s = scroller(content)
@@ -376,13 +619,22 @@ local function showCoins()
 	for i, prod in Monetization.Products do
 		coinCard(g, prod, i, i)
 	end
-	Kit.Label(s, "Coins buy chassis, paints, helmets, visors, rims, tyres, trails, smoke, underglow and titles in the Garage.", 12, { LayoutOrder = 2, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center })
+	Kit.Label(
+		s,
+		"Coins buy chassis, paints, helmets, visors, rims, tyres, trails, smoke, underglow and titles in the Garage.",
+		12,
+		{ LayoutOrder = 2, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center }
+	)
 end
 
+-- Builds the Shop page.
 function Shop.Build(parent: Instance, menu)
 	local f, body = menu.PageFrame(parent, "Shop", "Passes, car packs, coins and boosts")
 	Shop.Frame = f
-	local panel = Kit.Panel(body, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.new(1, 0, 1, 0) })
+	local panel = Kit.Panel(
+		body,
+		{ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.new(1, 0, 1, 0) }
+	)
 	Kit.new("UISizeConstraint", { MaxSize = Vector2.new(1000, math.huge), Parent = panel })
 	Kit.Padding(panel, 18, 14)
 	local tabs = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 44), Parent = panel })
@@ -404,7 +656,12 @@ function Shop.Build(parent: Instance, menu)
 		end
 	end)
 	selectTab = sel
-	content = Kit.new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 50), Size = UDim2.new(1, 0, 1, -50), Parent = panel })
+	content = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 50),
+		Size = UDim2.new(1, 0, 1, -50),
+		Parent = panel,
+	})
 	local lastPasses = nil
 	State.Changed:Connect(function(p)
 		local key = ""
@@ -420,6 +677,7 @@ function Shop.Build(parent: Instance, menu)
 	end)
 end
 
+-- Page opened, on the Featured tab unless another is given.
 function Shop.OnShow(tab: string?)
 	selectTab(tab or "featured")
 end

@@ -1,5 +1,9 @@
 --!nonstrict
--- Player data with session locking, autosave and safe shutdown.
+-- Saves and loads player progress (coins, XP, cars, records, ranked points).
+-- Each save carries a session lock with this server's JobId, so two servers can never
+-- write the same player at once: a joining server waits for the lock to clear, and a
+-- lock older than LOCK_TIMEOUT is treated as abandoned (the old server crashed).
+-- Saves happen every AUTOSAVE seconds, when the player leaves and when the server closes.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -28,6 +32,7 @@ do
 	end
 end
 
+-- Full copy of a table, so defaults are never shared between players.
 local function deepCopy(t: any): any
 	if typeof(t) ~= "table" then
 		return t
@@ -39,6 +44,7 @@ local function deepCopy(t: any): any
 	return out
 end
 
+-- A brand new player's save.
 local function defaultData(): { [string]: any }
 	return {
 		coins = Config.Economy.StartingCoins,
@@ -66,6 +72,8 @@ local function defaultData(): { [string]: any }
 	}
 end
 
+-- Fills in any fields added since this save was written (new stats, new car slots),
+-- leaving everything the player already has alone.
 local function reconcile(data: { [string]: any }, template: { [string]: any })
 	for k, v in template do
 		if data[k] == nil then
@@ -85,10 +93,14 @@ DataService.Offline = function(): boolean
 	return offline
 end
 
+-- DataStore key for a player.
 local function keyFor(userId: number): string
 	return "u_" .. userId
 end
 
+-- Loads a save and takes the session lock, retrying while another server still holds it
+-- (for example the one the player just left); the sixth try takes it anyway. Returns nil
+-- if the player leaves meanwhile.
 local function loadData(player: Player): { [string]: any }?
 	if offline or not store then
 		return defaultData()
@@ -104,7 +116,12 @@ local function loadData(player: Player): { [string]: any }?
 			return ds:UpdateAsync(key, function(old: any)
 				local d = if typeof(old) == "table" then old else defaultData()
 				local lock = d._lock
-				if not force and typeof(lock) == "table" and lock.job ~= game.JobId and os.time() - (lock.time or 0) < LOCK_TIMEOUT then
+				if
+					not force
+					and typeof(lock) == "table"
+					and lock.job ~= game.JobId
+					and os.time() - (lock.time or 0) < LOCK_TIMEOUT
+				then
 					return nil
 				end
 				d._lock = { job = game.JobId, time = os.time() }
@@ -129,6 +146,7 @@ local function loadData(player: Player): { [string]: any }?
 	return nil
 end
 
+-- Writes the save. `release` also drops the lock so another server can load it at once.
 local function saveProfile(player: Player, release: boolean): boolean
 	local profile = profiles[player]
 	if not profile or not profile.loaded or offline or not store then
@@ -152,6 +170,7 @@ local function saveProfile(player: Player, release: boolean): boolean
 	return ok
 end
 
+-- The player's loaded save, or nil while it's still loading.
 function DataService.Get(player: Player): { [string]: any }?
 	local p = profiles[player]
 	if p and p.loaded then
@@ -160,6 +179,7 @@ function DataService.Get(player: Player): { [string]: any }?
 	return nil
 end
 
+-- Waits for the save to load (up to `timeout` seconds, default 30).
 function DataService.WaitFor(player: Player, timeout: number?): { [string]: any }?
 	local t0 = os.clock()
 	while player.Parent and os.clock() - t0 < (timeout or 30) do
@@ -172,6 +192,7 @@ function DataService.WaitFor(player: Player, timeout: number?): { [string]: any 
 	return DataService.Get(player)
 end
 
+-- Saves straight away, e.g. after a purchase.
 function DataService.SaveNow(player: Player): boolean
 	local p = profiles[player]
 	if p and p.released then
@@ -216,6 +237,7 @@ function DataService.Reclaim(player: Player): boolean
 	return false
 end
 
+-- Runs `cb(player)` whenever a player's save changes (Changed below).
 function DataService.OnChanged(cb: (Player) -> ())
 	table.insert(changedCallbacks, cb)
 end
@@ -236,7 +258,9 @@ function DataService.SeasonRollover(data)
 		return false
 	end
 	-- last season's peak (Champion counts if they made the daily top 500 in that season)
-	local peakTier = if data.championSeason and data.championSeason == data.rankedSeason then #Config.Ranked.Tiers else Config.TierIndex(data.peakRp or data.rp or 0)
+	local peakTier = if data.championSeason and data.championSeason == data.rankedSeason
+		then #Config.Ranked.Tiers
+		else Config.TierIndex(data.peakRp or data.rp or 0)
 	for _, item in Cosmetics.Items do
 		if item.RankTier and item.RankTier <= peakTier then
 			data.owned[item.Id] = true
@@ -251,6 +275,9 @@ function DataService.SeasonRollover(data)
 	return true
 end
 
+-- Loads the save and brings it up to date (new fields, season rollover, a valid car).
+-- If it can't be loaded the player is kicked with a "rejoin" message rather than
+-- playing on a blank save that would overwrite their progress.
 local function onPlayerAdded(player: Player)
 	local data = loadData(player)
 	if not player.Parent then
@@ -273,6 +300,7 @@ local function onPlayerAdded(player: Player)
 	loadedSignal:Fire(player, data)
 end
 
+-- Final save with the lock released.
 local function onPlayerRemoving(player: Player)
 	local p = profiles[player]
 	if not p or p.released then
@@ -295,6 +323,7 @@ local function onPlayerRemoving(player: Player)
 	profiles[player] = nil
 end
 
+-- Hooks up players and the season check, and saves everyone when the server shuts down.
 function DataService.Init()
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)

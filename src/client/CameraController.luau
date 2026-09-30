@@ -1,5 +1,5 @@
 --!nonstrict
--- Camera modes.
+-- Every camera in the game.
 --  Race views (Settings > Camera, C to cycle): chase_near, chase_far, tcam, cockpit, nose, tv
 --  Menu views: showroom (car framed right of centre), garage (drag to rotate, wheel to zoom)
 --  Cinematics: Cam.Scripted(fn) for the circuit intro flyover
@@ -48,16 +48,21 @@ local tvSpots = {}
 local tvIndex = 1
 local tvHint = nil
 
+-- Takes the camera away from Roblox's default controls.
 local function setScriptable()
 	camera = workspace.CurrentCamera
 	camera.CameraType = Enum.CameraType.Scriptable
 end
 
+-- Hides your own helmet in cockpit view so it doesn't block the screen.
 local function setHelmetHidden(hidden: boolean)
 	if hidden then
 		if car and car.Model then
 			for _, d in car.Model:GetDescendants() do
-				if d:IsA("BasePart") and (d.Name == "Helmet" or d.Name == "HelmetStripe" or d.Name == "Visor" or d.Name == "Collar") then
+				if
+					d:IsA("BasePart")
+					and (d.Name == "Helmet" or d.Name == "HelmetStripe" or d.Name == "Visor" or d.Name == "Collar")
+				then
 					d.LocalTransparencyModifier = 1
 					hiddenParts[d] = true
 				end
@@ -73,6 +78,7 @@ local function setHelmetHidden(hidden: boolean)
 	end
 end
 
+-- Follows your car in the chosen race view.
 function Cam.Chase(carController: any)
 	setScriptable()
 	setHelmetHidden(false)
@@ -85,6 +91,7 @@ function Cam.Chase(carController: any)
 	lastView = nil
 end
 
+-- Follows any part (another racer after you finish) in the race view.
 function Cam.Spectate(part: BasePart)
 	setScriptable()
 	setHelmetHidden(false)
@@ -122,7 +129,15 @@ end
 
 -- Menu showroom: slow drift around the car, car framed to the right of the screen centre
 -- baseAngle: where the camera sits around the car (radians); sway: gentle drift amplitude
-function Cam.Showroom(center: Vector3, radius: number, height: number, shift: number?, fov: number?, baseAngle: number?, sway: number?)
+function Cam.Showroom(
+	center: Vector3,
+	radius: number,
+	height: number,
+	shift: number?,
+	fov: number?,
+	baseAngle: number?,
+	sway: number?
+)
 	setScriptable()
 	setHelmetHidden(false)
 	local wasOrbit = mode == "orbit"
@@ -151,15 +166,18 @@ function Cam.Orbit(center: Vector3, radius: number, height: number, speed: numbe
 	orbitSpeed = speed or 0.08
 end
 
+-- Lets the player drag to rotate and scroll to zoom (Garage).
 function Cam.SetInteractive(on: boolean)
 	interactive = on
 	dragging = false
 end
 
+-- Overrides the field of view for the menu preview (nil to reset).
 function Cam.PreviewFov(fov: number?)
 	previewFov = fov
 end
 
+-- Hands the camera back to Roblox.
 function Cam.Stop()
 	mode = "none"
 	setHelmetHidden(false)
@@ -168,6 +186,7 @@ end
 -- Cinematic camera: fn(dt) returns the camera CFrame (and optionally a field of view)
 -- every frame until another mode takes over (circuit intro flyovers)
 local scripted: ((number) -> (CFrame?, number?))? = nil
+-- Camera driven by `fn(t)`, which returns a CFrame and optional FOV (the intro flyover).
 function Cam.Scripted(fn: (number) -> (CFrame?, number?))
 	setScriptable()
 	setHelmetHidden(false)
@@ -175,12 +194,14 @@ function Cam.Scripted(fn: (number) -> (CFrame?, number?))
 	scripted = fn
 end
 
+-- Shakes the camera after a hit (if shake is on in Settings).
 function Cam.Shake(amount: number)
 	if State.Setting("Shake") then
 		shake = math.max(shake, amount)
 	end
 end
 
+-- Current mode: race, showroom, script or none.
 function Cam.Mode(): string
 	return mode
 end
@@ -203,7 +224,10 @@ UserInputService.InputChanged:Connect(function(io, processed)
 	if not interactive then
 		return
 	end
-	if dragging and (io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch) then
+	if
+		dragging
+		and (io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch)
+	then
 		orbitAngle -= io.Delta.X * 0.008
 		orbitTarget = orbitAngle
 	elseif io.UserInputType == Enum.UserInputType.MouseWheel and not processed then
@@ -222,6 +246,7 @@ occlusionParams.IgnoreWater = true
 occlusionParams.RespectCanCollide = false
 local occludedDist: number? = nil
 
+-- Camera position for one race view, smoothed so bumps and kerbs don't jolt it.
 local function raceView(dt: number, cf: CFrame, view: string, speed: number)
 	local pos = cf.Position
 	local look = cf.LookVector
@@ -241,7 +266,11 @@ local function raceView(dt: number, cf: CFrame, view: string, speed: number)
 	if view == "cockpit" or view == "tcam" or view == "nose" then
 		local attr = if view == "cockpit" then "CockpitCam" elseif view == "tcam" then "TCam" else "NoseCam"
 		local custom = target and target:GetAttribute(attr)
-		local offset = if typeof(custom) == "Vector3" then custom elseif view == "cockpit" then Vector3.new(0, 1.12, -0.25) elseif view == "tcam" then Vector3.new(0, 2.25, 0.75) else Vector3.new(0, 0.3, -6.9)
+		local offset = if typeof(custom) == "Vector3"
+			then custom
+			elseif view == "cockpit" then Vector3.new(0, 1.12, -0.25)
+			elseif view == "tcam" then Vector3.new(0, 2.25, 0.75)
+			else Vector3.new(0, 0.3, -6.9)
 		local rigid = cf * CFrame.new(offset)
 		-- smooth only the rotation a little so bumps don't make you seasick
 		local wantLook = rigid.LookVector

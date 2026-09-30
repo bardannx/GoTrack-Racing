@@ -1,4 +1,5 @@
 """Add titles to the promo renders -> final icon (512) and thumbnails (1920x1080)."""
+
 import os
 import sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -10,10 +11,12 @@ M = f"{FONTS}/Poppins-Medium.ttf"
 
 
 def font(p, s):
+    """Loads a font at a size."""
     return ImageFont.truetype(p, s)
 
 
 def shadow_text(img, xy, text, f, fill, shadow=(0, 0, 0, 170), blur=6, off=(4, 5), anchor="la"):
+    """Draws text with a soft drop shadow so it reads on any background."""
     layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
     d.text((xy[0] + off[0], xy[1] + off[1]), text, font=f, fill=shadow, anchor=anchor)
@@ -23,6 +26,7 @@ def shadow_text(img, xy, text, f, fill, shadow=(0, 0, 0, 170), blur=6, off=(4, 5
 
 
 def gradient_band(img, y0, y1, top_alpha, bottom_alpha, color=(8, 10, 20)):
+    """Darkens a horizontal band with a vertical fade, behind titles."""
     w = img.width
     band = Image.new("RGBA", (w, y1 - y0))
     px = band.load()
@@ -34,6 +38,7 @@ def gradient_band(img, y0, y1, top_alpha, bottom_alpha, color=(8, 10, 20)):
 
 
 def left_fade(img, width, alpha=200, color=(8, 10, 20)):
+    """Darkens the left edge with a fade, behind left-aligned text."""
     band = Image.new("RGBA", (width, img.height))
     px = band.load()
     for x in range(width):
@@ -73,6 +78,7 @@ def logo(img, x, y, size):
 
 
 def pill(img, xy, text, f, bg, fg=(255, 255, 255, 255)):
+    """A rounded label with a background colour."""
     d = ImageDraw.Draw(img)
     x, y = xy
     tw = d.textlength(text, font=f)
@@ -84,6 +90,7 @@ def pill(img, xy, text, f, bg, fg=(255, 255, 255, 255)):
 
 def main(S, OUT):
     # ---------------------------------------------------------------- icon
+    """Builds the icon and thumbnails from the renders in S and saves them to OUT."""
     if os.path.exists(f"{S}/f_icon.png"):
         ic = Image.open(f"{S}/f_icon.png").convert("RGBA")
         gradient_band(ic, 560, 1024, 0, 235)
@@ -107,8 +114,12 @@ def main(S, OUT):
         return
     t2 = Image.open(f"{S}/f_lineup.png").convert("RGBA")
     gradient_band(t2, 0, 330, 220, 0)
-    shadow_text(t2, (960, 110), "13 CARS TO COLLECT", font(BI, 110), (255, 214, 40, 255), blur=10, off=(6, 8), anchor="mm")
-    shadow_text(t2, (960, 215), "Every car is different  •  Paint it your way", font(B, 50), (255, 255, 255, 255), anchor="mm")
+    shadow_text(
+        t2, (960, 110), "13 CARS TO COLLECT", font(BI, 110), (255, 214, 40, 255), blur=10, off=(6, 8), anchor="mm"
+    )
+    shadow_text(
+        t2, (960, 215), "Every car is different  •  Paint it your way", font(B, 50), (255, 255, 255, 255), anchor="mm"
+    )
     t2.convert("RGB").save(f"{OUT}/GoTrack_Thumbnail_2.png")
 
     # ---------------------------------------------------------------- thumbnail 3: ranked / modes
@@ -120,7 +131,11 @@ def main(S, OUT):
     shadow_text(t3, (86, 225), "RANKS", font(BI, 150), (255, 214, 40, 255), blur=10, off=(6, 8))
     shadow_text(t3, (90, 420), "Bronze  ›  Silver  ›  Gold  ›  Champion", font(B, 38), (255, 255, 255, 255))
     y = 520
-    for txt, col in (("QUICK RACE", (230, 30, 45, 235)), ("RANKED SEASONS", (120, 60, 220, 235)), ("TIME TRIAL", (20, 140, 220, 235))):
+    for txt, col in (
+        ("QUICK RACE", (230, 30, 45, 235)),
+        ("RANKED SEASONS", (120, 60, 220, 235)),
+        ("TIME TRIAL", (20, 140, 220, 235)),
+    ):
         pill(t3, (86, y), txt, font(B, 36), col)
         y += 84
     t3.convert("RGB").save(f"{OUT}/GoTrack_Thumbnail_3.png")

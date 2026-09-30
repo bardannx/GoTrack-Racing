@@ -21,51 +21,124 @@ local function plural(n: number, one: string, many: string): string
 end
 
 Challenges.Pool = {
-	{ Id = "races", Stat = "races", Goals = { 4, 6, 8 }, Coins = 60, Text = function(n)
-		return string.format("Finish %d races", n)
-	end },
-	{ Id = "podiums", Stat = "podiums", Goals = { 2, 3, 4 }, Coins = 110, Text = function(n)
-		return string.format("Finish on the podium %d times", n)
-	end },
-	{ Id = "wins", Stat = "wins", Goals = { 1, 2, 3 }, Coins = 220, Text = function(n)
-		return plural(n, "Win a race", "Win %d races")
-	end },
-	{ Id = "top5", Stat = "top5", Goals = { 3, 4, 6 }, Coins = 80, Text = function(n)
-		return string.format("Finish in the top five %d times", n)
-	end },
-	{ Id = "laps", Stat = "laps", Goals = { 12, 20, 30 }, Coins = 8, Text = function(n)
-		return string.format("Complete %d laps (races or Time Trial)", n)
-	end },
-	{ Id = "featured", Stat = "featured", Goals = { 2, 3, 4 }, Coins = 110, Text = function(n)
-		return string.format("Race %d times on the featured circuit", n)
-	end },
-	{ Id = "ranked", Stat = "ranked", Goals = { 2, 3, 5 }, Coins = 120, Text = function(n)
-		return string.format("Finish %d Ranked races", n)
-	end },
-	{ Id = "ttLaps", Stat = "ttLaps", Goals = { 5, 8, 12 }, Coins = 25, Text = function(n)
-		return string.format("Set %d valid Time Trial laps", n)
-	end },
-	{ Id = "ttMedals", Stat = "ttMedals", Goals = { 1, 2, 3 }, Coins = 150, Text = function(n)
-		return plural(n, "Set a Silver-medal (or better) Time Trial lap", "Set %d Silver-medal (or better) Time Trial laps")
-	end },
-	{ Id = "fastest", Stat = "fastest", Goals = { 1, 2 }, Coins = 180, Text = function(n)
-		return plural(n, "Set the fastest lap in a race", "Set the fastest lap in %d races")
-	end },
+	{
+		Id = "races",
+		Stat = "races",
+		Goals = { 4, 6, 8 },
+		Coins = 60,
+		Text = function(n)
+			return string.format("Finish %d races", n)
+		end,
+	},
+	{
+		Id = "podiums",
+		Stat = "podiums",
+		Goals = { 2, 3, 4 },
+		Coins = 110,
+		Text = function(n)
+			return string.format("Finish on the podium %d times", n)
+		end,
+	},
+	{
+		Id = "wins",
+		Stat = "wins",
+		Goals = { 1, 2, 3 },
+		Coins = 220,
+		Text = function(n)
+			return plural(n, "Win a race", "Win %d races")
+		end,
+	},
+	{
+		Id = "top5",
+		Stat = "top5",
+		Goals = { 3, 4, 6 },
+		Coins = 80,
+		Text = function(n)
+			return string.format("Finish in the top five %d times", n)
+		end,
+	},
+	{
+		Id = "laps",
+		Stat = "laps",
+		Goals = { 12, 20, 30 },
+		Coins = 8,
+		Text = function(n)
+			return string.format("Complete %d laps (races or Time Trial)", n)
+		end,
+	},
+	{
+		Id = "featured",
+		Stat = "featured",
+		Goals = { 2, 3, 4 },
+		Coins = 110,
+		Text = function(n)
+			return string.format("Race %d times on the featured circuit", n)
+		end,
+	},
+	{
+		Id = "ranked",
+		Stat = "ranked",
+		Goals = { 2, 3, 5 },
+		Coins = 120,
+		Text = function(n)
+			return string.format("Finish %d Ranked races", n)
+		end,
+	},
+	{
+		Id = "ttLaps",
+		Stat = "ttLaps",
+		Goals = { 5, 8, 12 },
+		Coins = 25,
+		Text = function(n)
+			return string.format("Set %d valid Time Trial laps", n)
+		end,
+	},
+	{
+		Id = "ttMedals",
+		Stat = "ttMedals",
+		Goals = { 1, 2, 3 },
+		Coins = 150,
+		Text = function(n)
+			return plural(
+				n,
+				"Set a Silver-medal (or better) Time Trial lap",
+				"Set %d Silver-medal (or better) Time Trial laps"
+			)
+		end,
+	},
+	{
+		Id = "fastest",
+		Stat = "fastest",
+		Goals = { 1, 2 },
+		Coins = 180,
+		Text = function(n)
+			return plural(n, "Set the fastest lap in a race", "Set the fastest lap in %d races")
+		end,
+	},
 }
 
 -- one-time checklist for new players; lifetime stats (d.stats) decide progress
 Challenges.Starter = {
 	{ Id = "s_race", Stat = "races", Text = "Finish your first race", Goal = 1, Coins = 200, Icon = "🏁" },
 	{ Id = "s_tt", Stat = "ttLaps", Text = "Set a Time Trial lap", Goal = 1, Coins = 150, Icon = "⏱️" },
-	{ Id = "s_garage", Stat = "equips", Text = "Change something on your car in the Garage", Goal = 1, Coins = 100, Icon = "🎨" },
+	{
+		Id = "s_garage",
+		Stat = "equips",
+		Text = "Change something on your car in the Garage",
+		Goal = 1,
+		Coins = 100,
+		Icon = "🎨",
+	},
 	{ Id = "s_podium", Stat = "podiums", Text = "Finish on the podium", Goal = 1, Coins = 250, Icon = "🏆" },
 	{ Id = "s_ranked", Stat = "rankedRaces", Text = "Finish a Ranked race", Goal = 1, Coins = 250, Icon = "💎" },
 }
 
+-- Week number for a unix time (week 0 starts at EPOCH).
 function Challenges.WeekAt(t: number): number
 	return math.floor((t - EPOCH) / WEEK)
 end
 
+-- Unix time when the given week ends, for the "resets in 3d 4h" countdown.
 function Challenges.WeekEnds(week: number): number
 	return EPOCH + (week + 1) * WEEK
 end
