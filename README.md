@@ -11,7 +11,7 @@
 [![Rojo](https://img.shields.io/badge/Rojo-7.6-E13835)](https://rojo.space/)
 [![Blender](https://img.shields.io/badge/Blender-bpy%20procedural-F5792A?logo=blender&logoColor=white)](https://www.blender.org/)
 [![Lune](https://img.shields.io/badge/tests-Lune-7c3aed)](https://github.com/lune-org/lune)
-[![License](https://img.shields.io/badge/license-all%20rights%20reserved-B91C1C)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-16A34A)](LICENSE)
 
 [![Play on Roblox](https://img.shields.io/badge/%E2%96%B6%20PLAY%20ON%20ROBLOX-00B06F?style=for-the-badge&logo=roblox&logoColor=white)](https://www.roblox.com/share?code=b186e6c9a88cc64bbb3b98de8a618c95&type=ExperienceDetails&stamp=1790784827962)
 
@@ -303,8 +303,8 @@ On top of that, `check.sh` runs `luau-lsp` over the whole codebase against a kno
 
 **[▶ Play GoTrack Racing on Roblox](https://www.roblox.com/share?code=b186e6c9a88cc64bbb3b98de8a618c95&type=ExperienceDetails&stamp=1790784827962)**
 
-**GoTrack Racing** · © 2026 Bardan. All rights reserved.
+**GoTrack Racing** · © 2026 Bardan Kapri · [MIT licence](LICENSE)
 
-The source is public only to show how the game is built. You may not copy, reuse, re-upload or build on any of it (see [LICENSE](LICENSE)).
+Free to use: take the code, learn from it, remix it and build your own games with it. Just keep the copyright and licence notice (see [LICENSE](LICENSE)).
 
 </div>
