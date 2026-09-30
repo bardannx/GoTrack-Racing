@@ -742,7 +742,7 @@ local function stepAI(s, dt: number)
 				r.LatTimer = 3 + math.random() * 4
 				r.LateralTarget = (math.random() * 2 - 1) * t.Width * 0.26
 			end
-			-- bumps from players push the AI sideways, then it steers back
+			-- bumps from players push the computer car sideways, then it steers back
 			r.LatVel = (r.LatVel or 0) * math.exp(-3 * dt)
 			r.Lateral += (r.LateralTarget - r.Lateral) * math.min(1, 0.6 * dt) + r.LatVel * dt
 			r.Lateral = math.clamp(r.Lateral, -maxLat, maxLat)
@@ -1138,7 +1138,7 @@ local function onReset(p: Player)
 	r.GhostUntil = tNow + Config.Damage.ResetRepairSeconds + Config.Contact.GhostResetSeconds
 end
 
--- a player hit an AI car: push the AI (validated by distance)
+-- a player hit a computer car: push it away (validated by distance)
 local function onBump(p: Player, b: any)
 	local s = playerSession[p]
 	if not s or typeof(b) ~= "buffer" or buffer.len(b) ~= 5 then
@@ -1366,7 +1366,7 @@ function RM.Init()
 			lobbyTick(now())
 		end
 	end)
-	-- AI + session ticks
+	-- computer drivers + session ticks
 	RunService.Heartbeat:Connect(function(dt)
 		for id, s in sessions do
 			local ok, err = pcall(function()

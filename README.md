@@ -47,7 +47,7 @@ GoTrack Racing is a solo project by **Bardan Kapri**.
 - **The idea and the direction are mine.** I decided what the game should be: an F1-style racer on circuits inspired by real places, where every car handles the same and skill decides the race. Every feature started as my call, from cars built around real F1 eras and circuits full of life, to ranked seasons against real players only and a store where nothing paid makes a car faster.
 - **I tested it by playing it.** I play-tested in Studio and kept sending back anything that looked or felt wrong (a gap in the HUD car's rear wing, a store picture too busy with badges) until it was right.
 - **I did the hands-on production.** Importing every car and world mesh into Studio, setting up the store, publishing, and running the live game.
-- **AI was my coding tool.** The code was written with Claude, working from my direction and my feedback, and every change was held to the same checks: type-checked, run through the simulations below, and play-tested before it shipped. Everyone uses AI now; what matters is how you use it and what you ship. This repo shows how I used it: a clear architecture, generated assets, and tests that run the real game code.
+- **AI was a tool, used to help with the coding.** The decisions were mine: what to build, how the game should look, play and feel, and whether each feature was good enough to ship. Every change had to pass the checks below and my own play-testing before it went live. Everyone uses AI now; what matters is how you use it and what you make with it.
 
 ---
 

@@ -1183,7 +1183,7 @@ function Kit.TierBadge(parent: Instance, tier, size: number, division: string?, 
 	return f
 end
 
--- Player headshot (AI / unknown players get initials)
+-- Player headshot (computer drivers and unknown players get initials)
 function Kit.Avatar(
 	parent: Instance,
 	userId: number?,

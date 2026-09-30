@@ -170,7 +170,7 @@ Config.Ranked = {
 	SeasonDays = 70,
 	SeasonReset = 0.5, -- RP keeps 50% above the start value at a new season
 	MatchmakingSpread = 350, -- RP difference allowed when joining a ranked lobby
-	-- Ranked is real players only (never AI). Live servers share one queue (MemoryStore)
+	-- Ranked is real players only (never computer drivers). Live servers share one queue (MemoryStore)
 	-- and send each match to its own reserved server (server/RankedMatchmaker.luau).
 	Queue = {
 		MinRacers = 2, -- fewest players a ranked race can start with

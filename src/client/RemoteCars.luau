@@ -295,7 +295,7 @@ function RemoteCars:Update(dt: number)
 			if car.Parts.Plank and car.Speed > 170 and math.random() < dt * 2.5 then
 				car.Parts.Plank:Emit(math.random(3, 8))
 			end
-			-- active-aero flap (flag from the owner / the server's AI)
+			-- active-aero flap (flag from the car's player, or the server for computer cars)
 			if car.Parts.Flap then
 				local goal = if bit32.band(car.Flags or 0, F.Aero) ~= 0 then 1 else 0
 				local cur = car.FlapT or 0
