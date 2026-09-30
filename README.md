@@ -17,11 +17,14 @@ Designed, play-tested and launched by **Bardan Kapri**.
 
 [![Play on Roblox](https://img.shields.io/badge/%E2%96%B6%20PLAY%20ON%20ROBLOX-00B06F?style=for-the-badge&logo=roblox&logoColor=white)](https://www.roblox.com/share?code=b186e6c9a88cc64bbb3b98de8a618c95&type=ExperienceDetails&stamp=1790784827962)
 
-[Made by](#-made-by) · [Layout](#-repository-layout) · [Architecture](#-architecture) · [Networking](#-networking-and-multiplayer) · [Procedural circuits](#-procedural-circuits) · [Blender pipelines](#-blender-pipelines) · [Testing](#-testing-outside-roblox) · [Tooling](#-tooling-and-workflow)
+[Learning](#-learning-from-this-repo) · [Made by](#-made-by) · [Layout](#-repository-layout) · [Architecture](#-architecture) · [Networking](#-networking-and-multiplayer) · [Procedural circuits](#-procedural-circuits) · [Blender pipelines](#-blender-pipelines) · [Testing](#-testing-outside-roblox) · [Tooling](#-tooling-and-workflow)
 
 <img src="docs/images/hero.jpg" alt="GoTrack Racing" width="100%">
 
 </div>
+
+> [!NOTE]
+> **This project is for learning.** It's shared so people can learn **Luau** and **game development** from a real, finished Roblox game: how the code is organised, how the server and clients talk to each other, how circuits and 3D models are generated, and how a game can be tested outside Studio. It isn't a product, a template or a supported library.
 
 ---
 
@@ -47,6 +50,30 @@ GoTrack Racing is a solo project by **Bardan Kapri**.
 - **I tested it by playing it.** I play-tested in Studio and kept sending back anything that looked or felt wrong (a gap in the HUD car's rear wing, a store picture too busy with badges) until it was right.
 - **I did the hands-on production.** Importing every car and world mesh into Studio, setting up the store, publishing, and running the live game.
 - **AI was my coding tool.** The code was written with Claude, working from my direction and my feedback, and every change was held to the same checks: type-checked, run through the simulations below, and play-tested before it shipped. Everyone uses AI now; what matters is how you use it and what you ship. This repo shows how I used it: a clear architecture, generated assets, and tests that run the real game code.
+
+---
+
+## 📚 Learning from this repo
+
+Every file starts with a short note on what it does, and every function has a one-line comment, so you can open any file and follow along. A good order to read it in:
+
+| To learn about… | Read |
+|---|---|
+| Keeping every setting in one place | [`src/shared/Config.luau`](src/shared/Config.luau) |
+| Maths without the engine: splines, curvature, a speed profile | [`src/shared/Track.luau`](src/shared/Track.luau) |
+| Remotes, and packing a car's state into 29 bytes | [`src/shared/Net.luau`](src/shared/Net.luau) |
+| Saving player data safely (session locks, autosave) | [`src/server/DataService.luau`](src/server/DataService.luau) |
+| A multiplayer race from lobby to results, with a server that checks everything | [`src/server/RaceManager.luau`](src/server/RaceManager.luau) |
+| Matching players across servers with MemoryStore and teleports | [`src/server/RankedMatchmaker.luau`](src/server/RankedMatchmaker.luau) |
+| Stopping cheated lap times | [`src/server/TimeTrial.luau`](src/server/TimeTrial.luau) |
+| A drivable car with raycast suspension | [`src/client/CarController.luau`](src/client/CarController.luau) |
+| Smooth movement for other players' cars (dead reckoning) | [`src/client/RemoteCars.luau`](src/client/RemoteCars.luau) |
+| A UI design system that works on phones and PCs | [`src/client/UI/Kit.luau`](src/client/UI/Kit.luau) |
+| Building a whole world from code | [`src/client/CircuitBuilder.luau`](src/client/CircuitBuilder.luau) |
+| Running and testing Luau outside Roblox | [`tools/sim/env.luau`](tools/sim/env.luau) |
+| Making 3D models with Python and Blender | [`tools/cargen/`](tools/cargen/), [`docs/CAR_PIPELINE.md`](docs/CAR_PIPELINE.md) |
+
+The 3D assets and the place file aren't in this repo, so it can't be built into the full game as it is. It's meant to be read, studied and experimented with.
 
 ---
 
@@ -319,6 +346,6 @@ On top of that, `check.sh` runs `luau-lsp` over the whole codebase against a kno
 
 **GoTrack Racing** · © 2026 Bardan Kapri · [MIT licence](LICENSE)
 
-Free to use: take the code, learn from it, remix it and build your own games with it. Just keep the copyright and licence notice (see [LICENSE](LICENSE)).
+Shared for learning Luau and game development. Read it, learn from it and try things out; just keep the copyright and licence notice if you reuse any of it (see [LICENSE](LICENSE)).
 
 </div>
