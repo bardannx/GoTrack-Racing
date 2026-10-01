@@ -637,6 +637,49 @@ function CarBuilder.MakeTrailColor(id: string): ColorSequence
 	return ColorSequence.new(c[1], c[2])
 end
 
+-- The trail cosmetic. Your own car gets the full ribbon between the rear-wing tips. Everyone
+-- else's car (other racers, ghosts) gets two thin, short, fainter streaks from the wing tips
+-- instead, so a trail never hides the road from the drivers behind it. Returns the trail the
+-- car controller switches on and off with speed.
+local function addTrail(chassis: BasePart, car, left: Vector3, right: Vector3, othersView: boolean): Trail
+	local color = CarBuilder.MakeTrailColor(car.Trail)
+	local smoke = car.Trail == "trail_smoke"
+	local function ribbon(
+		p0: Vector3,
+		p1: Vector3,
+		lifetime: number,
+		transparency: NumberSequence,
+		emission: number
+	): Trail
+		local a0 = Instance.new("Attachment")
+		a0.Position = p0
+		a0.Parent = chassis
+		local a1 = Instance.new("Attachment")
+		a1.Position = p1
+		a1.Parent = chassis
+		local tr = Instance.new("Trail")
+		tr.Attachment0 = a0
+		tr.Attachment1 = a1
+		tr.Color = color
+		tr.Lifetime = lifetime
+		tr.LightEmission = emission
+		tr.Transparency = transparency
+		tr.MinLength = 0.2
+		tr.Parent = chassis
+		return tr
+	end
+	if not othersView then
+		return ribbon(left, right, if smoke then 0.7 else 0.5, NumberSequence.new(0.25, 1), if smoke then 0 else 1)
+	end
+	-- upright and thin: from behind (or from a chase camera above) it reads as a line
+	local half = Vector3.new(0, 0.18, 0)
+	local fade = NumberSequence.new(0.55, 1)
+	local emission = if smoke then 0 else 0.6
+	local first = ribbon(left - half, left + half, 0.25, fade, emission)
+	ribbon(right - half, right + half, 0.25, fade, emission)
+	return first
+end
+
 -- opts: { Ghost = translucent time-trial ghost, Remote = other racer (anchored),
 --         Preview = showroom (anchored), UserId = number used for the automatic race number }
 function CarBuilder.BuildLegacy(appearance, opts)
@@ -854,22 +897,8 @@ function CarBuilder.BuildLegacy(appearance, opts)
 	-- wing-tip trail
 	local trail = nil
 	if car.Trail ~= "trail_none" and not o.Preview then
-		local a0 = Instance.new("Attachment")
-		a0.Position = v(-2.1, geo.rearWingY + 0.4, 5.6)
-		a0.Parent = chassis
-		local a1 = Instance.new("Attachment")
-		a1.Position = v(2.1, geo.rearWingY + 0.4, 5.6)
-		a1.Parent = chassis
-		local tr = Instance.new("Trail")
-		tr.Attachment0 = a0
-		tr.Attachment1 = a1
-		tr.Color = CarBuilder.MakeTrailColor(car.Trail)
-		tr.Lifetime = if car.Trail == "trail_smoke" then 0.7 else 0.5
-		tr.LightEmission = if car.Trail == "trail_smoke" then 0 else 1
-		tr.Transparency = NumberSequence.new(0.25, 1)
-		tr.MinLength = 0.2
-		tr.Parent = chassis
-		trail = tr
+		local y = geo.rearWingY + 0.4
+		trail = addTrail(chassis, car, v(-2.1, y, 5.6), v(2.1, y, 5.6), o.Remote == true or o.Ghost == true)
 	end
 
 	if o.Ghost then
@@ -1714,22 +1743,7 @@ function CarBuilder.Build(appearance, opts)
 	-- rear-wing tip trail
 	local trail = nil
 	if car.Trail ~= "trail_none" and not o.Preview then
-		local a0 = Instance.new("Attachment")
-		a0.Position = D.Trail[1]
-		a0.Parent = chassis
-		local a1 = Instance.new("Attachment")
-		a1.Position = D.Trail[2]
-		a1.Parent = chassis
-		local tr = Instance.new("Trail")
-		tr.Attachment0 = a0
-		tr.Attachment1 = a1
-		tr.Color = CarBuilder.MakeTrailColor(car.Trail)
-		tr.Lifetime = if car.Trail == "trail_smoke" then 0.7 else 0.5
-		tr.LightEmission = if car.Trail == "trail_smoke" then 0 else 1
-		tr.Transparency = NumberSequence.new(0.25, 1)
-		tr.MinLength = 0.2
-		tr.Parent = chassis
-		trail = tr
+		trail = addTrail(chassis, car, D.Trail[1], D.Trail[2], o.Remote == true or o.Ghost == true)
 	end
 
 	-- F1 details: rear rain light (brakes, rain, night), rain spray, floor sparks
