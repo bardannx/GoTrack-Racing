@@ -72,6 +72,30 @@ local function cleanup(race)
 	Hud.Hide()
 	Cam.Stop()
 	Cam.SetTrack(nil)
+	if race.CloseExitOffer then
+		race.CloseExitOffer()
+		race.CloseExitOffer = nil
+	end
+end
+
+-- After the flag: a pop-up to leave now (the result and rewards are already saved on the
+-- server) or keep watching. Leaving later is still possible from the pause menu.
+local function offerExit(race, handlers)
+	race.CloseExitOffer = Kit.Modal(
+		"🏁 You finished P" .. tostring(race.MyPos or "?"),
+		"Your result and rewards are saved. Leave now, or watch the others finish: the full results show when the race ends.",
+		{
+			{ "👀 Watch", "secondary" },
+			{
+				"🏠 Exit to menu",
+				"primary",
+				function()
+					RaceClient.Quit(handlers)
+				end,
+			},
+		},
+		460
+	)
 end
 
 -- info: RaceStart payload. handlers: { OnResults(payload, yourRid), OnQuit() }
@@ -108,6 +132,9 @@ function RaceClient.Start(info, handlers)
 		GhostUntil = 0,
 		WreckedTime = 0,
 		Repairing = false,
+		FinishedClock = 0, -- os.clock() when we crossed the line
+		StoppedTime = 0, -- how long the car has been standing still since the finish
+		ExitOffered = false,
 		IntroDone = false,
 		EndIntro = function() end,
 	}
@@ -413,6 +440,15 @@ function RaceClient.Start(info, handlers)
 			else
 				race.WreckedTime = 0
 			end
+			-- finished: once the car has stood still for 3 s (or 12 s after the flag at the
+			-- latest), offer the exit instead of making the player wait for everyone else
+			if race.Finished and not race.ExitOffered then
+				race.StoppedTime = if car.Speed < 2 then race.StoppedTime + dt else 0
+				if race.StoppedTime >= 3 or os.clock() - race.FinishedClock > 12 then
+					race.ExitOffered = true
+					offerExit(race, handlers)
+				end
+			end
 			-- struggling device? lower the graphics once, 12s into the race
 			if race.Started and not race.PerfChecked and raceTime > 12 then
 				race.PerfChecked = true
@@ -522,6 +558,7 @@ function RaceClient._gate(race, gate: number, raceTime: number)
 		local laps = race.Info.Laps
 		if race.LapsDone >= laps then
 			race.Finished = true
+			race.FinishedClock = os.clock()
 			race.Car.Enabled = false
 			Hud.SetLap(laps, laps)
 			Hud.Warning(nil)

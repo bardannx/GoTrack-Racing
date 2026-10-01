@@ -466,7 +466,9 @@ function CarController:PhysicsStep(dt: number)
 	end
 	dt = math.min(dt, 1 / 20)
 	self.ImpactCooldown = math.max(0, self.ImpactCooldown - dt)
-	if self.Enabled and not self.Wrecked then
+	-- not driving (finished, repairing, wrecked): a light brake brings the car to a stop
+	local driving = self.Enabled and not self.Wrecked
+	if driving then
 		readInput()
 	else
 		Input.Throttle, Input.Brake, Input.Steer, Input.Handbrake = 0, if self.Wrecked then 0.6 else 0.35, 0, false
@@ -623,8 +625,12 @@ function CarController:PhysicsStep(dt: number)
 		elseif brake > 0 then
 			if vF > 2 then
 				accel = -cfg.BrakeDecel * brake
-			elseif vF > -cfg.ReverseTopSpeed then
+			elseif driving and vF > -cfg.ReverseTopSpeed then
+				-- only the player can reverse; the auto-brake never backs the car up
 				accel = -cfg.ReverseAccel * brake
+			elseif not driving and vF < -2 then
+				-- rolling backwards (down a slope) with nobody driving: brake that way too
+				accel = cfg.BrakeDecel * brake
 			end
 		end
 		local sgn = if vF >= 0 then 1 else -1
@@ -632,8 +638,13 @@ function CarController:PhysicsStep(dt: number)
 		if vF > top + 2 then
 			resist -= (vF - top) * (1.2 + offFrac * 2 + gravelFrac * 3)
 		end
-		if throttle == 0 and brake == 0 and math.abs(vF) < 3 then
+		if ((throttle == 0 and brake == 0) or not driving) and math.abs(vF) < 3 then
+			-- nearly stopped with no pedal (or not driving): hold still instead of creeping
 			resist = -vF * 4
+			if not driving then
+				-- parking brake: cancel the pull of the slope so the car stays put
+				resist += cfg.Gravity * fwd.Y
+			end
 		end
 		accel += resist
 		imp(fwd * accel * mass * dt * groundFactor)
