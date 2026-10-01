@@ -343,11 +343,14 @@ local function streetside(ctx, over)
 			local lat = side * (ctx.Barrier + 5)
 			local x1, y1, z1 = Track.PointAt(t, t.S[i], lat)
 			local x2, y2, z2 = Track.PointAt(t, t.S[i + step], lat)
+			-- each piece is straight, so on a bend its middle sags towards the road: check it too
+			local mx, mz = (x1 + x2) / 2, (z1 + z2) / 2
 			if
 				not t.Over[i]
 				and ctx.Clear(x1, z1, ctx.Barrier + 1.5)
 				and ctx.Clear(x2, z2, ctx.Barrier + 1.5)
-				and ctx.Occ.free((x1 + x2) / 2, (z1 + z2) / 2, 3)
+				and ctx.Clear(mx, mz, ctx.Barrier + 1.5)
+				and ctx.Occ.free(mx, mz, 3)
 			then
 				local p1, p2 = Vector3.new(x1, y1 + 0.2, z1), Vector3.new(x2, y2 + 0.2, z2)
 				local len = (p2 - p1).Magnitude

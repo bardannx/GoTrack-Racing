@@ -540,6 +540,9 @@ function Props.bush(f, cf, s, th)
 	)
 end
 
+-- How far the widest props reach from their centre at scale 1, for keeping them off the road.
+local PROP_REACH = { sunflowers = 32, tulips = 32, hedge = 15, dune = 25 }
+
 -- Blender stand-ins for the props once the world meshes are imported:
 -- prop name -> { design(s), leaf colours?, trunk colour? }
 local function rgb(r, g, b)
@@ -1156,6 +1159,181 @@ local function strip(parent, t, a, b, lateral, width, thick, topLift, color, mat
 end
 
 ---------------------------------------------------------------------------
+-- Road clearance (nothing may stand on the road)
+---------------------------------------------------------------------------
+-- The space above the road that must stay empty: the full width (less EDGE at each side,
+-- where kerbs and barriers live), from just above the tarmac up to ROAD_CLEAR studs, which
+-- covers a car and the chase camera behind it.
+local ROAD_CLEAR = 12
+local EDGE = 1.5
+CircuitBuilder.RoadClear = ROAD_CLEAR
+CircuitBuilder.RoadEdge = EDGE
+-- tests set this to {} to collect the parts the clearance sweep removes
+CircuitBuilder.SweepLog = nil :: { BasePart }?
+
+-- Samples of road that pass under another part of the track (a bridge crossing). The bridge
+-- itself is meant to be there, so the clearance sweep and checks leave these alone.
+function CircuitBuilder.UnderBridge(t): { [number]: boolean }
+	local cell = 60
+	local grid = {}
+	for i = 1, t.N do
+		local key = math.floor(t.X[i] / cell) .. ":" .. math.floor(t.Z[i] / cell)
+		grid[key] = grid[key] or {}
+		table.insert(grid[key], i)
+	end
+	local under = {}
+	local reach = t.Width + 40 -- the same reach Track uses to mark the bridge (t.Over)
+	for i = 1, t.N do
+		local cx, cz = math.floor(t.X[i] / cell), math.floor(t.Z[i] / cell)
+		for gx = cx - 1, cx + 1 do
+			for gz = cz - 1, cz + 1 do
+				for _, o in grid[gx .. ":" .. gz] or {} do
+					if math.abs(Track.IndexDelta(t, i, o)) > 40 and t.Y[o] > t.Y[i] + 2 then
+						local dx, dz = t.X[o] - t.X[i], t.Z[o] - t.Z[i]
+						if dx * dx + dz * dz < reach * reach then
+							under[i] = true
+						end
+					end
+				end
+			end
+		end
+	end
+	return under
+end
+
+-- Separating-axis test between two boxes, each given as a centre, its three unit axes and
+-- its half sizes along them.
+local function boxesOverlap(ca: Vector3, axA, ha: Vector3, cb: Vector3, axB, hb: Vector3): boolean
+	local d = cb - ca
+	local function separated(L: Vector3): boolean
+		if L.Magnitude < 1e-6 then
+			return false -- parallel edges: covered by the face axes
+		end
+		local ra = ha.X * math.abs(axA[1]:Dot(L)) + ha.Y * math.abs(axA[2]:Dot(L)) + ha.Z * math.abs(axA[3]:Dot(L))
+		local rb = hb.X * math.abs(axB[1]:Dot(L)) + hb.Y * math.abs(axB[2]:Dot(L)) + hb.Z * math.abs(axB[3]:Dot(L))
+		return math.abs(d:Dot(L)) > ra + rb
+	end
+	for k = 1, 3 do
+		if separated(axA[k]) or separated(axB[k]) then
+			return false
+		end
+	end
+	for i = 1, 3 do
+		for j = 1, 3 do
+			if separated(axA[i]:Cross(axB[j])) then
+				return false
+			end
+		end
+	end
+	return true
+end
+
+-- The last line of defence after a circuit is built: any part reaching into the road space
+-- is removed. Only the `folders` given are searched (never the road surfaces); bridge
+-- railings, moving scenery (`movers`) and the road under bridges are left alone. Returns how
+-- many parts it removed; the circuit builders should keep that at zero
+-- (tools/sim/roadcheck.luau reports it).
+local function clearRoad(t, folders: { Instance }, movers): number
+	local W = t.Width
+	local cell = 48
+	-- numeric cell keys: string keys cost an allocation per lookup, and this runs ~30k times
+	local function key(gx: number, gz: number): number
+		return (gx + 50000) * 100000 + (gz + 50000)
+	end
+	local grid = {}
+	local minY, maxY = math.huge, -math.huge
+	for i = 1, t.N do
+		local k = key(math.floor(t.X[i] / cell), math.floor(t.Z[i] / cell))
+		local list = grid[k]
+		if not list then
+			list = {}
+			grid[k] = list
+		end
+		table.insert(list, i)
+		minY = math.min(minY, t.Y[i])
+		maxY = math.max(maxY, t.Y[i])
+	end
+	local under = CircuitBuilder.UnderBridge(t)
+	local moving = {}
+	for _, m in movers do
+		for _, p in m.Parts do
+			moving[p] = true
+		end
+	end
+	local half = Vector3.new(W / 2 - EDGE, (ROAD_CLEAR - 1) / 2, Track.DS / 2 + 0.5)
+	local reachXZ = math.sqrt(half.X * half.X + half.Z * half.Z)
+	local lowest = minY + ROAD_LIFT + 1
+	local highest = maxY + ROAD_LIFT + ROAD_CLEAR
+	local up = Vector3.new(0, 1, 0)
+
+	-- does this part reach into the road space at any track sample?
+	local function onRoad(d: BasePart): boolean
+		local cf, sz = d.CFrame, d.Size
+		local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
+		local hy = math.abs(r.Y) * sz.X / 2 + math.abs(u.Y) * sz.Y / 2 + math.abs(l.Y) * sz.Z / 2
+		local p = cf.Position
+		if p.Y + hy < lowest or p.Y - hy > highest then
+			return false -- entirely below or above every bit of road
+		end
+		local hx = math.abs(r.X) * sz.X / 2 + math.abs(u.X) * sz.Y / 2 + math.abs(l.X) * sz.Z / 2
+		local hz = math.abs(r.Z) * sz.X / 2 + math.abs(u.Z) * sz.Y / 2 + math.abs(l.Z) * sz.Z / 2
+		local partReach = math.sqrt(hx * hx + hz * hz)
+		for gx = math.floor((p.X - hx - reachXZ) / cell), math.floor((p.X + hx + reachXZ) / cell) do
+			for gz = math.floor((p.Z - hz - reachXZ) / cell), math.floor((p.Z + hz + reachXZ) / cell) do
+				local list = grid[key(gx, gz)]
+				if list then
+					for _, i in list do
+						if not under[i] then
+							local bottom = t.Y[i] + ROAD_LIFT + 1
+							local dx, dz = p.X - t.X[i], p.Z - t.Z[i]
+							if
+								p.Y + hy > bottom
+								and p.Y - hy < bottom + ROAD_CLEAR - 1
+								and dx * dx + dz * dz < (partReach + reachXZ) ^ 2
+							then
+								local right = Vector3.new(t.RX[i], 0, t.RZ[i])
+								local fwd = Vector3.new(t.TX[i], 0, t.TZ[i]).Unit
+								local centre = Vector3.new(t.X[i], bottom + half.Y, t.Z[i])
+								if boxesOverlap(centre, { right, up, fwd }, half, p, { r, u, l }, sz / 2) then
+									return true
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		return false
+	end
+
+	local removed, seen = 0, 0
+	for _, folder in folders do
+		for _, d in folder:GetDescendants() do
+			if d:IsA("BasePart") then
+				seen += 1
+				if seen % 1000 == 0 then
+					task.wait() -- spread over a few frames so the loading screen keeps moving
+				end
+				if
+					not moving[d]
+					and (d.Transparency < 0.95 or d.CanCollide)
+					and not d:GetAttribute("BridgeRail")
+					and onRoad(d)
+				then
+					local log = CircuitBuilder.SweepLog
+					if log then
+						table.insert(log, d)
+					end
+					d:Destroy()
+					removed += 1
+				end
+			end
+		end
+	end
+	return removed
+end
+
+---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
 -- onProgress(stage, fraction) is called as each part of the world goes up (intro screen)
@@ -1324,7 +1502,8 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 
 		if over then
 			for side = -1, 1, 2 do
-				strip(
+				-- the bridge's railings keep cars on the deck: the clearance sweep leaves them be
+				local rail = strip(
 					walls,
 					t,
 					a,
@@ -1339,6 +1518,9 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 					true,
 					ex(W / 2 + 1.2, 1.6)
 				)
+				if rail then
+					rail:SetAttribute("BridgeRail", true)
+				end
 				strip(
 					deco,
 					t,
@@ -2026,6 +2208,36 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 		)
 	end
 
+	-- A grandstand is one straight block, so on a bend its ends can swing towards the road.
+	-- Check its whole footprint, from the fascia facing the track to the back of the roof.
+	local function standFits(cf: CFrame, length: number, facing: number, rows: number): boolean
+		local n = math.ceil(length / 16)
+		for k = 0, n do
+			local along = -length / 2 + length * k / n
+			for _, depth in { -4, rows * 2.5, rows * 5 + 6 } do
+				local p = cf * Vector3.new(-facing * depth, 0, along)
+				if not clear(p.X, p.Z, W / 2 + 6) then
+					return false
+				end
+			end
+		end
+		return true
+	end
+
+	-- The pit lane and garages are straight blocks too: on a curved start straight their
+	-- middle and ends swing towards the track, so check the straight line itself.
+	local function chordClear(fromS: number, toS: number, lateral: number, radius: number): boolean
+		local xa, _, za = Track.PointAt(t, fromS, lateral)
+		local xb, _, zb = Track.PointAt(t, toS, lateral)
+		for k = 0, 24 do
+			local a = k / 24
+			if not clear(xa + (xb - xa) * a, za + (zb - za) * a, radius) then
+				return false
+			end
+		end
+		return true
+	end
+
 	-- pit lane, garages and paddock (outside of the main straight) ------------------------
 	local straightS = 0
 	local pitLat = outSide * (BARRIER + 16)
@@ -2036,6 +2248,10 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			okPit = false
 		end
 	end
+	-- inner edge of the pit lane, and the front of the garage building
+	okPit = okPit
+		and chordClear(straightS - 300, straightS + 240, outSide * (BARRIER + 6), W / 2 + 3)
+		and chordClear(straightS - 300, straightS + 240, outSide * (BARRIER + 28), W / 2 + 3)
 	if okPit then
 		for s2 = -300, 240, 50 do
 			local x, _, z = Track.PointAt(t, s2, outSide * (BARRIER + 34))
@@ -2156,10 +2372,10 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				ok = false
 			end
 		end
-		if ok then
-			local x1, _, z1 = Track.PointAt(t, -170, lat)
-			local x2, _, z2 = Track.PointAt(t, 170, lat)
-			local cf = CFrame.lookAt(Vector3.new((x1 + x2) / 2, 0, (z1 + z2) / 2), Vector3.new(x2, 0, z2))
+		local x1, _, z1 = Track.PointAt(t, -170, lat)
+		local x2, _, z2 = Track.PointAt(t, 170, lat)
+		local cf = CFrame.lookAt(Vector3.new((x1 + x2) / 2, 0, (z1 + z2) / 2), Vector3.new(x2, 0, z2))
+		if ok and standFits(cf, 320, -inSide, 8) then
 			stand(cf, 320, -inSide, 8)
 			-- big screen
 			local sx, _, sz = Track.PointAt(t, 220, lat + inSide * 10)
@@ -2212,8 +2428,11 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				if clear(x, z, BARRIER + 14) and occ.free(x, z, 60) then
 					local x0, _, z0 = Track.PointAt(t, t.S[i], lat)
 					local cf = CFrame.lookAt(Vector3.new(x0, 0, z0), Vector3.new(x0 + tx, 0, z0 + tz))
-					stand(cf, 130, side, 6)
-					table.insert(placed, i)
+					-- the stand sits on `side`, so the track is on the other side of it
+					if standFits(cf, 130, -side, 6) then
+						stand(cf, 130, -side, 6)
+						table.insert(placed, i)
+					end
 				end
 			end
 		end
@@ -2735,7 +2954,11 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 				end
 			end
 			local cf = CFrame.new(x, 0, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
-			prop(chosen, scenery, cf, rng:NextNumber(0.9, 1.6), th)
+			local scale = rng:NextNumber(0.9, 1.6)
+			-- wide props (flower fields, hedges, dunes) need room for their size, not just a point
+			if clear(x, z, BARRIER + 12 + (PROP_REACH[chosen] or 0) * scale) then
+				prop(chosen, scenery, cf, scale, th)
+			end
 		end
 	end
 	-- a line of trees behind the barriers on classic circuits
@@ -2799,6 +3022,8 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 	if th.Fireworks and night then
 		startFireworks(deco, cx, cz, span, q)
 	end
+	-- nothing may stand on the road: remove anything that still reaches into it
+	local roadCleared = clearRoad(t, { walls, deco, scenery }, movers)
 	local moverConn = Life.Start(ctx)
 	progress("Ready", 1)
 
@@ -2845,6 +3070,7 @@ function CircuitBuilder.Build(trackId: string, quality: number?, onProgress: ((s
 			Meshes = meshesOn,
 			Landmarks = #sights,
 			Movers = #movers,
+			RoadCleared = roadCleared,
 		},
 	}
 	return current

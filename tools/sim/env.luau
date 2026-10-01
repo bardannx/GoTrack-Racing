@@ -20,6 +20,7 @@ Env.Game = game
 Env.Workspace = Workspace
 Env.Lighting = Lighting
 Env.Errors = {}
+Env.TrackOrigins = false -- set true to record where every part was created (attribute SimOrigin)
 
 ---------------------------------------------------------------------------
 -- Random (not provided by Lune)
@@ -510,6 +511,21 @@ function camera:IsA(c)
 	return c == "Camera"
 end
 
+-- Lune 0.10's CFrame.lookAt mirrors the target direction in Z (it faces (1, 0, -1) when
+-- asked to face (1, 0, 1)), so everything placed with it came out turned the wrong way.
+-- Roblox's version, rebuilt from fromMatrix, which Lune gets right.
+local CFrameFixed = setmetatable({
+	lookAt = function(at, target, up)
+		local look = (target - at).Unit
+		local right = look:Cross(up or roblox.Vector3.new(0, 1, 0))
+		if right.Magnitude < 1e-6 then
+			right = look:Cross(roblox.Vector3.new(0, 0, 1))
+		end
+		right = right.Unit
+		return roblox.CFrame.fromMatrix(at, right, right:Cross(look), -look)
+	end,
+}, { __index = roblox.CFrame })
+
 baseEnv = {
 	game = gameProxy,
 	workspace = Workspace,
@@ -525,6 +541,19 @@ baseEnv = {
 				return be
 			end
 			local inst = roblox.Instance.new(cls)
+			if
+				Env.TrackOrigins
+				and (
+					cls == "Part"
+					or cls == "WedgePart"
+					or cls == "MeshPart"
+					or cls == "TrussPart"
+					or cls == "CornerWedgePart"
+				)
+			then
+				-- remember which lines of game code made this part (tools/sim/roadcheck.luau)
+				inst:SetAttribute("SimOrigin", debug.traceback("", 2))
+			end
 			if parent then
 				inst.Parent = parent
 			end
@@ -533,7 +562,7 @@ baseEnv = {
 	},
 	Vector3 = roblox.Vector3,
 	Vector2 = roblox.Vector2,
-	CFrame = roblox.CFrame,
+	CFrame = CFrameFixed,
 	Color3 = roblox.Color3,
 	ColorSequence = roblox.ColorSequence,
 	ColorSequenceKeypoint = roblox.ColorSequenceKeypoint,

@@ -813,7 +813,9 @@ local function countryside(ctx, over, dist, maxD)
 	-- rolling hills further out
 	for _ = 1, ({ 2, 4, 7, 10 })[q] do
 		local k = rng:NextNumber(0.3, 0.7)
-		local at = ringSpot(ctx, dist, 420, maxD + 200, 900 * k * 0.33)
+		-- far enough out that even the corners of the hill's (randomly turned) box stay off
+		-- the road: up to 1.3x its 900-stud footprint, so about 0.92 x 900k corner to centre
+		local at = ringSpot(ctx, dist, math.max(420, 900 * k * 0.95), maxD + 200, 900 * k * 0.33)
 		if at then
 			hillAt(ctx, at, k, rng)
 			ctx.Occ.add(at.X, at.Z, 900 * k * 0.33)
