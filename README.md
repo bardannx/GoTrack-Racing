@@ -40,12 +40,6 @@
 
 ---
 
-## 👤 Made by
-
-GoTrack Racing is a solo project by **Bardan Kapri**, done over a weekend.
-
-- **AI was a tool, used to help with the coding.** The direction, the architecture and the design are mine.
-
 ---
 
 ## 📚 Learning from this repo
@@ -333,6 +327,8 @@ On top of that, `check.sh` runs `luau-lsp` over the whole codebase against a kno
 - **Code style.** StyLua for Luau and Ruff for Python, configured in `stylua.toml` and `ruff.toml` at the root.
 - **Docs.** [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`CAR_PIPELINE.md`](docs/CAR_PIPELINE.md) · [`WORLD_PIPELINE.md`](docs/WORLD_PIPELINE.md) · [`tools/sim`](tools/sim/README.md) · [`tools/tracks`](tools/tracks/README.md)
 
+---
+- **AI was a tool, used to help with the coding.** The direction, the architecture and the design are mine.
 ---
 
 <div align="center">
